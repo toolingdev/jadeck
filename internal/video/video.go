@@ -167,9 +167,9 @@ func Config(s settings.Settings) string {
 	b.WriteString("logLevel: info\nlogDestinations: [stdout]\n")
 	fmt.Fprintf(&b, "api: yes\napiAddress: %s\n", apiAddr)
 	fmt.Fprintf(&b, "rtsp: yes\nrtspAddress: :%d\nrtspTransports: [tcp]\n", PortRTSP)
-	b.WriteString("rtmp: no\n")
-	fmt.Fprintf(&b, "webrtc: yes\nwebrtcAddress: :%d\nwebrtcAllowOrigin: '*'\nwebrtcICEServers2: []\n", PortWebRTC)
-	fmt.Fprintf(&b, "hls: yes\nhlsAddress: :%d\nhlsAllowOrigin: '*'\nhlsVariant: lowLatency\n", PortHLS)
+	b.WriteString("rtmp: no\nmoq: no\n")
+	fmt.Fprintf(&b, "webrtc: yes\nwebrtcAddress: :%d\nwebrtcAllowOrigins: ['*']\nwebrtcICEServers2: []\n", PortWebRTC)
+	fmt.Fprintf(&b, "hls: yes\nhlsAddress: :%d\nhlsAllowOrigins: ['*']\nhlsVariant: lowLatency\n", PortHLS)
 	srt := s.Video.Program || s.Video.Confidence
 	if srt {
 		fmt.Fprintf(&b, "srt: yes\nsrtAddress: :%d\n", PortSRT)
