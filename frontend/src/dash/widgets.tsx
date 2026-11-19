@@ -1,0 +1,559 @@
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  MonitorPlay, Gamepad2, Bookmark, LayoutGrid, Sun, Home as HomeIcon, Square, ZoomIn, Gauge,
+  Tv, Presentation, ChevronsRight, Mic, MicOff, ListMusic, Play, ListChecks, Clock, Timer, Type, ScrollText,
+  ChevronLeft, ChevronRight, Loader2, type LucideIcon,
+} from "lucide-react";
+import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
+import { useShared, refreshShared, useLocal } from "@/lib/hooks";
+import { useLog } from "@/lib/log";
+import { setDrive, stopDrive } from "@/lib/control";
+import { cn } from "@/lib/cn";
+import { Button, Dialog, Segmented } from "@/components/ui";
+import { StreamView } from "@/components/StreamView";
+import { DirPad, Joystick, HoldButton, SpeedControl, FINE_SPEED, useCamAction } from "@/components/Drive";
+import { PresetGrid } from "@/components/Presets";
+import { ImageSettings } from "@/components/ImageSettings";
+import { Mixer } from "@/components/Booth";
+import { Macros } from "@/components/Macros";
+
+// ----------------------------------------------------------------- types
+
+export type Group = "camera" | "switcher" | "slides" | "audio" | "macros" | "other";
+export const GROUPS: { id: Group; label: string; needs?: "switcher" | "presentation" | "mixer" }[] = [
+  { id: "camera", label: "Camera" },
+  { id: "switcher", label: "Switcher", needs: "switcher" },
+  { id: "slides", label: "Slides", needs: "presentation" },
+  { id: "audio", label: "Audio", needs: "mixer" },
+  { id: "macros", label: "Macros" },
+  { id: "other", label: "Other" },
+];
+
+export type Field = {
+  key: string; label: string; type: "select" | "bool" | "text" | "number" | "source";
+  options?: { value: string; label: string }[]; source?: "presets" | "macros" | "favorites" | "slideActions";
+  help?: string; showIf?: (s: Settings) => boolean;
+};
+export type Settings = Record<string, unknown>;
+export type WidgetDef = {
+  type: string; label: string; group: Group; icon: LucideIcon; description: string;
+  size: { w: number; h: number; pw?: number; ph?: number }; // tablet/desktop + phone
+  min?: { w: number; h: number };
+  defaults: Settings; fields: Field[];
+  Render: (p: { s: Settings; editing: boolean }) => ReactNode;
+};
+
+const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
+const bool = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
+
+/** Chrome for widgets that aren't already a card. */
+function Frame({ title, children, className, right }: { title?: ReactNode; children: ReactNode; className?: string; right?: ReactNode }) {
+  return (
+    <div className={cn("flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel", className)}>
+      {title !== undefined && (
+        <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
+          <span className="truncate text-[12px] font-semibold text-fg">{title}</span>
+          <div className="ml-auto flex items-center gap-2">{right}</div>
+        </div>
+      )}
+      <div className={cn("min-h-0 flex-1", title !== undefined ? "px-3 pb-3" : "p-3")}>{children}</div>
+    </div>
+  );
+}
+
+function Fill({ children }: { children: ReactNode }) {
+  // Existing card components: make them fill the cell and scroll inside.
+  return <div className="h-full overflow-auto rounded-[var(--radius-card)] [&>section]:min-h-full">{children}</div>;
+}
+
+function Unset({ what }: { what: string }) {
+  return <Frame><div className="flex h-full items-center justify-center text-center text-xs text-dim">{what}</div></Frame>;
+}
+
+function useCfg() {
+  return useShared<StreamConfig>("/api/config", 0).data;
+}
+
+// ---------------------------------------------------------------- camera
+
+function MoveWidget({ s }: { s: Settings }) {
+  const controls = str(s.controls, "switchable") as "switchable" | "buttons" | "joystick";
+  const [saved, setSaved] = useLocal<"buttons" | "joystick">("ptz.mode", str(s.opensIn, "buttons") as "buttons" | "joystick");
+  const mode = controls === "switchable" ? saved : controls;
+  const [speed, setSpeed] = useLocal("ptz.speed", 40);
+  const [fine, setFine] = useLocal("ptz.fine", bool(s.startFine));
+  const top = fine ? Math.min(FINE_SPEED, speed) : speed;
+  useEffect(() => setDrive({ speed: top }), [top, mode]);
+  const home = bool(s.home, true), zoom = bool(s.zoom, true), showSpeed = bool(s.speed, true);
+  const act = useCamAction();
+  return (
+    <Frame title="Move" right={controls === "switchable" && (
+      <Segmented value={mode} onChange={setSaved} options={[{ value: "buttons", label: "Buttons" }, { value: "joystick", label: "Joystick" }]} />
+    )}>
+      <div className="flex h-full flex-col gap-3">
+        <div className="flex min-h-0 flex-1 items-center justify-center gap-3">
+          {mode === "buttons" ? (
+            <DirPad home={home} className="max-w-[min(300px,100%)]" />
+          ) : (
+            <div className="flex w-full max-w-[280px] flex-col items-center gap-2">
+              <Joystick speed={top} />
+              {home && !zoom && (
+                <Button className="w-full" onClick={() => act("Home", "/api/ptz/home")}><HomeIcon size={16} /> Home</Button>
+              )}
+            </div>
+          )}
+          {zoom && <ZoomCol home={home && mode === "joystick"} />}
+        </div>
+        {showSpeed && <SpeedControl speed={speed} onChange={setSpeed} fine={fine} onFine={setFine} label={mode === "joystick" ? "Top speed" : "Speed"} />}
+      </div>
+    </Frame>
+  );
+}
+
+function ZoomCol({ home }: { home: boolean }) {
+  const act = useCamAction();
+  const h = home ? "h-14" : "h-16";
+  return (
+    <div className="flex shrink-0 flex-col gap-2">
+      <HoldButton vec={{ zoom: 1 }} label="Zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><ZoomIn size={18} />TELE</HoldButton>
+      <HoldButton vec={{ zoom: -1 }} label="Zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}>−<br />WIDE</HoldButton>
+      <button type="button" aria-label="Stop" onClick={() => { stopDrive(); act("Stop", "/api/ptz/stop"); }}
+        className={cn(h, "flex w-16 items-center justify-center rounded-2xl border border-pgm/50 bg-pgm/15 text-bad active:scale-[0.97]")}>
+        <Square size={18} fill="currentColor" />
+      </button>
+      {home && (
+        <button type="button" aria-label="Home" onClick={() => act("Home", "/api/ptz/home")}
+          className="flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border border-line-strong bg-panel-2 text-[9px] font-bold tracking-[0.1em] text-muted active:scale-[0.97]">
+          <HomeIcon size={17} className="text-fg" />HOME
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OnePreset({ s }: { s: Settings }) {
+  const { data } = useShared<Preset[]>("/api/presets", 15000);
+  const { log } = useLog();
+  const name = str(s.preset);
+  const p = data?.find((x) => x.name === name);
+  if (!name) return <Unset what="Pick a preset in this widget's settings." />;
+  return (
+    <button
+      onClick={async () => {
+        if (!p) return log("Camera", `No preset named “${name}”`, false);
+        try { await api(`/api/presets/${p.id}/recall`, "POST"); log("Camera", `Preset “${p.name}”`); }
+        catch (e) { log("Camera", `Preset “${p.name}” failed — ${(e as Error).message}`, false); }
+      }}
+      className="flex h-full w-full flex-col items-start justify-center rounded-[var(--radius-card)] border border-line bg-panel-2 px-4 text-left transition hover:border-line-strong active:scale-[0.98]"
+    >
+      <span className="w-full truncate text-lg font-semibold">{str(s.label) || name}</span>
+      <span className="font-mono text-[10px] text-dim">{p ? `PRESET · SLOT ${p.slot}` : "PRESET NOT FOUND"}</span>
+    </button>
+  );
+}
+
+function BigButton({ onClick, className, children, label }: { onClick: () => void; className?: string; children: ReactNode; label: string }) {
+  return (
+    <button type="button" aria-label={label} onClick={onClick}
+      className={cn("flex h-full w-full flex-col items-center justify-center gap-1 rounded-[var(--radius-card)] border text-base font-bold transition active:scale-[0.98]", className)}>
+      {children}
+    </button>
+  );
+}
+
+function HomeWidget() {
+  const act = useCamAction();
+  return <BigButton label="Home" onClick={() => act("Home", "/api/ptz/home")} className="border-accent/50 bg-panel-2 text-accent"><HomeIcon size={26} />Home</BigButton>;
+}
+
+function StopWidget() {
+  const act = useCamAction();
+  return (
+    <BigButton label="Stop camera" onClick={() => { stopDrive(); act("Stop", "/api/ptz/stop"); }} className="border-pgm bg-pgm tracking-[0.1em] text-white">
+      <Square size={24} fill="currentColor" />STOP CAMERA
+    </BigButton>
+  );
+}
+
+function ZoomWidget() {
+  return (
+    <Frame>
+      <div className="grid h-full grid-rows-2 gap-2">
+        <HoldButton vec={{ zoom: 1 }} label="Zoom in" className="h-full w-full flex-col gap-1 text-sm font-bold">+<span>TELE</span></HoldButton>
+        <HoldButton vec={{ zoom: -1 }} label="Zoom out" className="h-full w-full flex-col gap-1 text-sm font-bold">−<span>WIDE</span></HoldButton>
+      </div>
+    </Frame>
+  );
+}
+
+function SpeedWidget() {
+  const [speed, setSpeed] = useLocal("ptz.speed", 40);
+  const [fine, setFine] = useLocal("ptz.fine", false);
+  return <Frame title="Speed"><SpeedControl speed={speed} onChange={setSpeed} fine={fine} onFine={setFine} /></Frame>;
+}
+
+// -------------------------------------------------------------- switcher
+
+function Feed({ kind }: { kind: "program" | "confidence" | "camera"; s: Settings }) {
+  const cfg = useCfg();
+  if (kind === "program") return <StreamView title="Program" whep={cfg?.programWhep} hls={cfg?.programHls} aspect="h-full" noSignalText="The program feed isn't reaching the stream gateway yet." />;
+  return <StreamView title="Confidence" whep={cfg?.confidenceWhep} hls={cfg?.confidenceHls} aspect="h-full" noSignalText="The confidence feed isn't reaching the gateway yet." />;
+}
+
+function LiveCam({ s }: { s: Settings }) {
+  const cfg = useCfg();
+  const sd = str(s.quality, "hd") === "sd";
+  return <StreamView key={sd ? "sd" : "hd"} title={str(s.title) || undefined} aspect="h-full"
+    whep={cfg ? (sd ? cfg.whepSd : cfg.whep) : undefined} hls={cfg ? (sd ? cfg.hlsSd : cfg.hls) : undefined} snapshot={cfg?.snapshot} />;
+}
+
+function useSwitcher() {
+  return useShared<SwitcherStatus>("/api/switcher/status", 2000);
+}
+
+function switchAct(log: ReturnType<typeof useLog>["log"]) {
+  return async (label: string, path: string, body?: unknown) => {
+    try { await api(path, "POST", body); log("Switcher", label); }
+    catch (e) { log("Switcher", `${label} failed — ${(e as Error).message}`, false); }
+    refreshShared("/api/switcher/status");
+  };
+}
+
+function Inputs() {
+  const { data: st } = useSwitcher();
+  const run = switchAct(useLog().log);
+  if (!st?.connected) return <Unset what={st?.error || "Switcher not answering."} />;
+  return (
+    <Frame title={st.label || "Inputs"}>
+      <div className="grid h-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 overflow-auto">
+        {st.inputs.map((i) => {
+          const pgm = i.number === st.active, pvw = i.number === st.preview;
+          return (
+            <button key={i.key || i.number} onClick={() => run(`Preview input ${i.number}`, "/api/switcher/preview", { input: i.number })}
+              className={cn("flex min-h-14 flex-col items-start justify-center rounded-xl border-2 px-3 text-left active:scale-[0.98]",
+                pgm ? "border-pgm bg-pgm/15" : pvw ? "border-pvw bg-pvw/12" : "border-line bg-panel-2")}>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{i.number} {pgm && <span className="text-pgm">PGM</span>}{pvw && <span className="text-pvw">PVW</span>}</span>
+              <span className="w-full truncate text-sm font-semibold">{i.title}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Frame>
+  );
+}
+
+function CutFade({ s }: { s: Settings }) {
+  const { data: st } = useSwitcher();
+  const run = switchAct(useLog().log);
+  const ms = Number(s.fadeMs) || 1000;
+  return (
+    <Frame>
+      <div className="grid h-full grid-cols-2 gap-2">
+        <Button variant="pgm" className="h-full text-xl" disabled={!st?.connected} onClick={() => run(`CUT — input ${st?.preview} to program`, "/api/switcher/cut")}>CUT</Button>
+        <Button className="h-full text-lg" disabled={!st?.connected} onClick={() => run(`FADE — input ${st?.preview} to program`, "/api/switcher/fade", { durationMs: ms })}>FADE {ms / 1000}s</Button>
+      </div>
+    </Frame>
+  );
+}
+
+// ---------------------------------------------------------------- slides
+
+function useSlides() {
+  return useShared<PresentationStatus>("/api/presentation/status", 5000);
+}
+
+function slideAct(log: ReturnType<typeof useLog>["log"], name: string) {
+  return async (action: string, label: string) => {
+    try { await api(`/api/presentation/${action}`, "POST"); log(name, label); }
+    catch (e) { log(name, `${label} failed — ${(e as Error).message}`, false); }
+  };
+}
+
+function PrevNext() {
+  const { data: st } = useSlides();
+  const act = slideAct(useLog().log, st?.label || "Slides");
+  return (
+    <Frame>
+      <div className="grid h-full grid-cols-[1fr_2fr] gap-2">
+        <Button className="h-full text-base" disabled={!st?.available} onClick={() => act("prev", "Previous slide")}><ChevronLeft size={20} />Prev</Button>
+        <Button variant="accent" className="h-full text-lg" disabled={!st?.available} onClick={() => act("next", "Next slide")}>Next slide<ChevronRight size={20} /></Button>
+      </div>
+    </Frame>
+  );
+}
+
+function SlideButton({ s }: { s: Settings }) {
+  const { data: st } = useSlides();
+  const act = slideAct(useLog().log, st?.label || "Slides");
+  const action = str(s.action);
+  if (!action) return <Unset what="Pick a slide action in this widget's settings." />;
+  const label = str(s.label) || { black: "Black screen", logo: "Logo", clear: "Clear text", next: "Next", prev: "Prev" }[action] || action;
+  return <BigButton label={label} onClick={() => act(action, label)} className="border-line bg-raise">{label}</BigButton>;
+}
+
+// ----------------------------------------------------------------- audio
+
+function MuteButton({ s }: { s: Settings }) {
+  const { data: st } = useShared<MixerStatus>("/api/mixer/status", 3000);
+  const { log } = useLog();
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const slot = Number(s.slot);
+  const ch = st?.channels.find((c) => c.slot === slot);
+  if (!slot) return <Unset what="Pick a favorite channel in this widget's settings." />;
+  if (!ch) return <Unset what={st ? "That favorite no longer exists." : "Reading the mixer…"} />;
+  const label = str(s.label) || ch.label;
+  const toggle = async (muted: boolean) => {
+    setBusy(true);
+    try {
+      const r = await api<{ muted: boolean }>("/api/mixer/mute", "POST", { slot, muted });
+      log("Audio", `${label} ${r.muted ? "muted" : "live"} (read back)`);
+    } catch (e) {
+      log("Audio", `${label} — ${(e as Error).message}`, false);
+    } finally {
+      setBusy(false);
+      refreshShared("/api/mixer/status");
+    }
+  };
+  const press = () => (ch.muted && bool(s.askUnmute) ? setAsk(true) : toggle(!ch.muted));
+  return (
+    <>
+      <button type="button" onClick={press} disabled={busy || ch.channel == null || !st?.connected}
+        className={cn("flex h-full w-full flex-col justify-between rounded-[var(--radius-card)] border-2 p-3 text-left transition active:scale-[0.98] disabled:opacity-50",
+          ch.muted ? "border-pgm/70 bg-pgm/15" : "border-line bg-panel-2")}>
+        <span className="flex w-full items-start gap-2">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-lg font-bold">{label}</span>
+            {bool(s.showChannel, true) && <span className="block text-[11px] text-dim">{ch.channel ? `Ch ${ch.channel}` : "unassigned"}{bool(s.askUnmute) ? " · asks before unmuting" : ""}</span>}
+          </span>
+          {busy ? <Loader2 size={18} className="animate-spin text-muted" /> : ch.muted ? <MicOff size={18} className="text-bad" /> : <Mic size={18} className="text-good" />}
+        </span>
+        <span className={cn("rounded-lg py-1.5 text-center text-sm font-bold tracking-[0.12em]", ch.muted ? "bg-pgm text-white" : ch.muted === false ? "bg-good/15 text-good" : "bg-raise text-dim")}>
+          {ch.muted == null ? "—" : ch.muted ? "MUTED" : "LIVE"}
+        </span>
+      </button>
+      <Dialog open={ask} onOpenChange={setAsk} title={`Unmute ${label}?`} description="This channel goes live in the room.">
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setAsk(false)}>Keep muted</Button>
+          <Button variant="accent" onClick={() => { setAsk(false); toggle(false); }}>Unmute</Button>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- macros
+
+function MacroButton({ s }: { s: Settings }) {
+  const { data } = useShared<Macro[]>("/api/macros", 10000);
+  const { log } = useLog();
+  const [busy, setBusy] = useState(false);
+  const name = str(s.macro);
+  const m = data?.find((x) => x.name === name);
+  if (!name) return <Unset what="Pick a macro in this widget's settings." />;
+  const run = async () => {
+    if (!m) return log("Macro", `No macro named “${name}”`, false);
+    setBusy(true);
+    try {
+      const r = await api<RunReport>(`/api/macros/${m.id}/run`, "POST");
+      log("Macro", r.ok ? `“${m.name}” ran — ${r.steps.length} steps verified` : `“${m.name}” stopped — ${r.error}`, r.ok);
+    } catch (e) {
+      log("Macro", `“${name}” — ${(e as Error).message}`, false);
+    } finally {
+      setBusy(false);
+      refreshShared("/api/macros");
+    }
+  };
+  return (
+    <button type="button" onClick={run} disabled={busy}
+      className="flex h-full w-full flex-col items-start justify-between rounded-[var(--radius-card)] border border-line bg-panel p-3 text-left transition hover:border-line-strong active:scale-[0.98]">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-fg">
+        {busy ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
+      </span>
+      <span className="w-full">
+        <span className="block truncate text-base font-bold">{str(s.label) || name}</span>
+        <span className={cn("block text-[11px]", m?.lastRun ? (m.lastRun.ok ? "text-good" : "text-bad") : "text-dim")}>
+          {!m ? "macro not found" : m.lastRun ? `last run ${new Date(m.lastRun.finishedAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ${m.lastRun.ok ? "✓" : "✗"}` : `${m.steps.length} steps`}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// ----------------------------------------------------------------- other
+
+function useNow(ms = 1000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+  return now;
+}
+
+function ClockWidget({ s }: { s: Settings }) {
+  const now = useNow();
+  const secs = bool(s.seconds);
+  return (
+    <Frame>
+      <div className="flex h-full flex-col items-center justify-center">
+        <div className="font-mono text-[clamp(28px,7vw,64px)] font-bold leading-none tabular">
+          {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", ...(secs ? { second: "2-digit" } : {}) })}
+        </div>
+        {bool(s.date) && <div className="mt-1 text-xs text-muted">{now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</div>}
+      </div>
+    </Frame>
+  );
+}
+
+function CountdownWidget({ s }: { s: Settings }) {
+  const now = useNow();
+  const target = str(s.target, "11:00");
+  const [hh, mm] = target.split(":").map(Number);
+  const t = new Date(now);
+  t.setHours(hh || 0, mm || 0, 0, 0);
+  const diff = Math.round((t.getTime() - now.getTime()) / 1000);
+  const abs = Math.abs(diff);
+  const text = `${diff < 0 ? "+" : ""}${Math.floor(abs / 3600) ? `${Math.floor(abs / 3600)}:` : ""}${String(Math.floor((abs % 3600) / 60)).padStart(abs >= 3600 ? 2 : 1, "0")}:${String(abs % 60).padStart(2, "0")}`;
+  return (
+    <Frame>
+      <div className="flex h-full flex-col items-center justify-center">
+        <div className="text-xs font-semibold uppercase tracking-[0.1em] text-muted">{str(s.label) || `until ${target}`}</div>
+        <div className={cn("font-mono text-[clamp(28px,7vw,64px)] font-bold leading-none tabular", diff < 0 ? "text-bad" : diff < 120 ? "text-accent" : "text-fg")}>{text}</div>
+        {diff < 0 && <div className="mt-1 text-[11px] text-bad">over time</div>}
+      </div>
+    </Frame>
+  );
+}
+
+function TextWidget({ s }: { s: Settings }) {
+  const size = { sm: "text-sm", md: "text-base", lg: "text-2xl", xl: "text-4xl" }[str(s.size, "md")] ?? "text-base";
+  return (
+    <Frame>
+      <div className={cn("flex h-full items-center whitespace-pre-wrap font-semibold", size, str(s.align) === "center" && "justify-center text-center")}>
+        {str(s.text) || <span className="text-dim">Write a note in this widget's settings.</span>}
+      </div>
+    </Frame>
+  );
+}
+
+function LogWidget() {
+  const { entries } = useLog();
+  return (
+    <Frame title="What just happened">
+      {entries.length === 0 ? <p className="text-sm text-dim">Nothing yet this session.</p> : (
+        <ul className="h-full space-y-1 overflow-y-auto font-mono text-xs">
+          {entries.map((e) => (
+            <li key={e.id} className="flex gap-3">
+              <span className="text-dim tabular">{e.at.toLocaleTimeString()}</span>
+              <span className={e.ok ? "text-accent" : "text-bad"}>{e.source}</span>
+              <span className={e.ok ? "text-fg" : "text-bad"}>{e.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Frame>
+  );
+}
+
+// -------------------------------------------------------------- registry
+
+const label = (k: string, l: string, extra: Partial<Field> = {}): Field => ({ key: k, label: l, type: "text", ...extra });
+
+export const WIDGETS: WidgetDef[] = [
+  { type: "camera.live", label: "Live view", group: "camera", icon: MonitorPlay, description: "The camera picture.",
+    size: { w: 6, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: { quality: "hd" },
+    fields: [{ key: "quality", label: "Quality", type: "select", options: [{ value: "hd", label: "HD" }, { value: "sd", label: "SD (lighter)" }] }, label("title", "Title on the picture")],
+    Render: ({ s }) => <LiveCam s={s} /> },
+  { type: "camera.move", label: "Move", group: "camera", icon: Gamepad2, description: "Arrows and/or joystick, with Home, zoom, stop and speed.",
+    size: { w: 5, h: 10, ph: 10 }, min: { w: 3, h: 6 },
+    defaults: { controls: "switchable", opensIn: "buttons", home: true, zoom: true, speed: true, startFine: false },
+    fields: [
+      { key: "controls", label: "Controls", type: "select", options: [{ value: "switchable", label: "Switchable (arrows ⇄ joystick)" }, { value: "buttons", label: "Arrows only" }, { value: "joystick", label: "Joystick only" }] },
+      { key: "opensIn", label: "Opens in", type: "select", options: [{ value: "buttons", label: "Arrows" }, { value: "joystick", label: "Joystick" }], showIf: (s) => str(s.controls, "switchable") === "switchable", help: "Each device then remembers its last choice." },
+      { key: "home", label: "Home button", type: "bool", help: "Centre of the arrows / beside the stick." },
+      { key: "zoom", label: "Zoom & Stop", type: "bool" },
+      { key: "speed", label: "Speed & Fine", type: "bool" },
+      { key: "startFine", label: "Start in Fine", type: "bool" },
+    ],
+    Render: ({ s }) => <MoveWidget s={s} /> },
+  { type: "camera.preset", label: "One preset", group: "camera", icon: Bookmark, description: "A single big preset button.",
+    size: { w: 3, h: 2, pw: 2, ph: 2 }, min: { w: 1, h: 2 }, defaults: {},
+    fields: [{ key: "preset", label: "Preset", type: "source", source: "presets" }, label("label", "Label (optional)")],
+    Render: ({ s }) => <OnePreset s={s} /> },
+  { type: "camera.presets", label: "Presets", group: "camera", icon: LayoutGrid, description: "All presets.",
+    size: { w: 6, h: 6, ph: 7 }, min: { w: 3, h: 3 }, defaults: {}, fields: [],
+    Render: () => <Fill><PresetGrid compact editable={false} /></Fill> },
+  { type: "camera.picture", label: "Picture", group: "camera", icon: Sun, description: "Brightness, white balance and the other picture settings.",
+    size: { w: 5, h: 9, ph: 10 }, min: { w: 3, h: 5 }, defaults: {}, fields: [],
+    Render: () => <Fill><ImageSettings /></Fill> },
+  { type: "camera.home", label: "Home", group: "camera", icon: HomeIcon, description: "A single Home button.",
+    size: { w: 2, h: 3, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: {}, fields: [], Render: () => <HomeWidget /> },
+  { type: "camera.stop", label: "Stop camera", group: "camera", icon: Square, description: "A big red stop.",
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 1, h: 2 }, defaults: {}, fields: [], Render: () => <StopWidget /> },
+  { type: "camera.zoom", label: "Zoom", group: "camera", icon: ZoomIn, description: "Tele and wide.",
+    size: { w: 2, h: 5, pw: 1, ph: 5 }, min: { w: 1, h: 3 }, defaults: {}, fields: [], Render: () => <ZoomWidget /> },
+  { type: "camera.speed", label: "Speed", group: "camera", icon: Gauge, description: "Speed slider and Fine.",
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <SpeedWidget /> },
+
+  { type: "switcher.program", label: "Program", group: "switcher", icon: Tv, description: "What the congregation sees.",
+    size: { w: 7, h: 8, ph: 5 }, min: { w: 2, h: 3 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="program" s={s} /> },
+  { type: "switcher.confidence", label: "Confidence", group: "switcher", icon: Presentation, description: "Current and next slide.",
+    size: { w: 5, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="confidence" s={s} /> },
+  { type: "switcher.inputs", label: "Input bank", group: "switcher", icon: LayoutGrid, description: "Tap an input to preview it.",
+    size: { w: 6, h: 4, ph: 5 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <Inputs /> },
+  { type: "switcher.cutfade", label: "Cut / Fade", group: "switcher", icon: ChevronsRight, description: "Take preview live.",
+    size: { w: 4, h: 3, ph: 3 }, min: { w: 2, h: 2 }, defaults: { fadeMs: 1000 },
+    fields: [{ key: "fadeMs", label: "Fade length (ms)", type: "number" }], Render: ({ s }) => <CutFade s={s} /> },
+
+  { type: "slides.prevnext", label: "Prev / Next", group: "slides", icon: Presentation, description: "Big slide buttons.",
+    size: { w: 4, h: 3, ph: 3 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <PrevNext /> },
+  { type: "slides.button", label: "Slide button", group: "slides", icon: Square, description: "One slide action (black, logo, clear…).",
+    size: { w: 2, h: 2, pw: 2, ph: 2 }, min: { w: 1, h: 2 }, defaults: {},
+    fields: [{ key: "action", label: "Action", type: "source", source: "slideActions" }, label("label", "Label (optional)")],
+    Render: ({ s }) => <SlideButton s={s} /> },
+
+  { type: "audio.favorites", label: "Favorites", group: "audio", icon: ListMusic, description: "All favorite channels.",
+    size: { w: 8, h: 6, ph: 9 }, min: { w: 3, h: 4 }, defaults: {}, fields: [], Render: () => <Fill><Mixer /></Fill> },
+  { type: "audio.mute", label: "Mute button", group: "audio", icon: Mic, description: "One channel, big.",
+    size: { w: 2, h: 4, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: { askUnmute: false, showChannel: true },
+    fields: [
+      { key: "slot", label: "Channel", type: "source", source: "favorites" },
+      label("label", "Label (optional)"),
+      { key: "askUnmute", label: "Ask before unmuting", type: "bool" },
+      { key: "showChannel", label: "Show channel number", type: "bool" },
+    ],
+    Render: ({ s }) => <MuteButton s={s} /> },
+
+  { type: "macros.button", label: "Macro button", group: "macros", icon: Play, description: "Run one macro.",
+    size: { w: 2, h: 3, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: {},
+    fields: [{ key: "macro", label: "Macro", type: "source", source: "macros" }, label("label", "Label (optional)")],
+    Render: ({ s }) => <MacroButton s={s} /> },
+  { type: "macros.list", label: "Macro list", group: "macros", icon: ListChecks, description: "All macros, with the builder.",
+    size: { w: 5, h: 7, ph: 8 }, min: { w: 3, h: 4 }, defaults: {}, fields: [], Render: () => <Fill><Macros /></Fill> },
+
+  { type: "other.clock", label: "Clock", group: "other", icon: Clock, description: "The time, big.",
+    size: { w: 3, h: 3, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: { seconds: false, date: false },
+    fields: [{ key: "seconds", label: "Show seconds", type: "bool" }, { key: "date", label: "Show the date", type: "bool" }],
+    Render: ({ s }) => <ClockWidget s={s} /> },
+  { type: "other.countdown", label: "Countdown", group: "other", icon: Timer, description: "Time left until a set time.",
+    size: { w: 3, h: 3, pw: 4, ph: 3 }, min: { w: 1, h: 2 }, defaults: { target: "11:00" },
+    fields: [label("target", "Count down to (HH:MM)"), label("label", "Label (optional)")],
+    Render: ({ s }) => <CountdownWidget s={s} /> },
+  { type: "other.text", label: "Text / note", group: "other", icon: Type, description: "A note or heading.",
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 1, h: 1 }, defaults: { size: "md" },
+    fields: [label("text", "Text"), { key: "size", label: "Size", type: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Huge" }] },
+      { key: "align", label: "Centre it", type: "select", options: [{ value: "", label: "Left" }, { value: "center", label: "Centre" }] }],
+    Render: ({ s }) => <TextWidget s={s} /> },
+  { type: "other.log", label: "Action log", group: "other", icon: ScrollText, description: "Every press, in plain words.",
+    size: { w: 6, h: 4, ph: 5 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <LogWidget /> },
+];
+
+export const WIDGET = Object.fromEntries(WIDGETS.map((w) => [w.type, w])) as Record<string, WidgetDef>;
+
+/** Shown for a widget type this build doesn't know (e.g. from a newer version). */
+export function UnknownWidget({ type }: { type: string }) {
+  return <Unset what={`Unknown widget “${type}”.`} />;
+}
+
+

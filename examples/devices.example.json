@@ -1,0 +1,19 @@
+{
+  "switcher": { "driver": "vmix", "label": "vMix", "host": "127.0.0.1", "port": 8088 },
+  "presentation": {
+    "driver": "http",
+    "label": "ProPresenter",
+    "baseUrl": "http://192.168.1.20:1025",
+    "actions": {
+      "next": { "path": "/v1/trigger/next" },
+      "prev": { "path": "/v1/trigger/previous" }
+    }
+  },
+  "mixer": { "driver": "osc", "preset": "x32", "label": "Behringer X32", "host": "192.168.1.30" },
+  "favorites": [
+    { "label": "Speaker", "channel": 1 },
+    { "label": "Worship Lead", "channel": 5 },
+    { "label": "Choir", "channel": 9 },
+    { "label": "Spare", "channel": 0 }
+  ]
+}

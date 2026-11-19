@@ -1,0 +1,656 @@
+/* PTZOptics web controller — dark theme only (the owner's standing preference).
+   Touch-first: every control is a >=52px target; identical features on
+   phone, tablet and desktop — layout adapts, capabilities never shrink. */
+:root {
+  --bg: #0b0e13;
+  --card: #131922;
+  --card2: #1a2230;
+  --line: #263145;
+  --text: #e8eef7;
+  --dim: #93a3ba;
+  --accent: #4f9cf9;
+  --accent2: #2f6fd0;
+  --danger: #e5534b;
+  --ok: #3fb68b;
+  --radius: 14px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand h1 { font-size: 17px; margin: 0; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; }
+.brand .sub { margin: 0; color: var(--dim); font-size: 12px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--danger);
+       flex: none; box-shadow: 0 0 8px rgba(0,0,0,.6); }
+.dot.on { background: var(--ok); }
+.readouts { display: flex; gap: 14px; font-size: 12px; color: var(--dim);
+             font-variant-numeric: tabular-nums; }
+.readouts b { color: var(--text); font-weight: 600; }
+#roDrive { font-weight: 700; letter-spacing: .04em; }
+.drive-off { color: var(--dim); }
+.drive-on { color: var(--accent); }
+
+main {
+  display: grid; gap: 14px; padding: 14px;
+  grid-template-columns: 1fr;
+  max-width: 1500px; margin: 0 auto;
+}
+/* Wrapper for the three control cards: no box of its own in the
+   normal layouts (cards remain grid items of main), a real scrolling
+   column in the phone-landscape layout at the bottom of this file. */
+.rail { display: contents; }
+@media (min-width: 980px) {
+  main { grid-template-columns: minmax(0, 7fr) minmax(320px, 5fr);
+         grid-template-areas: "stage controls" "presets controls"
+                              "advanced advanced"; }
+  .stage { grid-area: stage; }
+  .controls { grid-area: controls; }
+  .presets { grid-area: presets; }
+  .advanced { grid-area: advanced; }
+}
+.card { background: var(--card); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 12px; }
+
+.video-wrap { position: relative; background: #000; border-radius: 10px;
+              overflow: hidden; aspect-ratio: 16 / 9; }
+.video-wrap video, .video-wrap img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain; background: #000;
+}
+.video-badges { position: absolute; top: 8px; left: 8px; display: flex;
+                gap: 6px; z-index: 2; }
+.badge { background: rgba(8, 12, 18, .78); color: var(--dim);
+         border: 1px solid var(--line); font-size: 11px; font-weight: 700;
+         letter-spacing: .05em; padding: 4px 8px; border-radius: 999px; }
+.badge.live { color: var(--ok); }
+.badge.warn { color: #f0b429; }
+.stage-bar { display: flex; gap: 8px; align-items: center; margin-top: 10px;
+             flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line);
+       border-radius: 10px; overflow: hidden; }
+.seg-btn { background: var(--card2); color: var(--dim); border: 0;
+           padding: 10px 18px; font-size: 14px; font-weight: 700; }
+.seg-btn.active { background: var(--accent2); color: #fff; }
+button { font: inherit; color: var(--text); background: var(--card2);
+         border: 1px solid var(--line); border-radius: 12px;
+         min-height: 52px; min-width: 52px; cursor: pointer; }
+button:active, button.held { background: var(--accent2);
+                             border-color: var(--accent); color: #fff; }
+button.ghost { background: transparent; min-height: 42px; padding: 0 14px; }
+button.ghost.wide { width: 100%; margin-top: 10px; }
+a.ghost.link { display: inline-flex; align-items: center; min-height: 42px;
+               padding: 0 14px; color: var(--text); text-decoration: none;
+               border: 1px solid var(--line); border-radius: 12px; }
+
+.mode-row { display: flex; align-items: center; gap: 12px;
+            margin-bottom: 12px; flex-wrap: wrap; }
+.mode-hint { color: var(--dim); font-size: 12px; }
+
+.pad-wrap { display: flex; gap: 12px; }
+.pad[hidden], .joy[hidden], .zoom-col button[hidden] {
+  display: none !important; }
+
+/* Joystick: a thumb-sized stick that takes the pad's place. Drag = drive
+   (direction from the stick angle, speed from how far it is pushed, with
+   the Speed slider as the cap); release = spring back + stop. A plain
+   tap does nothing on purpose — Home is the dedicated ⌂ HOME button at
+   the top of the zoom column, shown only in this mode, so an interrupted
+   drag can never be misread as a Home command. */
+.joy { flex: 1; display: flex; align-items: center; justify-content: center; }
+.joy-base { position: relative; width: min(320px, 100%); aspect-ratio: 1;
+            border-radius: 50%; border: 1px solid var(--line);
+            background: radial-gradient(circle at 50% 50%,
+              var(--card) 0 52%, var(--card2) 80%, var(--card) 100%);
+            touch-action: none; cursor: grab; }
+.joy-base::before, .joy-base::after { content: ""; position: absolute;
+            background: var(--line); opacity: .55; pointer-events: none; }
+.joy-base::before { left: 50%; top: 7%; bottom: 7%; width: 1px; }
+.joy-base::after { top: 50%; left: 7%; right: 7%; height: 1px; }
+.joy-knob { position: absolute; left: 50%; top: 50%; width: 36%;
+            aspect-ratio: 1; border-radius: 50%; pointer-events: none;
+            background: var(--card2); border: 1px solid var(--accent2);
+            color: var(--dim); font-size: 24px;
+            display: flex; align-items: center; justify-content: center;
+            transform: translate(-50%, -50%)
+                       translate(var(--jx, 0px), var(--jy, 0px));
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.joy-knob.returning { transition: transform .18s ease; }
+.joy-knob.active { background: var(--accent2); border-color: var(--accent);
+                   color: #fff; }
+.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+       flex: 1; }
+.pad button { aspect-ratio: 1.15; font-size: 26px; touch-action: none; }
+.pad button.home { font-size: 22px; background: var(--card); }
+.zoom-col { display: flex; flex-direction: column; gap: 8px; width: 84px; }
+.zoom-col button { flex: 1; font-size: 22px; display: flex;
+                   flex-direction: column; align-items: center;
+                   justify-content: center; gap: 0; touch-action: none; }
+.zoom-col button small { font-size: 10px; letter-spacing: .08em;
+                         color: var(--dim); }
+.zoom-col button.stop { color: var(--danger); font-size: 18px; flex: .62; }
+
+.speed { display: block; margin-top: 14px; color: var(--dim);
+         font-size: 13px; }
+.speed input[type=range] { width: 100%; height: 36px; accent-color: var(--accent); }
+.speed-ends { display: flex; justify-content: space-between; }
+
+.focus-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+             margin-top: 8px; }
+.focus-row button { touch-action: none; }
+.focus-row .toggle.active { background: var(--accent2); color: #fff;
+                            border-color: var(--accent); }
+
+.presets-head { display: flex; justify-content: space-between;
+                align-items: center; }
+.presets-head h2 { font-size: 15px; margin: 0; letter-spacing: .03em; }
+.preset-grid { display: grid; gap: 8px; margin-top: 10px;
+               grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.preset { min-height: 64px; text-align: left; padding: 10px 12px;
+          display: flex; flex-direction: column; gap: 2px; }
+.preset .pname { font-weight: 700; font-size: 15px; }
+.preset .pslot { color: var(--dim); font-size: 11px; }
+.preset.flash { border-color: var(--ok); }
+.preset .pactions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.preset .pactions button { min-height: 36px; min-width: 0; padding: 0 10px;
+                           font-size: 12px; }
+.hint { color: var(--dim); font-size: 12px; margin: 10px 0 0; }
+
+/* Advanced settings: collapsible card, same full field set in both
+   layouts (parity rule). Sliders/selects write through to the camera's
+   image config on the service; rows that only apply to one WB/exposure
+   mode hide in the others, mirroring the camera's own menus. */
+.adv-group { border-top: 1px solid var(--line); margin-top: 12px;
+             padding-top: 10px; }
+.adv-group h3 { font-size: 13px; letter-spacing: .05em; margin: 0 0 2px;
+                text-transform: uppercase; }
+.adv-help { color: var(--dim); font-size: 12px; margin: 0 0 6px; }
+.adv-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+.adv-row[hidden] { display: none !important; }
+.adv-row label { flex: 0 0 118px; font-size: 13px; color: var(--dim); }
+.adv-row input[type=range] { flex: 1; min-width: 0; height: 34px;
+                             accent-color: var(--accent); }
+.adv-row select { flex: 1; min-width: 0; background: var(--card2);
+                  color: var(--text); border: 1px solid var(--line);
+                  border-radius: 10px; min-height: 44px; padding: 0 10px;
+                  font: inherit; font-size: 14px; }
+.adv-val { flex: 0 0 46px; text-align: right; font-size: 13px;
+           font-variant-numeric: tabular-nums; }
+.adv-row .toggle { min-width: 84px; min-height: 44px; }
+.adv-row .toggle.active { background: var(--accent2); color: #fff;
+                          border-color: var(--accent); }
+.adv-row .wide { flex: 1; }
+footer { padding: 0 16px 16px; color: var(--dim); font-size: 12px; }
+
+/* Staged updates: a slim banner only when there is something to say —
+   a verified update is ready, a staged package failed its safety
+   check and was ignored, or the outcome of the last update. The
+   updating overlay covers the restart; the page polls and reloads
+   itself when the app answers again. */
+.update-banner { display: flex; gap: 12px; align-items: center;
+                 justify-content: space-between; flex-wrap: wrap;
+                 width: calc(100% - 28px); max-width: 1500px;
+                 margin: 14px auto 0; padding: 10px 14px;
+                 border: 1px solid var(--accent2); background: var(--card2);
+                 border-radius: var(--radius); font-size: 14px;
+                 line-height: 1.4; }
+.update-banner[hidden] { display: none !important; }
+.update-banner.quiet { border-color: var(--line); background: var(--card);
+                       color: var(--dim); }
+.update-banner .ub-btns { display: flex; gap: 8px; flex: none; }
+#updateApplyBtn { background: var(--accent2); border-color: var(--accent);
+                  color: #fff; font-weight: 700; min-height: 44px;
+                  padding: 0 18px; }
+#updateOverlay { position: fixed; inset: 0; z-index: 50;
+                 background: rgba(4, 6, 10, .85); display: flex;
+                 align-items: center; justify-content: center;
+                 padding: 20px; }
+#updateOverlay[hidden] { display: none !important; }
+.uo-box { background: var(--card); border: 1px solid var(--accent2);
+          border-radius: var(--radius); padding: 22px;
+          max-width: 420px; text-align: center; }
+.uo-title { font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+.uo-text { color: var(--dim); font-size: 14px; margin: 6px 0;
+           line-height: 1.45; }
+.upd-ver { flex: none !important; text-align: left !important;
+           font-weight: 700; color: var(--text); }
+.upd-state { font-size: 13px; color: var(--dim); line-height: 1.4; }
+
+/* Pick a white point: the layer exactly covers the rendered image
+   (letterbox-corrected in JS), so a tap maps 1:1 to image coordinates.
+   While picking, a magnifier loupe floats above the finger — the dot
+   at its exact center is the pixel that will be used, so nobody has
+   to guess where a fingertip landed. On release the loupe collapses
+   to the pinned marker, which can be re-dragged before confirming. */
+.video-wrap.picking { outline: 2px solid var(--accent);
+                      outline-offset: -2px; overflow: visible; }
+#wbPickLayer { position: absolute; z-index: 3; cursor: crosshair;
+               touch-action: none; }
+#wbPickLayer[hidden], #wbLoupe[hidden], .wb-bar[hidden] {
+  display: none !important; }
+#wbMarker { position: absolute; width: 26px; height: 26px;
+            transform: translate(-50%, -50%); pointer-events: none;
+            border: 2px solid var(--accent); border-radius: 50%;
+            box-shadow: 0 0 0 2px rgba(8, 12, 18, .55); }
+#wbMarker::after { content: ""; position: absolute; left: 50%; top: 50%;
+                   width: 6px; height: 6px; border-radius: 50%;
+                   background: var(--accent);
+                   transform: translate(-50%, -50%); }
+#wbLoupe { position: absolute; z-index: 4; width: 128px; height: 128px;
+           border-radius: 50%; overflow: hidden; pointer-events: none;
+           border: 2px solid var(--accent);
+           box-shadow: 0 10px 28px rgba(0, 0, 0, .6);
+           transform: translate(-50%, -50%); background: #000; }
+#wbLoupe canvas { width: 100%; height: 100%; display: block; }
+.wb-loupe-ring { position: absolute; left: 50%; top: 50%; width: 30px;
+                 height: 30px; border: 1px solid rgba(79, 156, 249, .85);
+                 border-radius: 50%; transform: translate(-50%, -50%); }
+.wb-loupe-ring::before, .wb-loupe-ring::after { content: "";
+                 position: absolute; background: rgba(79, 156, 249, .5); }
+.wb-loupe-ring::before { left: 50%; top: -16px; bottom: -16px; width: 1px; }
+.wb-loupe-ring::after { top: 50%; left: -16px; right: -16px; height: 1px; }
+.wb-loupe-dot { position: absolute; left: 50%; top: 50%; width: 7px;
+                height: 7px; border-radius: 50%; background: var(--accent);
+                border: 1px solid rgba(8, 12, 18, .8);
+                transform: translate(-50%, -50%); }
+.wb-bar { margin-top: 10px; border: 1px solid var(--accent2);
+          border-radius: 10px; padding: 10px 12px; background: var(--card2); }
+.wb-bar-main { display: flex; gap: 10px; align-items: flex-start; }
+.wb-bar-text { margin: 0; font-size: 13px; line-height: 1.45; }
+.wb-warn { color: #f0b429; font-weight: 700; }
+.wb-swatch { flex: none; width: 34px; height: 34px; border-radius: 8px;
+             border: 1px solid var(--line); margin-top: 2px; }
+.wb-bar-btns { display: flex; gap: 8px; margin-top: 10px; }
+.wb-bar-btns #wbConfirm { flex: 1; background: var(--accent2);
+                          border-color: var(--accent); color: #fff;
+                          font-weight: 700; }
+.wb-bar-btns #wbConfirm:disabled { opacity: .45; }
+
+/* ------------------------------------------------ fullscreen video
+   the owner (Nov 7, 2026, live in a service): tap the picture and the
+   on-video chrome — stream badge, tier bar, fullscreen button —
+   gets out of the way; tap again and it comes back. The square
+   button at the video's bottom right takes the whole STAGE full
+   screen (the overlays come along, unlike a bare-video fullscreen);
+   in fullscreen the chrome also fades on its own after ~3 s without
+   a touch. Three entry paths, one behavior: the Fullscreen API on
+   the stage where available; the video element's native fullscreen
+   on iPhone for the video tiers (element fullscreen doesn't exist
+   there); and a CSS maximized stage anywhere else (e.g. the
+   snapshot tier on iPhone). Exiting always restores the layout —
+   portrait stack, landscape rail, or desktop grid — untouched. */
+#fsBtn { position: absolute; z-index: 6;
+         right: calc(8px + env(safe-area-inset-right));
+         bottom: calc(8px + env(safe-area-inset-bottom));
+         width: 48px; height: 48px; min-width: 48px; min-height: 48px;
+         padding: 0; display: flex; align-items: center;
+         justify-content: center; color: var(--text);
+         background: rgba(8, 12, 18, .78);
+         border: 1px solid var(--line); border-radius: 12px; }
+#fsBtn:hover { border-color: var(--accent); }
+#fsBtn .fs-ico-compress { display: none; }
+#fsBtn.in-fs .fs-ico-compress { display: block; }
+#fsBtn.in-fs .fs-ico-expand { display: none; }
+/* While picking a white point the pane belongs to the loupe: no
+   fullscreen button, and (in app.js) no tap-to-toggle. */
+.video-wrap.picking #fsBtn { display: none !important; }
+
+.video-badges, #fsBtn, .stage-bar { transition: opacity .25s ease; }
+.stage.chrome-off .video-badges,
+.stage.chrome-off #fsBtn,
+.stage.chrome-off .stage-bar {
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .25s ease, visibility 0s linear .25s; }
+
+.stage:fullscreen, .stage:-webkit-full-screen, .stage.maximized {
+  display: flex; flex-direction: column;
+  background: #000; border: 0; border-radius: 0; padding: 0; }
+.stage.maximized { position: fixed; inset: 0; z-index: 80;
+                   width: 100vw; height: 100vh; height: 100dvh; }
+body.fs-lock { overflow: hidden; }
+.stage:fullscreen .video-wrap,
+.stage:-webkit-full-screen .video-wrap,
+.stage.maximized .video-wrap {
+  flex: 1 1 auto; min-height: 0; aspect-ratio: auto;
+  border-radius: 0; }
+/* In fullscreen the tier bar becomes an overlay along the bottom
+   edge (over the picture's lower gradient), so hiding the chrome
+   leaves literally just the video, filling the screen. */
+.stage:fullscreen .stage-bar,
+.stage:-webkit-full-screen .stage-bar,
+.stage.maximized .stage-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+  margin-top: 0;
+  padding: 22px 12px calc(10px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, rgba(4, 6, 10, 0),
+                              rgba(4, 6, 10, .72)); }
+
+/* ------------------------------------------------ phone landscape
+   Short landscape screens (a phone turned sideways): the portrait
+   stack just stretches there, so landscape gets its own arrangement
+   — full-height stage on the left, a fixed control rail on the
+   right, the page itself never scrolls (the rail scrolls inside).
+   Same DOM, same features; only the arrangement changes. Desktop
+   and portrait are untouched (this block is last on purpose, so it
+   wins over the >=980px block if both could match). */
+@media (orientation: landscape) and (max-height: 540px) {
+  body { height: 100vh; height: 100dvh; display: flex;
+         flex-direction: column; overflow: hidden; }
+  header { flex: none; flex-wrap: nowrap; padding: 6px 12px; }
+  .brand h1 { font-size: 15px; }
+  .brand .sub { display: none; }   /* model/firmware line yields its
+                                      height to the picture; the name,
+                                      readouts and stream badge stay */
+  .readouts { flex: none; gap: 10px; }
+  .update-banner { flex: none; width: calc(100% - 20px);
+                   margin: 8px auto 0; padding: 8px 12px; }
+  main { flex: 1; min-height: 0; width: 100%; max-width: none;
+         margin: 0; padding: 10px; gap: 10px;
+         grid-template-columns: minmax(0, 1fr) 324px;
+         grid-template-rows: minmax(0, 1fr);
+         grid-template-areas: "stage rail"; }
+  .stage { grid-area: stage; display: flex; flex-direction: column;
+           min-height: 0; padding: 8px; position: relative; }
+  .stage .video-wrap { flex: 1 1 auto; min-height: 0;
+                       aspect-ratio: auto; }
+  .stage-bar { flex: none; }
+  /* While picking a white point, the bar floats over the bottom of
+     the stage instead of taking layout height: in a 300px-tall
+     stage its wrapped text would otherwise crush the picture (and
+     the pick layer on it) to nothing. It scrolls internally if a
+     very short screen needs that. */
+  .wb-bar { position: absolute; left: 8px; right: 8px; bottom: 8px;
+            z-index: 6; margin-top: 0; max-height: calc(100% - 16px);
+            overflow-y: auto; overscroll-behavior: contain;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, .55); }
+  /* The magnifier is the precision instrument while picking: it
+     floats above the bar, never hidden behind it. */
+  #wbLoupe { z-index: 8; }
+  .mode-row { margin-bottom: 8px; }
+  .rail { grid-area: rail; display: flex; flex-direction: column;
+          gap: 10px; min-height: 0; overflow-y: auto;
+          overscroll-behavior: contain; padding-right: 2px; }
+  .rail > .card { flex: none; padding: 10px; }
+  /* The joystick base is sized off the pad it replaces; in the rail
+     it takes the rail's width, capped by viewport height too, so
+     the whole stick stays on screen at short landscape heights. */
+  .joy-base { width: min(272px, 100%, 52dvh); }
+  footer { display: none; }   /* its line duplicates the dot +
+                                  readouts; the height goes to video */
+}
+
+/* ------------------------------------------------ view switcher
+   The app is two views over one service — Dashboard and Camera —
+   and the switcher sits in both headers saying where you are.
+   Plain links: a view change is a page load, nothing fancier is
+   needed, and the back button keeps working. */
+.view-switch { display: inline-flex; border: 1px solid var(--line);
+               border-radius: 10px; overflow: hidden; flex: none; }
+.vs-btn { padding: 10px 18px; font-size: 14px; font-weight: 700;
+          color: var(--dim); text-decoration: none;
+          background: var(--card2); }
+.vs-btn.active { background: var(--accent2); color: #fff; }
+
+/* ------------------------------------------------ dashboard
+   The unifying view (DASHBOARD.md), laid out after the approved
+   mockup: monitors on top (program wider than confidence), three
+   control decks, the WING strip, and the action log. iPad-first;
+   collapses to one column on phones, spreads on desktop. It uses
+   the app's own palette and components — no second design
+   language to learn in the booth. */
+.links { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.link-pill { display: inline-flex; align-items: center; gap: 7px;
+             font-size: 12px; font-weight: 700; color: var(--dim);
+             background: var(--card); border: 1px solid var(--line);
+             border-radius: 999px; padding: 6px 11px; white-space: nowrap; }
+.link-pill .dot.mini { width: 8px; height: 8px; box-shadow: none; }
+.link-pill.sim { border-color: #6b5322; color: #f0b429; }
+
+main.dash { display: flex; flex-direction: column; gap: 14px; }
+.dash-monitors { display: grid; gap: 14px;
+                 grid-template-columns: 1fr; }
+.dash-decks { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 761px) {
+  .dash-monitors { grid-template-columns: 7fr 5fr; align-items: start; }
+  .dash-decks { grid-template-columns: 1fr 1fr; }
+  .dash-decks .deck:last-child { grid-column: 1 / -1; }
+}
+@media (min-width: 1180px) {
+  .dash-decks { grid-template-columns: 1fr 1fr 1fr; }
+  .dash-decks .deck:last-child { grid-column: auto; }
+}
+.pane-head { display: flex; align-items: center; gap: 9px;
+             flex-wrap: wrap; margin-bottom: 10px; }
+.pane-head h2 { margin: 0; font-size: 14.5px; letter-spacing: .01em; }
+.pane-src { margin-left: auto; color: var(--dim); font-size: 11.5px;
+            font-weight: 600; white-space: nowrap; }
+.tag { font-size: 10.5px; font-weight: 700; letter-spacing: .07em;
+       padding: 4px 8px; border-radius: 6px; text-transform: uppercase;
+       white-space: nowrap; }
+.tag-red { background: var(--danger); color: #fff; }
+.tag-teal { background: #12484c; color: #8fe3e8; }
+.pane-foot { color: var(--dim); font-size: 12.5px; margin: 10px 0 0; }
+
+/* A pane with nothing on its gateway path: the picture area says
+   so in plain words instead of sitting black and mysterious. */
+.no-signal { position: absolute; inset: 0; z-index: 2; display: flex;
+             flex-direction: column; align-items: center;
+             justify-content: center; text-align: center; gap: 4px;
+             padding: 18px; background: #0d1320; }
+.no-signal[hidden] { display: none !important; }
+.ns-title { margin: 0; font-weight: 800; font-size: 17px;
+            letter-spacing: .06em; color: var(--dim);
+            text-transform: uppercase; }
+.ns-text { margin: 0; color: var(--dim); font-size: 13px;
+           line-height: 1.5; max-width: 34em; }
+.no-signal button { margin-top: 8px; }
+
+/* vMix deck */
+.deck-hint { margin-top: 0; }
+.input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.input-btn { text-align: left; padding: 10px 11px; min-height: 52px;
+             display: flex; flex-direction: column; gap: 2px;
+             align-items: stretch; }
+.input-btn .num { font-size: 10.5px; color: var(--dim);
+                  font-weight: 700; letter-spacing: .05em; }
+.input-btn .lbl { font-weight: 700; font-size: 13.5px; line-height: 1.2; }
+.input-btn.is-preview { border-color: var(--ok);
+                        box-shadow: inset 0 0 0 1px var(--ok);
+                        background: #12271d; }
+.input-btn.is-program { border-color: var(--danger);
+                        box-shadow: inset 0 0 0 1px var(--danger);
+                        background: #2b1416; }
+.take-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+             margin-top: 10px; }
+.take-btn { font-weight: 800; font-size: 15px; letter-spacing: .05em; }
+.take-btn.cut { background: #3a1416; border-color: #7a1f23;
+                color: #ffb4b7; }
+.mini-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.mini-stat { flex: 1 1 auto; font-size: 13px; font-weight: 700;
+             color: var(--dim); padding: 8px 4px; }
+.mini-stat.on { color: var(--ok); }
+.mini-btn { flex: 1 1 auto; min-height: 44px; font-size: 13px;
+            font-weight: 700; color: var(--dim); }
+
+/* Proclaim deck */
+.slide-nav { display: grid; grid-template-columns: 1fr 1.4fr; gap: 9px; }
+.nav-btn { min-height: 64px; font-weight: 800; font-size: 16px;
+           display: flex; align-items: center; justify-content: center;
+           gap: 8px; }
+.nav-btn.next { background: #173a2a; border-color: #1f5c3d;
+                color: #a9ecc8; font-size: 18px; }
+.nav-btn .arrow { font-size: 20px; line-height: 1; }
+.midi-flash { font-size: 12.5px; color: var(--dim);
+              background: var(--card2); border: 1px solid var(--line);
+              border-radius: 8px; padding: 9px 11px; margin-top: 10px;
+              min-height: 38px; display: flex; align-items: center;
+              transition: border-color .2s, color .2s; }
+.midi-flash.hit { color: #f0b429; border-color: #6b5322; }
+
+/* Camera quick strip */
+.cam-mini { aspect-ratio: 16 / 7; margin-bottom: 10px; }
+.dash-presets { margin-top: 0; }
+.dash-ptz { display: flex; gap: 12px; margin-top: 10px; }
+.dash-pad { flex: 1; }
+
+/* WING strip — mute only (DASHBOARD.md): the state word and the
+   button both come from the console's own read-back, so red here
+   means the desk really is muted. 8 slots: 4 x 2 on iPad and
+   desktop (8-across would starve the long names — WIRELESS GRAY),
+   2 x 4 on phone, where the strip grows taller but loses nothing. */
+.wing-grid { display: grid; gap: 12px;
+             grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 761px) {
+  .wing-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 760px) {
+  /* Two-abreast phone cards are too narrow for name + channel +
+     state on one line: the name may wrap, and the channel label
+     drops to its own line under it — nothing is hidden. */
+  .chan-name { white-space: normal; font-size: 15px; }
+  .chan-top { flex-wrap: wrap; }
+  .chan-assign { order: 3; flex-basis: 100%; }
+}
+.chan { background: var(--card2); border: 1px solid var(--line);
+        border-radius: 12px; padding: 12px; display: flex;
+        flex-direction: column; gap: 10px; min-width: 0; }
+.chan.muted { border-color: #7a1f23; background: #221114; }
+.chan-top { display: flex; align-items: baseline; gap: 8px; }
+.chan-name { font-size: 16px; font-weight: 800; white-space: nowrap;
+             flex: none; }
+.chan-assign { font-size: 11.5px; color: var(--dim); font-weight: 600;
+               white-space: nowrap; overflow: hidden;
+               text-overflow: ellipsis; }
+.chan-state { margin-left: auto; font-size: 10.5px; font-weight: 700;
+              letter-spacing: .08em; color: var(--ok); flex: none; }
+.chan.muted .chan-state { color: #ffb4b7; }
+.mute-btn { width: 100%; min-height: 58px; font-weight: 800;
+            font-size: 17px; letter-spacing: .1em; color: var(--dim); }
+.mute-btn[aria-pressed="true"] { background: var(--danger);
+  border-color: #ff7a7e; color: #fff; }
+.mute-btn:disabled { opacity: .45; cursor: default; }
+
+/* Macros — chained WING actions (MACROS.md). Cards in a grid like
+   the WING strip (one column on phone, two up on wider screens —
+   nothing about a macro is hidden or shrunk on the phone). The
+   builder is plain stacked rows: every target >= 44px, selects
+   and inputs styled like the Advanced rows they sit beside. */
+.macro-list { display: grid; gap: 12px;
+              grid-template-columns: 1fr; }
+@media (min-width: 761px) {
+  .macro-list { grid-template-columns: 1fr 1fr; }
+}
+.macro-card { background: var(--card2); border: 1px solid var(--line);
+              border-radius: 12px; padding: 12px; display: flex;
+              flex-direction: column; gap: 8px; min-width: 0; }
+.macro-card.failed { border-color: #7a1f23; }
+.macro-top { display: flex; align-items: baseline; gap: 8px; }
+.macro-name { font-size: 16px; font-weight: 800; min-width: 0;
+              overflow-wrap: anywhere; }
+.macro-desc { margin: 0; font-size: 12.5px; color: var(--dim);
+              line-height: 1.45; overflow-wrap: anywhere; }
+.macro-summary { margin: 0; font-size: 12.5px; color: var(--dim);
+                 line-height: 1.5; }
+.macro-actions { display: flex; gap: 8px; flex-wrap: wrap;
+                 margin-top: auto; }
+.macro-run { flex: 1 1 auto; min-height: 52px; font-weight: 800;
+             font-size: 15px; letter-spacing: .04em;
+             background: #173a2a; border-color: #1f5c3d;
+             color: #a9ecc8; }
+.macro-run:disabled { opacity: .45; cursor: default; }
+.macro-small { min-height: 52px; padding: 0 16px; font-weight: 700;
+               color: var(--dim); }
+.macro-lastrun { font-size: 12.5px; color: var(--dim);
+                 line-height: 1.5; }
+.macro-lastrun .ok { color: var(--ok); font-weight: 700; }
+.macro-lastrun .bad { color: #ffb4b7; font-weight: 700; }
+.step-chips { display: flex; flex-direction: column; gap: 3px;
+              margin-top: 4px; }
+.step-chip { font-size: 12px; display: flex; gap: 7px;
+             align-items: baseline; }
+.step-chip .mark { flex: none; font-weight: 800; }
+.step-chip.pass .mark { color: var(--ok); }
+.step-chip.fail { color: #ffb4b7; }
+.step-chip.fail .mark { color: var(--danger); }
+.step-chip.skip { color: var(--dim); }
+.macro-editor, .macro-import { margin-top: 12px;
+  border-top: 1px solid var(--line); padding-top: 12px; }
+.macro-editor input[type="text"],
+.macro-import textarea {
+  flex: 1; min-width: 0; background: var(--card2);
+  color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; min-height: 44px; padding: 0 10px;
+  font: inherit; font-size: 14px; }
+.macro-import textarea { width: 100%; padding: 10px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12.5px; line-height: 1.45; resize: vertical; }
+.macro-steps { display: flex; flex-direction: column; gap: 8px;
+               margin-top: 10px; }
+.mstep { display: flex; gap: 8px; align-items: center;
+         flex-wrap: wrap; background: var(--card2);
+         border: 1px solid var(--line); border-radius: 12px;
+         padding: 8px; }
+.mstep .mstep-num { font-size: 11.5px; font-weight: 800;
+  color: var(--dim); flex: none; min-width: 20px;
+  text-align: center; }
+.mstep select, .mstep input[type="number"] {
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px;
+  min-height: 44px; padding: 0 8px; font: inherit; font-size: 14px;
+  min-width: 0; }
+.mstep select { flex: 1 1 130px; }
+.mstep input[type="number"] { flex: 0 1 96px; }
+.mstep .mstep-btns { display: flex; gap: 6px; margin-left: auto; }
+.mstep .mstep-btns button { min-width: 44px; min-height: 44px;
+  padding: 0 8px; font-weight: 800; color: var(--dim); }
+.macro-save { flex: 1 1 auto; min-height: 52px; font-weight: 800;
+  background: var(--accent2); border-color: var(--accent);
+  color: #fff; }
+.macro-err { color: #ffb4b7; font-size: 13px; line-height: 1.45;
+             margin: 10px 0 0; white-space: pre-wrap; }
+
+/* Action log */
+.log-body { display: flex; flex-direction: column; gap: 5px;
+            max-height: 172px; overflow: hidden; }
+.log-line { font-size: 12.5px; color: var(--dim); display: flex;
+            gap: 10px; align-items: baseline; }
+.log-line .t { color: var(--dim); flex: none;
+               font-variant-numeric: tabular-nums; }
+.log-line .sys { font-weight: 700; flex: none; min-width: 74px; }
+.log-line .sys.vmix { color: var(--accent); }
+.log-line .sys.proclaim { color: #39c2c9; }
+.log-line .sys.ptz { color: #c9a2f5; }
+.log-line .sys.wing { color: #f0b429; }
+.log-line .sys.macro { color: #7ee0b8; }
+.log-line:first-child { color: var(--text); }
+
+.foot-note { color: var(--dim); font-size: 12.5px; line-height: 1.55;
+             margin: 2px 4px 0; }
+
+/* Short landscape (phone sideways): the dashboard scrolls inside
+   the fixed body the camera layout imposes — same DOM, same decks.
+   And the view switcher slims down with the rest of the header:
+   at full size it pushes the camera layout's header past the
+   height its landscape arrangement budgets for it. */
+@media (orientation: landscape) and (max-height: 540px) {
+  main.dash { overflow-y: auto; overscroll-behavior: contain;
+              min-height: 0; }
+  /* ~22px tall: no taller than the brand line it sits beside, so
+     the header keeps the exact height the layout was built with
+     (33px) and the joystick geometry below it doesn't shift. */
+  .vs-btn { padding: 2px 10px; font-size: 12.5px; line-height: 1.25; }
+}

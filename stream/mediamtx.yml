@@ -1,0 +1,63 @@
+# MediaMTX — stream gateway for the PTZOptics controller.
+# Verified latest stable: v1.21.3 (GitHub release, 2026-10-25).
+#
+# Role: pull the camera's RTSP once, re-serve it to browsers as
+#   WebRTC/WHEP  (sub-second latency — the primary control-view feed)
+#   HLS          (fallback for browsers with native HLS, e.g. Safari/iOS)
+# The FastAPI service does NOT proxy video; browsers talk to MediaMTX
+# directly on the venue LAN. snapshot.jpg via the service is tier 3.
+#
+# Camera: PT30X-NDI-G2 at 10.1.10.110, workmode RTSP, RTSP auth OFF
+# (rtsp_auth_en 0, confirmed in the 2026-11-07 config snapshot), so no
+# credentials in the source URLs. PTZOptics G2 RTSP paths: /1 = main (HD),
+# /2 = sub (SD).
+
+logLevel: info
+rtsp: true
+rtspAddress: :8554
+
+# WebRTC / WHEP
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigin: '*'
+# On the venue LAN no ICE servers are needed (host candidates only).
+webrtcICEServers2: []
+
+# HLS fallback
+hls: true
+hlsAddress: :8888
+hlsAllowOrigin: '*'
+hlsVariant: lowLatency
+
+paths:
+  cam:
+    source: rtsp://10.1.10.110:554/1
+    sourceProtocol: tcp
+  cam_sd:
+    source: rtsp://10.1.10.110:554/2
+    sourceProtocol: tcp
+
+  # ---------------------------------------------------------------
+  # Dashboard feeds (DASHBOARD.md): the service dashboard's two
+  # panes play these paths — `program` is the vMix program output,
+  # `confidence` is Proclaim's confidence-monitor output. Both
+  # sources send NDI on the venue LAN today.
+  #
+  # FINDING (verified 2026-11-07 against upstream): MediaMTX has
+  # NO NDI source support — not in this pinned v1.21.3, and not in
+  # any other release (NDI is absent from its protocol list; the
+  # upstream request, bluenviron/mediamtx#1014, has been open
+  # since 2022). An `ndi://` source here would make the gateway
+  # reject this whole file and take the WORKING camera paths down
+  # with it — so the NDI ingest is CONFIG-GATED OFF: the two paths
+  # exist as publisher reservations (valid config; nothing
+  # publishes yet; the dashboard panes show their no-signal
+  # state). The moment an NDI-capable ingest is chosen — a
+  # gateway that speaks NDI, or an NDI->RTSP bridge on the PC
+  # publishing into these paths — the panes light up with no app
+  # change. Do NOT write an ndi:// source into this MediaMTX
+  # config; it cannot read one.
+  program:
+    source: publisher
+  confidence:
+    source: publisher

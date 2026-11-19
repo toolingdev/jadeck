@@ -1,0 +1,76 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Dark only (standing preference). Broadcast conventions: red = program
+   (live), green = preview, amber = the app's own accent. */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --color-bg: #0b0d10;
+  --color-panel: #12151a;
+  --color-panel-2: #181c22;
+  --color-raise: #1f242c;
+  --color-line: #262c35;
+  --color-line-strong: #343b46;
+  --color-fg: #e8ebf0;
+  --color-muted: #8d96a5;
+  --color-dim: #5d6573;
+  --color-accent: #f5a524;
+  --color-accent-fg: #1a1205;
+  --color-pgm: #ef4444;
+  --color-pvw: #22c55e;
+  --color-info: #60a5fa;
+  --color-warn: #f59e0b;
+  --color-bad: #f87171;
+  --color-good: #4ade80;
+
+  --radius-card: 14px;
+}
+
+html, body, #root { height: 100%; }
+html { color-scheme: dark; background: var(--color-bg); }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+/* Touch controls: no text selection or callouts while holding. */
+.touch-hold { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.tabular { font-variant-numeric: tabular-nums; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--color-line-strong); border-radius: 8px; border: 2px solid var(--color-bg); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Dashboard grid (react-grid-layout) in the Booth Console look. */
+.react-grid-item.react-grid-placeholder {
+  background: var(--color-accent) !important;
+  opacity: 0.14 !important;
+  border-radius: var(--radius-card);
+}
+.react-grid-item { transition: transform 180ms ease, width 180ms ease, height 180ms ease; }
+.react-grid-item.react-draggable-dragging,
+.react-grid-item.resizing { transition: none; z-index: 30; }
+.react-grid-item.react-draggable-dragging > * { box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6); }
+.dash-edit .react-grid-item > .react-resizable-handle {
+  z-index: 20;
+  width: 22px;
+  height: 22px;
+  right: 2px;
+  bottom: 2px;
+  background: none;
+}
+.dash-edit .react-grid-item > .react-resizable-handle::after {
+  right: 5px;
+  bottom: 5px;
+  width: 10px;
+  height: 10px;
+  border-right: 3px solid var(--color-accent);
+  border-bottom: 3px solid var(--color-accent);
+  border-radius: 0 0 3px 0;
+}

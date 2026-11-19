@@ -1,0 +1,31 @@
+{
+  "switcher": {
+    "driver": "vmix",
+    "label": "vMix",
+    "host": "127.0.0.1",
+    "port": 8088
+  },
+  "presentation": {
+    "driver": "midi",
+    "label": "Proclaim",
+    "port": "loopMIDI",
+    "channel": 1,
+    "actions": { "prev": 60, "next": 62, "black": 64, "logo": 65, "clear": 66 }
+  },
+  "mixer": {
+    "driver": "osc",
+    "preset": "wing",
+    "label": "Behringer WING",
+    "host": ""
+  },
+  "favorites": [
+    { "label": "MAIN", "channel": 1 },
+    { "label": "WIRELESS GRAY", "channel": 2 },
+    { "label": "WIFI MIC 2", "channel": 3 },
+    { "label": "VOX BK 1", "channel": 7 },
+    { "label": "VOX BK 2", "channel": 8 },
+    { "label": "ZGTAR", "channel": 10 },
+    { "label": "MONTAGE", "channel": 12 },
+    { "label": "AUDIENCE", "channel": 6 }
+  ]
+}

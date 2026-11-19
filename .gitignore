@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+server/data/
+dist-update/
+/dist/
+/data/
+*.exe
+*.key
+frontend/node_modules/
+*.tsbuildinfo
+
+# Reverse-engineering notes and vendor files stay local, never in this repo
+/recon/
+/recon-upgrade/
+/RECON.md
+/goal-notes/

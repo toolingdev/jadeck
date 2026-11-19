@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e13">
+<title>PTZ Control — Demo Venue</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="dot" id="connDot" title="camera connection"></span>
+    <div>
+      <h1 id="camName">PTZOptics Camera</h1>
+      <p class="sub" id="camMeta">connecting…</p>
+    </div>
+  </div>
+  <nav class="view-switch" aria-label="Views">
+    <a href="/dashboard" class="vs-btn">Dashboard</a>
+    <a href="/" class="vs-btn active" aria-current="page">Camera</a>
+  </nav>
+  <div class="readouts" aria-live="off">
+    <span>PAN <b id="roPan">—</b></span>
+    <span>TILT <b id="roTilt">—</b></span>
+    <span>ZOOM <b id="roZoom">—</b></span>
+    <span id="roDrive" class="drive-off">STOPPED</span>
+  </div>
+</header>
+
+<div id="updateBanner" class="update-banner" hidden>
+  <span id="updateBannerText"></span>
+  <span class="ub-btns">
+    <button type="button" id="updateApplyBtn">Update now</button>
+    <button type="button" id="updateDismissBtn" class="ghost">Later</button>
+  </span>
+</div>
+
+<div id="updateOverlay" hidden>
+  <div class="uo-box">
+    <p class="uo-title">Updating…</p>
+    <p class="uo-text">The app is restarting with the new version. This page will reconnect on its own — give it a few seconds.</p>
+    <p class="uo-text" id="updateOverlayMsg"></p>
+    <button type="button" id="updateReloadBtn" class="ghost" hidden>Reload the page</button>
+  </div>
+</div>
+
+<main>
+  <section class="stage card" id="stage">
+    <div class="video-wrap">
+      <video id="streamVideo" autoplay muted playsinline></video>
+      <img id="snapImg" alt="Camera snapshot preview" hidden>
+      <div class="video-badges">
+        <span class="badge" id="streamBadge">STREAM: …</span>
+        <span class="badge warn" id="snapBadge" hidden>SNAPSHOT PREVIEW</span>
+        <span class="badge warn" id="wbBadge" hidden>PICK A WHITE POINT</span>
+      </div>
+      <button id="fsBtn" type="button" aria-label="Full screen"
+              title="Full screen">
+        <svg class="fs-ico-expand" viewBox="0 0 24 24" width="22"
+             height="22" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+          <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+        </svg>
+        <svg class="fs-ico-compress" viewBox="0 0 24 24" width="22"
+             height="22" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/>
+          <path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
+        </svg>
+      </button>
+      <div id="wbPickLayer" hidden>
+        <div id="wbMarker" hidden></div>
+      </div>
+      <div id="wbLoupe" hidden>
+        <canvas id="wbLoupeCanvas" width="256" height="256"></canvas>
+        <span class="wb-loupe-ring"></span>
+        <span class="wb-loupe-dot"></span>
+      </div>
+    </div>
+    <div class="wb-bar" id="wbBar" hidden>
+      <div class="wb-bar-main">
+        <span class="wb-swatch" id="wbSwatch" hidden></span>
+        <p class="wb-bar-text"><b>Pick a white point.</b>
+          Tap the picture where the true white is, then press and drag to
+          fine-tune under the magnifier — the dot in its center is the
+          exact spot that counts. When you confirm,
+          <span class="wb-warn">the camera will move for a few seconds</span>
+          while it aims at that spot, sets its white balance, and comes
+          right back.</p>
+      </div>
+      <p class="hint" id="wbFeedback"></p>
+      <div class="wb-bar-btns">
+        <button type="button" id="wbConfirm" disabled>Set white balance</button>
+        <button type="button" id="wbCancel" class="ghost">Cancel</button>
+      </div>
+      <p class="hint" id="wbMsg"></p>
+    </div>
+    <div class="stage-bar">
+      <div class="seg" role="group" aria-label="Stream quality">
+        <button id="qHd" class="seg-btn active" type="button">HD</button>
+        <button id="qSd" class="seg-btn" type="button">SD</button>
+      </div>
+      <button id="snapNow" class="ghost" type="button">Snapshot</button>
+      <a id="openPlayer" class="ghost link" href="#" target="_blank" rel="noopener">Open player</a>
+    </div>
+  </section>
+
+  <!-- The rail groups the three control cards. It is display:contents
+       in the normal layouts (the cards stay direct grid items of main,
+       exactly as before) and becomes a real, internally scrolling
+       column next to the stage in landscape on phones. -->
+  <div class="rail">
+  <section class="controls card">
+    <div class="mode-row">
+      <div class="seg" role="group" aria-label="Control style">
+        <button id="modeButtons" class="seg-btn active" type="button">Buttons</button>
+        <button id="modeJoystick" class="seg-btn" type="button">Joystick</button>
+      </div>
+      <span class="mode-hint" id="modeHint">Press and hold a direction to move.</span>
+    </div>
+    <div class="pad-wrap">
+      <div class="joy" id="joyZone" hidden>
+        <div class="joy-base" id="joyBase" role="application"
+             aria-label="Joystick: drag to move the camera">
+          <div class="joy-knob" id="joyKnob">⌂</div>
+        </div>
+      </div>
+      <div class="pad" id="ptzPad" aria-label="Pan and tilt pad">
+        <button type="button" data-pan="-1" data-tilt="1" aria-label="Up left">↖</button>
+        <button type="button" data-pan="0" data-tilt="1" aria-label="Up">↑</button>
+        <button type="button" data-pan="1" data-tilt="1" aria-label="Up right">↗</button>
+        <button type="button" data-pan="-1" data-tilt="0" aria-label="Left">←</button>
+        <button type="button" id="homeBtn" class="home" aria-label="Home position">⌂</button>
+        <button type="button" data-pan="1" data-tilt="0" aria-label="Right">→</button>
+        <button type="button" data-pan="-1" data-tilt="-1" aria-label="Down left">↙</button>
+        <button type="button" data-pan="0" data-tilt="-1" aria-label="Down">↓</button>
+        <button type="button" data-pan="1" data-tilt="-1" aria-label="Down right">↘</button>
+      </div>
+      <div class="zoom-col">
+        <button type="button" id="joyHomeBtn" aria-label="Home position" hidden>⌂<small>HOME</small></button>
+        <button type="button" id="zoomIn" aria-label="Zoom in">＋<small>TELE</small></button>
+        <button type="button" id="stopBtn" class="stop" aria-label="Stop all movement">■</button>
+        <button type="button" id="zoomOut" aria-label="Zoom out">－<small>WIDE</small></button>
+      </div>
+    </div>
+
+    <label class="speed">
+      <span>Speed <b id="speedVal">40</b></span>
+      <input type="range" id="speed" min="5" max="100" value="40"
+             aria-label="Movement speed">
+      <span class="speed-ends"><small>PRECISE</small><small>FAST</small></span>
+    </label>
+
+    <div class="focus-row" role="group" aria-label="Focus">
+      <button type="button" id="focusAuto" class="toggle active">AF</button>
+      <button type="button" id="focusNear">Near</button>
+      <button type="button" id="focusFar">Far</button>
+      <button type="button" id="focusPush">One-push</button>
+    </div>
+  </section>
+
+  <section class="presets card">
+    <div class="presets-head">
+      <h2>Presets</h2>
+      <button type="button" id="editToggle" class="ghost">Edit</button>
+    </div>
+    <div class="preset-grid" id="presetGrid"></div>
+    <button type="button" id="addPreset" class="ghost wide" hidden>＋ Add preset at current slot</button>
+    <p class="hint" id="presetHint">Tap a preset to move the camera. Keyboard: 1–9 recall, arrows/WASD move, Q/E zoom.</p>
+  </section>
+
+  <section class="advanced card">
+    <div class="presets-head">
+      <h2>Advanced settings</h2>
+      <button type="button" id="advToggle" class="ghost" aria-expanded="false">Show</button>
+    </div>
+    <div id="advBody" hidden>
+      <p class="hint" id="advMsg">Image, white balance, exposure, focus and noise settings, straight from the camera.</p>
+
+      <div class="adv-group">
+        <h3>Image</h3>
+        <p class="adv-help">The basic look of the picture: brightness, color strength, contrast, sharpness and tint.</p>
+        <div class="adv-rows" id="advImage"></div>
+      </div>
+
+      <div class="adv-group">
+        <h3>White balance</h3>
+        <p class="adv-help">Matches the light in the room so whites look white instead of yellow or blue.</p>
+        <div class="adv-rows" id="advWb"></div>
+        <button type="button" id="wbPickBtn" class="ghost wide">◎ Pick a white point</button>
+        <p class="adv-help">Tap something in the picture that should be pure white — a shirt, a wall, a sheet of paper. The camera will aim at it, set its white balance, and come right back. This is the white-balance method that works on this camera today; the camera does not offer the mode and gain fields above directly, so they stay here for reference.</p>
+      </div>
+
+      <div class="adv-group">
+        <h3>Exposure</h3>
+        <p class="adv-help">How much light the camera lets in. Auto handles it; the other modes are for tricky lighting.</p>
+        <div class="adv-rows" id="advExp"></div>
+      </div>
+
+      <div class="adv-group">
+        <h3>Focus</h3>
+        <p class="adv-help">How eagerly the autofocus reacts, and which part of the frame it pays attention to.</p>
+        <div class="adv-rows" id="advFocus"></div>
+      </div>
+
+      <div class="adv-group">
+        <h3>Noise reduction</h3>
+        <p class="adv-help">Cleans up the grainy speckle you get in dim light. Too much can make motion look smeary.</p>
+        <div class="adv-rows" id="advNr"></div>
+      </div>
+
+      <div class="adv-group" id="advUpdatesGroup">
+        <h3>Updates</h3>
+        <p class="adv-help">New versions are copied onto this PC ahead of time. The app only offers one after every file has matched its safety fingerprint — and if a new version doesn't start cleanly, the old one is put back automatically.</p>
+        <div class="adv-row">
+          <label>Current version</label>
+          <span class="adv-val upd-ver" id="updCurrent">—</span>
+        </div>
+        <div class="adv-row">
+          <label>Update status</label>
+          <span class="upd-state" id="updState">Checking…</span>
+        </div>
+        <button type="button" id="updApplyBtn" class="ghost wide" hidden>Update now</button>
+        <p class="hint" id="updMsg"></p>
+      </div>
+    </div>
+  </section>
+  </div><!-- /.rail -->
+</main>
+
+<footer>
+  <span id="footStatus">—</span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

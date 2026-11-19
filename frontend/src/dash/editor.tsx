@@ -1,0 +1,154 @@
+import { useRef, useState } from "react";
+import { Search, X, Copy, Trash2, Loader2, CloudOff } from "lucide-react";
+import type { DevicesInfo, Preset, Macro, MixerStatus, PresentationStatus } from "@/lib/api";
+import { useShared } from "@/lib/hooks";
+import { cn } from "@/lib/cn";
+import { Button, Input, Select, Switch } from "@/components/ui";
+import { WIDGETS, WIDGET, GROUPS, UnknownWidget, type WidgetDef, type Field, type Settings } from "@/dash/widgets";
+import type { Item, Widget } from "@/dash/types";
+
+// Edit-mode pieces of the dashboard page: widget view, library,
+// inspector and the save badge.
+
+export function WidgetView({ w, editing }: { w: Widget; editing: boolean }) {
+  const def = WIDGET[w.type];
+  if (!def) return <UnknownWidget type={w.type} />;
+  const R = def.Render;
+  return (
+    <div className={cn("h-full", editing && "pointer-events-none select-none")}>
+      <R s={w.settings} editing={editing} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- library
+
+export function Library({ onAdd, onDragType, onTouchStart, inline }: {
+  onAdd: (d: WidgetDef) => void; onDragType: (t: string | null) => void; onTouchStart: (d: WidgetDef, e: React.PointerEvent) => void; inline?: boolean;
+}) {
+  const { data: dev } = useShared<DevicesInfo>("/api/devices", 0);
+  const [q, setQ] = useState("");
+  const ready = (needs?: string) => {
+    if (!needs) return true;
+    const k = dev?.[needs as "switcher" | "presentation" | "mixer"];
+    return !!k?.configured;
+  };
+  const match = (w: WidgetDef) => !q || `${w.label} ${w.description} ${w.group}`.toLowerCase().includes(q.toLowerCase());
+  return (
+    <aside className={inline ? "" : "sticky top-[68px] hidden max-h-[calc(100dvh-84px)] w-60 shrink-0 overflow-y-auto rounded-2xl border border-line bg-panel p-3 2xl:block"}>
+      {!inline && <div className="mb-2 text-sm font-semibold">Add widgets</div>}
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dim" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search widgets…" className="h-9 pl-8" />
+      </div>
+      {GROUPS.filter((g) => ready(g.needs)).map((g) => {
+        const items = WIDGETS.filter((w) => w.group === g.id && match(w));
+        if (!items.length) return null;
+        return (
+          <div key={g.id} className="mb-3">
+            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-dim">{g.label}</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {items.map((w) => (
+                <button key={w.type} type="button" draggable title={w.description}
+                  onDragStart={(e) => { e.dataTransfer.setData("text/plain", w.type); e.dataTransfer.effectAllowed = "copy"; onDragType(w.type); }}
+                  onDragEnd={() => setTimeout(() => onDragType(null), 0)}
+                  onClick={() => onAdd(w)}
+                  onPointerDown={(e) => onTouchStart(w, e)}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className={cn("flex items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-2 text-left text-fg select-none [-webkit-touch-callout:none] hover:border-accent/60 active:scale-[0.98]",
+                    inline ? "h-11 text-[13px]" : "h-8 text-[11px]")}>
+                  <w.icon size={13} className="shrink-0 text-muted" />
+                  <span className="truncate">{w.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {!inline && <p className="text-[11px] leading-snug text-dim">Drag onto the grid, or tap to add at the bottom. Widgets only show for devices that are set up.</p>}
+    </aside>
+  );
+}
+
+// --------------------------------------------------------------- inspector
+
+export function Inspector({ w, onChange, onRemove, onDuplicate, onClose, pos }: {
+  w: Widget; onChange: (s: Settings) => void; onRemove: () => void; onDuplicate: () => void; onClose: () => void; pos?: Item;
+}) {
+  const def = WIDGET[w.type];
+  const s = w.settings;
+  return (
+    <aside className="fixed inset-x-0 bottom-0 z-40 max-h-[60dvh] overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-2xl md:inset-x-auto md:bottom-auto md:right-4 md:top-[124px] md:w-72 md:max-h-[calc(100dvh-140px)] md:rounded-2xl 2xl:sticky 2xl:top-[68px] 2xl:right-auto 2xl:w-64 2xl:shrink-0 2xl:shadow-none">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="text-sm font-semibold">{def?.label ?? w.type}</span>
+        <Button size="icon" variant="ghost" className="ml-auto h-8 w-8" onClick={onClose} aria-label="Close"><X size={15} /></Button>
+      </div>
+      <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-dim">{def ? GROUPS.find((g) => g.id === def.group)?.label : "unknown"}</div>
+      {def?.description && <p className="mb-3 text-xs text-muted">{def.description}</p>}
+      <div className="space-y-3">
+        {def?.fields.filter((f) => !f.showIf || f.showIf(s)).map((f) => (
+          <FieldInput key={f.key} f={f} value={s[f.key] ?? def.defaults[f.key]} onChange={(v) => onChange({ ...s, [f.key]: v })} />
+        ))}
+        {def && def.fields.length === 0 && <p className="text-xs text-dim">Nothing to set — drag and resize it on the grid.</p>}
+      </div>
+      {pos && <p className="mt-4 font-mono text-[11px] text-dim">col {pos.x + 1} · row {pos.y + 1} · {pos.w} × {pos.h}</p>}
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button size="sm" onClick={onDuplicate}><Copy size={13} /> Duplicate</Button>
+        <Button size="sm" variant="danger" onClick={onRemove}><Trash2 size={13} /> Remove</Button>
+      </div>
+    </aside>
+  );
+}
+
+function FieldInput({ f, value, onChange }: { f: Field; value: unknown; onChange: (v: unknown) => void }) {
+  const opts = useSourceOptions(f);
+  const label = <span className="mb-1 block text-xs text-muted">{f.label}</span>;
+  const help = f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>;
+  if (f.type === "bool") {
+    return (
+      <label className="flex items-center justify-between gap-3 text-sm">
+        <span>{f.label}{help}</span>
+        <Switch checked={!!value} onChange={onChange} label={f.label} />
+      </label>
+    );
+  }
+  if (f.type === "select" || f.type === "source") {
+    const options = f.type === "select" ? f.options ?? [] : [{ value: "", label: "Choose…" }, ...opts];
+    return <label className="block">{label}<Select value={value === undefined || value === null ? "" : String(value)} onChange={(v) => onChange(f.source === "favorites" ? Number(v) : v)} options={options} />{help}</label>;
+  }
+  return (
+    <label className="block">{label}
+      <Input type={f.type === "number" ? "number" : "text"} value={value === undefined || value === null ? "" : String(value)}
+        onChange={(e) => onChange(f.type === "number" ? Number(e.target.value) : e.target.value)} />{help}
+    </label>
+  );
+}
+
+function useSourceOptions(f: Field): { value: string; label: string }[] {
+  const presets = useShared<Preset[]>(f.source === "presets" ? "/api/presets" : null, 0).data;
+  const macros = useShared<Macro[]>(f.source === "macros" ? "/api/macros" : null, 0).data;
+  const mixer = useShared<MixerStatus>(f.source === "favorites" ? "/api/mixer/status" : null, 0).data;
+  const slides = useShared<PresentationStatus>(f.source === "slideActions" ? "/api/presentation/status" : null, 0).data;
+  const ref = useRef<{ value: string; label: string }[]>([]);
+  switch (f.source) {
+    case "presets": ref.current = (presets ?? []).map((p) => ({ value: p.name, label: p.name })); break;
+    case "macros": ref.current = (macros ?? []).map((m) => ({ value: m.name, label: m.name })); break;
+    case "favorites": ref.current = (mixer?.channels ?? []).map((c) => ({ value: String(c.slot), label: `${c.label}${c.channel ? ` (Ch ${c.channel})` : " (unassigned)"}` })); break;
+    case "slideActions": ref.current = (slides?.actions ?? []).map((a) => ({ value: a, label: a })); break;
+  }
+  return ref.current;
+}
+
+export function SaveBadge({ state, onRetry }: { state: "saved" | "pending" | "saving" | "error"; onRetry: () => void }) {
+  if (state === "error") {
+    return (
+      <button type="button" onClick={onRetry} className="flex items-center gap-1 rounded-lg border border-pgm/40 bg-pgm/15 px-2 py-1 text-[11px] font-semibold text-bad">
+        <CloudOff size={12} /> Not saved · Retry
+      </button>
+    );
+  }
+  if (state === "saving" || state === "pending") {
+    return <span className="flex items-center gap-1 text-[11px] text-muted"><Loader2 size={12} className="animate-spin" /> Saving…</span>;
+  }
+  return <span className="flex items-center gap-1 text-[11px] text-good"><span className="h-1.5 w-1.5 rounded-full bg-good" /> Saved</span>;
+}

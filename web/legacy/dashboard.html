@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e13">
+<title>Dashboard — Demo Venue</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="dot" id="connDot" title="camera connection"></span>
+    <div>
+      <h1>Service Dashboard</h1>
+      <p class="sub">Demo Venue · tech booth</p>
+    </div>
+  </div>
+  <nav class="view-switch" aria-label="Views">
+    <a href="/dashboard" class="vs-btn active" aria-current="page">Dashboard</a>
+    <a href="/" class="vs-btn">Camera</a>
+  </nav>
+  <div class="links" id="linkPills">
+    <span class="link-pill" id="pillVmix"><span class="dot mini"></span>vMix · HTTP API</span>
+    <span class="link-pill" id="pillProclaim"><span class="dot mini"></span>Proclaim · MIDI</span>
+    <span class="link-pill" id="pillWing"><span class="dot mini"></span>WING · OSC</span>
+  </div>
+</header>
+
+<main class="dash">
+  <!-- ================= monitors ================= -->
+  <div class="dash-monitors">
+    <section class="card dash-pane" aria-label="Program feed">
+      <div class="pane-head">
+        <span class="tag tag-red">Program</span>
+        <h2>Stream — what the congregation sees</h2>
+        <span class="pane-src">vMix · NDI out</span>
+      </div>
+      <div class="video-wrap" id="programWrap">
+        <video id="programVideo" autoplay muted playsinline></video>
+        <div class="no-signal" id="programNoSignal" hidden>
+          <p class="ns-title">No signal</p>
+          <p class="ns-text">The program feed isn't reaching the gateway yet. It appears on its own when the vMix NDI output is flowing.</p>
+          <button type="button" class="ghost" id="programRetry">Retry</button>
+        </div>
+        <div class="video-badges">
+          <span class="badge" id="programBadge">PROGRAM: …</span>
+        </div>
+      </div>
+      <p class="pane-foot" id="programFoot">On program: —</p>
+    </section>
+
+    <section class="card dash-pane" aria-label="Confidence feed">
+      <div class="pane-head">
+        <span class="tag tag-teal">Confidence</span>
+        <h2>Slides — current &amp; next</h2>
+        <span class="pane-src">Proclaim · NDI confidence out</span>
+      </div>
+      <div class="video-wrap" id="confidenceWrap">
+        <video id="confidenceVideo" autoplay muted playsinline></video>
+        <div class="no-signal" id="confidenceNoSignal" hidden>
+          <p class="ns-title">No signal</p>
+          <p class="ns-text">The confidence feed isn't reaching the gateway yet. Proclaim's confidence output already shows the current and next slide — nothing to rebuild.</p>
+          <button type="button" class="ghost" id="confidenceRetry">Retry</button>
+        </div>
+        <div class="video-badges">
+          <span class="badge" id="confidenceBadge">SLIDES: …</span>
+        </div>
+      </div>
+      <p class="pane-foot">Current and next slide ride inside this one feed.</p>
+    </section>
+  </div>
+
+  <!-- ================= control decks ================= -->
+  <div class="dash-decks">
+    <section class="card deck" aria-label="vMix switcher">
+      <div class="pane-head">
+        <h2>vMix Switcher</h2>
+        <span class="pane-src">HTTP API</span>
+      </div>
+      <p class="hint deck-hint">Tap an input to preview it · TAKE sends it live.</p>
+      <div class="input-grid" id="vmixInputs"></div>
+      <div class="take-row">
+        <button type="button" class="take-btn cut" id="vmixCut">CUT</button>
+        <button type="button" class="take-btn" id="vmixFade">FADE 1s</button>
+      </div>
+      <div class="mini-row">
+        <span class="mini-stat" id="vmixStreamStat">● Stream: —</span>
+        <span class="mini-stat" id="vmixRecordStat">● Record: —</span>
+      </div>
+      <p class="hint" id="vmixMsg">Calls go from this page to vMix's Web Controller on the same PC — no extra software in between.</p>
+    </section>
+
+    <section class="card deck" aria-label="Proclaim slides">
+      <div class="pane-head">
+        <h2>Proclaim Slides</h2>
+        <span class="pane-src">MIDI bridge</span>
+      </div>
+      <div class="slide-nav">
+        <button type="button" class="nav-btn" id="proPrev"><span class="arrow">‹</span> Prev</button>
+        <button type="button" class="nav-btn next" id="proNext">Next Slide <span class="arrow">›</span></button>
+      </div>
+      <div class="mini-row">
+        <button type="button" class="mini-btn" id="proBlack">Black Screen</button>
+        <button type="button" class="mini-btn" id="proLogo">Logo Screen</button>
+        <button type="button" class="mini-btn" id="proClear">Clear Text</button>
+      </div>
+      <div class="midi-flash" id="midiFlash">♪ MIDI bridge ready</div>
+      <p class="hint">Proclaim has no HTTP API, so these buttons fire MIDI notes on this PC and Proclaim follows them — same page, no separate app.</p>
+    </section>
+
+    <section class="card deck" aria-label="Camera quick control">
+      <div class="pane-head">
+        <h2>Camera — Quick Control</h2>
+        <span class="pane-src">PTZ · Sanctuary</span>
+      </div>
+      <div class="video-wrap cam-mini" id="camWrap">
+        <video id="camVideo" autoplay muted playsinline></video>
+        <img id="camSnap" alt="Camera snapshot preview" hidden>
+        <div class="video-badges">
+          <span class="badge" id="camBadge">CAMERA: …</span>
+        </div>
+      </div>
+      <div class="preset-grid dash-presets" id="dashPresets"></div>
+      <div class="dash-ptz">
+        <div class="pad dash-pad" aria-label="Pan and tilt pad">
+          <button type="button" data-pan="-1" data-tilt="1" aria-label="Up left">↖</button>
+          <button type="button" data-pan="0" data-tilt="1" aria-label="Up">↑</button>
+          <button type="button" data-pan="1" data-tilt="1" aria-label="Up right">↗</button>
+          <button type="button" data-pan="-1" data-tilt="0" aria-label="Left">←</button>
+          <button type="button" id="dashHome" class="home" aria-label="Home position">⌂</button>
+          <button type="button" data-pan="1" data-tilt="0" aria-label="Right">→</button>
+          <button type="button" data-pan="-1" data-tilt="-1" aria-label="Down left">↙</button>
+          <button type="button" data-pan="0" data-tilt="-1" aria-label="Down">↓</button>
+          <button type="button" data-pan="1" data-tilt="-1" aria-label="Down right">↘</button>
+        </div>
+        <div class="zoom-col">
+          <button type="button" id="dashZoomIn" aria-label="Zoom in">＋<small>TELE</small></button>
+          <button type="button" id="dashStop" class="stop" aria-label="Stop all movement">■</button>
+          <button type="button" id="dashZoomOut" aria-label="Zoom out">－<small>WIDE</small></button>
+        </div>
+      </div>
+      <p class="hint">The quick strip only — the full camera controls (advanced settings, white balance, all of it) live in the Camera view.</p>
+    </section>
+  </div>
+
+  <!-- ================= WING audio strip ================= -->
+  <section class="card wing-strip" aria-label="Behringer WING audio">
+    <div class="pane-head">
+      <h2>Audio — Behringer WING · Favorite Channels</h2>
+      <span class="pane-src" id="wingState">console: …</span>
+    </div>
+    <div class="wing-grid" id="wingGrid"></div>
+    <p class="hint">Mute/unmute only, on the eight channels that matter most. The button always shows the state read back from the console itself.</p>
+  </section>
+
+  <!-- ================= macros ================= -->
+  <section class="card macros" aria-label="Macros">
+    <div class="pane-head">
+      <h2>Macros</h2>
+      <span class="pane-src">chained actions · WING</span>
+    </div>
+    <div class="macro-list" id="macroList"></div>
+    <button type="button" class="ghost wide" id="macroNew">+ New macro</button>
+
+    <div class="macro-editor" id="macroEditor" hidden>
+      <div class="adv-row">
+        <label for="macroName">Name</label>
+        <input type="text" id="macroName" maxlength="60"
+               placeholder="e.g. Video starting">
+      </div>
+      <div class="adv-row">
+        <label for="macroDesc">Notes</label>
+        <input type="text" id="macroDesc" maxlength="300"
+               placeholder="Optional — what this macro is for">
+      </div>
+      <div class="macro-steps" id="macroSteps"></div>
+      <div class="mini-row">
+        <button type="button" class="mini-btn" id="macroAddMute">+ Mute step</button>
+        <button type="button" class="mini-btn" id="macroAddDelay">+ Delay step</button>
+      </div>
+      <p class="macro-err" id="macroErr" hidden></p>
+      <div class="mini-row">
+        <button type="button" class="macro-save" id="macroSave">Save macro</button>
+        <button type="button" class="mini-btn" id="macroCancel">Cancel</button>
+      </div>
+    </div>
+
+    <button type="button" class="ghost wide" id="macroImportToggle">Import from JSON</button>
+    <div class="macro-import" id="macroImportBox" hidden>
+      <textarea id="macroImportText" rows="7" spellcheck="false"
+        placeholder='Paste macro JSON — one macro, a list, or {"macros": [...]}. The format is documented in MACROS.md.'></textarea>
+      <p class="macro-err" id="macroImportErr" hidden></p>
+      <div class="mini-row">
+        <button type="button" class="macro-save" id="macroImportBtn">Import</button>
+        <button type="button" class="mini-btn" id="macroImportCancel">Close</button>
+      </div>
+    </div>
+
+    <p class="hint">A macro runs its steps in order, top to bottom. Every WING step is set on the console and then read back; if a step doesn't land, the macro stops right there and says which step failed — it never plows ahead on a guess.</p>
+  </section>
+
+  <!-- ================= action log ================= -->
+  <section class="card dash-log" aria-label="What just happened">
+    <div class="pane-head">
+      <h2>What just happened</h2>
+      <span class="pane-src">every button lands here</span>
+    </div>
+    <div class="log-body" id="dashLog"></div>
+  </section>
+
+  <p class="foot-note">Both video panes are the NDI outputs you already have — vMix program and Proclaim confidence — so nothing was rebuilt. vMix buttons ride its HTTP API, Proclaim buttons ride the MIDI bridge, camera buttons are the quick control from the Camera view, and the WING strip talks OSC to the console. Macros chain WING mutes and delays into one button, each step verified by read-back. Layout is iPad-first and collapses cleanly to iPhone and up to desktop.</p>
+</main>
+
+<footer>
+  <span id="footStatus">—</span>
+</footer>
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>
