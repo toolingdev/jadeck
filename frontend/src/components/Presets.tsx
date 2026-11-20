@@ -2,7 +2,8 @@ import { useState } from "react";
 import { ChevronUp, ChevronDown, Trash2, Save, Plus, Pencil, Check } from "lucide-react";
 import { api, type Preset } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
-import { useCam, useCamTitle, withCam } from "@/lib/camera";
+import { useCam, withCam } from "@/lib/camera";
+import { CamChip } from "@/components/CamChip";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { Button, Card, CardBody, CardHeader, Dialog, Empty, Input } from "@/components/ui";
@@ -13,7 +14,6 @@ export function usePresets(cam = "") {
 
 export function PresetGrid({ compact, editable = true }: { compact?: boolean; editable?: boolean }) {
   const cam = useCam();
-  const camTitle = useCamTitle();
   const { data, reload, setData } = usePresets(cam);
   const { log } = useLog();
   const [edit, setEdit] = useState(false);
@@ -66,7 +66,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
       if (rename) {
         await api(withCam(`/api/presets/${rename.id}`, cam), "PATCH", { name: n });
       } else {
-        const p = await api<Preset>("/api/presets", "POST", { name: n });
+        const p = await api<Preset>(withCam("/api/presets", cam), "POST", { name: n });
         await api(withCam(`/api/presets/${p.id}/store`, cam), "POST");
         log("Presets", `Added “${n}” at the current shot`);
       }
@@ -80,7 +80,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
 
   return (
     <Card>
-      <CardHeader title={camTitle ? `Presets · ${camTitle}` : "Presets"} meta={`${list.length} saved`}>
+      <CardHeader title={<span className="flex items-center gap-2">Presets <CamChip /></span>} meta={`${list.length} saved`}>
         {editable && (
           <Button size="sm" variant={edit ? "accent" : "ghost"} onClick={() => setEdit(!edit)}>
             {edit ? <><Check size={14} /> Done</> : <><Pencil size={14} /> Edit</>}
@@ -88,7 +88,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
         )}
       </CardHeader>
       <CardBody>
-        {list.length === 0 ? <Empty>No presets yet.</Empty> : (
+        {list.length === 0 && !edit ? <Empty>No presets yet{editable ? " — Edit → Add at current shot." : "."}</Empty> : (
           <div className={cn("grid gap-2", compact ? "grid-cols-[repeat(auto-fill,minmax(120px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(140px,1fr))]")}>
             {list.map((p, i) =>
               edit ? (

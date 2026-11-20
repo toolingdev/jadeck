@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Pipette } from "lucide-react";
 import { api, type FieldSpec } from "@/lib/api";
 import { useLog } from "@/lib/log";
-import { useCam, useCamTitle, withCam } from "@/lib/camera";
+import { useCam, withCam } from "@/lib/camera";
+import { CamChip } from "@/components/CamChip";
 import { Button, Card, CardBody, CardHeader, Segmented, Select, Slider, Switch, Empty } from "@/components/ui";
 
 const groups = [
@@ -22,7 +23,6 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
   const [group, setGroup] = useState("image");
   const { log } = useLog();
   const cam = useCam();
-  const camTitle = useCamTitle();
 
   const load = async () => {
     try {
@@ -57,7 +57,7 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
 
   return (
     <Card>
-      <CardHeader title={camTitle ? `Picture · ${camTitle}` : "Picture"} meta="advanced">
+      <CardHeader title={<span className="flex items-center gap-2">Picture <CamChip /></span>} meta="advanced">
         <Button size="sm" variant="ghost" onClick={load}>Refresh</Button>
       </CardHeader>
       <CardBody className="space-y-4">

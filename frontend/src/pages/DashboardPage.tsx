@@ -487,7 +487,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
               >
                 {shown.widgets.map((w) => (
                   <div key={w.id} data-wid={w.id} className={cn("relative", editing && "cursor-grab active:cursor-grabbing")}>
-                    <WidgetView w={w} editing={editing} onNeed={onNeed} />
+                    <WidgetView w={w} editing={editing} onNeed={onNeed} dash={shown.id} />
                     {!editing && !locked && w.type === "video" && w.settings?.switchHere !== false && typeof w.settings?.feed === "string" && w.settings.feed && (
                       <FeedSwitch value={w.settings.feed as string} onPick={(v) => switchFeed(w.id, v)} />
                     )}

@@ -12,7 +12,8 @@ import { useShared, refreshShared, useLocal, useWidgetConn } from "@/lib/hooks";
 import { withConn } from "@/lib/addons";
 import { useLog } from "@/lib/log";
 import { setDrive, stopDrive } from "@/lib/control";
-import { useCam, useCamTitle } from "@/lib/camera";
+import { useCam } from "@/lib/camera";
+import { CamChip } from "@/components/CamChip";
 import { cn } from "@/lib/cn";
 import { Button, Dialog, Segmented } from "@/components/ui";
 import { StreamView } from "@/components/StreamView";
@@ -66,7 +67,7 @@ function Frame({ title, children, className, right }: { title?: ReactNode; child
     <div className={cn("flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel", className)}>
       {title !== undefined && (
         <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
-          <span className="truncate text-[12px] font-semibold text-fg">{title}</span>
+          <span className="min-w-0 truncate text-[12px] font-semibold text-fg [&:has(.no-drag)]:overflow-visible">{title}</span>
           <div className="ml-auto flex items-center gap-2">{right}</div>
         </div>
       )}
@@ -98,12 +99,11 @@ function MoveWidget({ s }: { s: Settings }) {
   const [fine, setFine] = useLocal("ptz.fine", bool(s.startFine));
   const top = fine ? Math.min(FINE_SPEED, speed) : speed;
   const cam = useCam();
-  const camTitle = useCamTitle();
   useEffect(() => setDrive({ speed: top }, cam), [top, mode, cam]);
   const home = bool(s.home, true), zoom = bool(s.zoom, true), showSpeed = bool(s.speed, true);
   const act = useCamAction();
   return (
-    <Frame title={camTitle ? `Move · ${camTitle}` : "Move"} right={controls === "switchable" && (
+    <Frame title={<span className="flex items-center gap-2">Move <CamChip /></span>} right={controls === "switchable" && (
       <Segmented value={mode} onChange={setSaved} options={[{ value: "buttons", label: "Buttons" }, { value: "joystick", label: "Joystick" }]} />
     )}>
       <div className="flex h-full flex-col gap-3">
@@ -577,8 +577,8 @@ export const WIDGETS: WidgetDef[] = [
     fields: [CAMERA_FIELD, { key: "preset", label: "Preset", type: "source", source: "presets" }, label("label", "Label (optional)")],
     Render: ({ s }) => <OnePreset s={s} /> },
   { type: "camera.presets", label: "Presets", group: "camera", icon: LayoutGrid, description: "All presets.",
-    size: { w: 6, h: 6, ph: 7 }, minPx: { w: 280, h: 180 }, defaults: {}, fields: [CAMERA_FIELD],
-    Render: () => <Fill><PresetGrid compact editable={false} /></Fill> },
+    size: { w: 6, h: 6, ph: 7 }, minPx: { w: 280, h: 180 }, defaults: { edit: true }, fields: [CAMERA_FIELD, { key: "edit", label: "Editing", type: "bool", help: "An Edit button to save the current shot into a preset, rename, add and reorder. Off for stage screens." }],
+    Render: ({ s }) => <Fill><PresetGrid compact editable={bool(s.edit, true)} /></Fill> },
   { type: "camera.picture", label: "Picture", group: "camera", icon: Sun, description: "Brightness, white balance and the other picture settings.",
     size: { w: 5, h: 9, ph: 10 }, minPx: { w: 260, h: 370 }, defaults: {}, fields: [CAMERA_FIELD],
     Render: () => <Fill><ImageSettings /></Fill> },

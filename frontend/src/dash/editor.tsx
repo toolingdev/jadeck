@@ -2,8 +2,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Search, X, Copy, Trash2, Loader2, CloudOff } from "lucide-react";
 import type { DevicesInfo, Preset, Macro, MixerStatus, PresentationStatus, CameraInfo, SwitcherStatus } from "@/lib/api";
 import { useChannels, stageApi } from "@/lib/stage";
-import { useShared } from "@/lib/hooks";
-import { CameraContext } from "@/lib/camera";
+import { useLocal, useShared } from "@/lib/hooks";
+import { CameraContext, CameraPickContext } from "@/lib/camera";
 import { useControl } from "@/lib/control";
 import { cn } from "@/lib/cn";
 import { Button, Input, Select, Switch } from "@/components/ui";
@@ -43,8 +43,13 @@ function measureNeed(root: HTMLElement): number | null {
   return Math.ceil(root.getBoundingClientRect().height + extra);
 }
 
-export function WidgetView({ w, editing, onNeed }: { w: Widget; editing: boolean; onNeed?: (id: string, px: number | null) => void }) {
+export function WidgetView({ w, editing, onNeed, dash }: { w: Widget; editing: boolean; onNeed?: (id: string, px: number | null) => void; dash?: number }) {
   const def = WIDGET[w.type];
+  // The camera a widget drives: this screen's pick (from the widget's
+  // camera chip), else the widget's Camera setting.
+  const [picked, setPicked] = useLocal<string | null>(`ptz.wcam.${dash ?? 0}.${w.id}`, null);
+  const setting = typeof w.settings.camera === "string" ? w.settings.camera : "";
+  const cam = picked ?? setting;
   const ref = useRef<HTMLDivElement>(null);
   const last = useRef<number | null | undefined>(undefined);
   useLayoutEffect(() => {
@@ -82,9 +87,11 @@ export function WidgetView({ w, editing, onNeed }: { w: Widget; editing: boolean
   return (
     <div ref={ref} className={cn("h-full overflow-hidden rounded-[var(--radius-card)]", editing && "pointer-events-none select-none")}>
       <WidgetConn.Provider value={typeof w.settings.connection === "string" ? w.settings.connection : ""}>
-        <CameraContext.Provider value={typeof w.settings.camera === "string" ? w.settings.camera : ""}>
-          {def.group === "camera" && def.fields.some((f) => f.type === "camera") && <HoldControl cam={typeof w.settings.camera === "string" ? w.settings.camera : ""} />}
-          <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
+        <CameraContext.Provider value={cam}>
+          <CameraPickContext.Provider value={editing ? null : (id) => setPicked(id === setting ? null : id)}>
+            {def.group === "camera" && def.fields.some((f) => f.type === "camera") && <HoldControl cam={cam} />}
+            <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
+          </CameraPickContext.Provider>
         </CameraContext.Provider>
       </WidgetConn.Provider>
     </div>
