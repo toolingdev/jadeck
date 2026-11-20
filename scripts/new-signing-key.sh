@@ -7,6 +7,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+if ! op whoami >/dev/null 2>&1; then
+  eval "$(op signin)" 2>/dev/null || true
+fi
+if ! op whoami >/dev/null 2>&1; then
+  echo "1Password CLI isn't connected. In the 1Password app: Settings → Developer →"
+  echo "turn on \"Integrate with 1Password CLI\", then run this again."
+  exit 1
+fi
+
 TITLE="PTZ Controller release signing key"
 if op item get "$TITLE" >/dev/null 2>&1; then
   echo "1Password already has \"$TITLE\". To reuse it, run:"
