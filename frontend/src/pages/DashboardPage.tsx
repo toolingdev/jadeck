@@ -364,6 +364,16 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.max(it.h, minH), minW: m.w, minH };
   }), [view, shown, colW, need]);
 
+  // Phone: the settings sheet covers the bottom 60% — bring the tapped
+  // widget up above it.
+  useEffect(() => {
+    if (!selected || window.innerWidth >= 768) return;
+    const el = document.querySelector<HTMLElement>(`[data-wid="${selected}"]`);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 64;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, [selected]);
+
   // Outside edit mode: a Video widget switches feed in place; another
   // video already showing that feed takes this one's (they swap).
   const switchFeed = async (id: string, feed: string) => {
@@ -450,7 +460,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
           </div>
         )}
 
-        <div className={cn("mx-auto w-full", view.max)}>
+        <div className={cn("mx-auto w-full", view.max, editing && selected && "max-md:pb-[60dvh]")}>
           <div ref={containerRef}
             className={cn("relative min-h-[60dvh] rounded-2xl", editing && "dash-edit border border-dashed border-line bg-[linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)]")}
             style={editing && mounted ? { backgroundSize: `${(width - MARGIN[0]) / view.cols}px 100%`, backgroundPosition: `${MARGIN[0] / 2}px 0` } : undefined}
@@ -475,7 +485,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                 }}
               >
                 {shown.widgets.map((w) => (
-                  <div key={w.id} className={cn("relative", editing && "cursor-grab active:cursor-grabbing")}>
+                  <div key={w.id} data-wid={w.id} className={cn("relative", editing && "cursor-grab active:cursor-grabbing")}>
                     <WidgetView w={w} editing={editing} onNeed={onNeed} />
                     {!editing && !locked && w.type === "video" && w.settings?.switchHere !== false && typeof w.settings?.feed === "string" && w.settings.feed && (
                       <FeedSwitch value={w.settings.feed as string} onPick={(v) => switchFeed(w.id, v)} />
@@ -483,7 +493,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                     {editing && (
                       <div className={cn("absolute inset-0 z-10 rounded-[var(--radius-card)] transition", selected === w.id ? "ring-2 ring-accent" : "hover:ring-1 hover:ring-line-strong")}
                         onClick={() => setSelected(w.id)} aria-label={`Select ${WIDGET[w.type]?.label ?? w.type}`}>
-                        <NameChip w={w} onOpen={() => setSelected(w.id)} />
+                        {selected === w.id && <NameChip w={w} onOpen={() => setSelected(w.id)} />}
                       </div>
                     )}
                   </div>
