@@ -225,10 +225,14 @@ function PhoneNav({ route, go }: { route: string; go: (p: Route) => void }) {
   return (
     <div className="sm:hidden">
       {!open && (
-        <button type="button" aria-label="Show Dashboard and Settings" onClick={() => setOpen(true)} {...swipe(true)}
-          className={cn(tab, "fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-40 -translate-x-1/2 touch-none rounded-b-xl border-b bg-panel-2/95 shadow-lg backdrop-blur")}>
-          <ChevronUp size={18} />
-        </button>
+        <>
+          {/* a hairline along the bottom edge: the tab hangs off the app's frame, not a widget */}
+          <div className="fixed inset-x-0 bottom-0 z-40 h-[calc(env(safe-area-inset-bottom)+1px)] border-t border-line-strong bg-bg" />
+          <button type="button" aria-label="Show Dashboard and Settings" onClick={() => setOpen(true)} {...swipe(true)}
+            className={cn(tab, "fixed bottom-[env(safe-area-inset-bottom)] left-1/2 z-40 h-6 -translate-x-1/2 touch-none bg-bg")}>
+            <ChevronUp size={18} />
+          </button>
+        </>
       )}
       <div className={cn("fixed inset-0 z-40 bg-black/50 transition-opacity", open ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setOpen(false)} />
       <nav {...swipe(false)}
