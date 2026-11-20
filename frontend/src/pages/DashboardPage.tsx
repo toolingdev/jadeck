@@ -689,23 +689,23 @@ function NameChip({ w, onOpen }: { w: { id: string; type: string; settings?: Set
 }
 
 function useFeedNames() {
-  const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 0);
+  const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 10000);
   return Object.fromEntries((data?.feeds ?? []).map((f) => [f.id, f.name])) as Record<string, string>;
 }
 
 function useMainCameraName() {
-  const { data } = useShared<{ name: string; main?: boolean }[]>("/api/cameras", 0);
+  const { data } = useShared<{ name: string; main?: boolean }[]>("/api/cameras", 10000);
   return data?.find((c) => c.main)?.name ?? "main camera";
 }
 
 function useCameraNames() {
-  const { data } = useShared<{ id: string; name: string }[]>("/api/cameras", 0);
+  const { data } = useShared<{ id: string; name: string }[]>("/api/cameras", 10000);
   return Object.fromEntries((data ?? []).map((c) => [c.id, c.name])) as Record<string, string>;
 }
 
 /** Outside edit mode: the feed's name on a Video widget; tap to switch. */
 function FeedSwitch({ value, onPick }: { value: string; onPick: (v: string) => void }) {
-  const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 0);
+  const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 10000);
   const feeds = data?.feeds ?? [];
   const [open, setOpen] = useState(false);
   const name = value === "cam:" ? "Main camera" : feeds.find((f) => f.id === value)?.name ?? "Feed";

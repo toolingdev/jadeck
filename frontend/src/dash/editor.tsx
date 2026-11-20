@@ -103,7 +103,7 @@ export function WidgetView({ w, editing, onNeed, dash }: { w: Widget; editing: b
 export function Library({ onAdd, onDragType, onTouchStart, inline }: {
   onAdd: (d: WidgetDef) => void; onDragType: (t: string | null) => void; onTouchStart: (d: WidgetDef, e: React.PointerEvent) => void; inline?: boolean;
 }) {
-  const { data: dev } = useShared<DevicesInfo>("/api/devices", 0);
+  const { data: dev } = useShared<DevicesInfo>("/api/devices", 10000);
   const [q, setQ] = useState("");
   const ready = (needs?: string) => {
     if (!needs) return true;
@@ -346,7 +346,7 @@ function Choice({ label, help, value, options, onChange, add }: {
 }
 
 function CameraField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
-  const cams = useShared<CameraInfo[]>("/api/cameras", 0).data ?? [];
+  const cams = useShared<CameraInfo[]>("/api/cameras", 10000).data ?? [];
   const options = cams.map((c) => ({ value: c.main ? "" : c.id, label: c.name + (c.main ? " (main)" : "") }));
   return <Choice label={f.label} help={f.help} value={value} options={options} onChange={onChange} add="Add a camera (Settings → Cameras)" />;
 }
@@ -378,7 +378,7 @@ export function SaveBadge({ state, onRetry }: { state: "saved" | "pending" | "sa
 
 /** Which connection a widget uses: only shown when there's a choice. */
 function ConnectionField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
-  const { data } = useShared<{ connections: { id: string; name: string; addon: string; capabilities: string[]; ready: boolean }[] }>("/api/devices", 0);
+  const { data } = useShared<{ connections: { id: string; name: string; addon: string; capabilities: string[]; ready: boolean }[] }>("/api/devices", 10000);
   const list = (data?.connections ?? []).filter((c) => (f.cap ? c.capabilities?.includes(f.cap) : true) && (f.addon ? c.addon === f.addon : true));
   if (list.length <= 1 && !value) return null;
   const options = [{ value: "", label: `The first one${list[0] ? ` (${list[0].name})` : ""}` }, ...list.map((c) => ({ value: c.id, label: c.name + (c.ready ? "" : " — not connected") }))];
@@ -394,7 +394,7 @@ function ConnectionField({ f, value, onChange }: { f: Field; value: string; onCh
 
 /** Which video feed a Video widget shows: cameras plus Settings → Video feeds. */
 function FeedField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
-  const { data } = useShared<{ feeds: { id: string; name: string; source: string }[] }>("/api/feeds", 0);
+  const { data } = useShared<{ feeds: { id: string; name: string; source: string }[] }>("/api/feeds", 10000);
   const feeds = data?.feeds ?? [];
   const options = feeds.map((x) => ({ value: x.id, label: x.name }));
   if (value && value !== "cam:" && !feeds.some((x) => x.id === value)) options.push({ value, label: "(removed feed)" });

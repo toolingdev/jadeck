@@ -91,6 +91,10 @@ export function refreshShared(path: string) {
   return pollOnce(path);
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener("ptz:changed", () => shared.forEach((_, path) => pollOnce(path)));
+}
+
 export function useShared<T>(path: string | null, ms = 3000): { data: T | null; error: string | null; reload: () => void } {
   const sample = useSample(path);
   if (sample.hit) path = null;
@@ -104,11 +108,15 @@ export function useShared<T>(path: string | null, ms = 3000): { data: T | null; 
     }
     const sub = () => force((n) => n + 1);
     e.subs.add(sub);
-    if (e.subs.size === 1) {
-      pollOnce(path);
-      if (ms > 0) e.timer = window.setInterval(() => !document.hidden && pollOnce(path), ms);
-    } else if (e.data !== null) {
-      sub();
+    const p = path;
+    if (e.subs.size === 1) pollOnce(p);
+    else if (e.data !== null) sub();
+    // poll at the fastest rate any subscriber asked for (one that asked
+    // for none must not stop the others from staying current)
+    if (ms > 0 && (!e.timer || ms < e.ms)) {
+      clearInterval(e.timer);
+      e.ms = ms;
+      e.timer = window.setInterval(() => !document.hidden && pollOnce(p), ms);
     }
     return () => {
       e!.subs.delete(sub);

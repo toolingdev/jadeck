@@ -34,6 +34,9 @@ export async function api<T = unknown>(path: string, method = "GET", body?: unkn
     const d = (data as { detail?: string } | null)?.detail;
     throw new ApiError(r.status, d || `HTTP ${r.status}`);
   }
+  // Something changed (a camera renamed, a feed added…): every list on
+  // screen reads again, so names are never stale.
+  if (method !== "GET" && typeof window !== "undefined") window.dispatchEvent(new Event("ptz:changed"));
   return data as T;
 }
 
