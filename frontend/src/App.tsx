@@ -30,7 +30,7 @@ function current(): Route {
 }
 
 /** Header camera name; a switcher when there is more than one. */
-function CameraSwitcher({ fallback, sub }: { fallback: string; sub: string }) {
+function CameraSwitcher({ fallback, sub, ok }: { fallback: string; sub: string; ok?: boolean }) {
   const { data: cams } = useCameras();
   const cam = useCamera();
   const [open, setOpen] = useState(false);
@@ -53,7 +53,7 @@ function CameraSwitcher({ fallback, sub }: { fallback: string; sub: string }) {
         className={cn("flex min-w-0 items-center gap-1 rounded-lg text-left leading-tight", many && "-mx-1.5 px-1.5 py-0.5 hover:bg-raise")}>
         <div className="min-w-0">
           <div className="flex items-center gap-1 truncate text-sm font-semibold">{cur?.name ?? fallback}{many && <ChevronDown size={14} className="text-muted" />}</div>
-          <div className="truncate text-[11px] text-dim">{sub}</div>
+          <div className={cn("truncate text-[11px] text-dim", ok && "max-sm:hidden")}>{sub}</div>
         </div>
       </button>
       {open && (
@@ -119,10 +119,10 @@ export function App() {
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 sm:px-5 short:h-11">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 max-sm:h-11 sm:px-5 short:h-11">
           <div className="flex min-w-0 items-center gap-2.5">
             <Dot on={online && status?.connected} />
-            <CameraSwitcher fallback={camName}
+            <CameraSwitcher fallback={camName} ok={online && !!status?.connected}
               sub={noCamera ? "no camera set up yet" : !online ? (status === null ? "connecting…" : "controller offline — retrying") : status?.connected ? (status.device?.versioninfo || "connected") : "camera not connected — retrying"} />
           </div>
           <nav className="mx-auto flex rounded-xl border border-line bg-panel p-0.5 max-sm:hidden">
@@ -149,26 +149,17 @@ export function App() {
 
       <UpdateBanner />
 
-      <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-24 pt-3 sm:px-5 sm:pb-8 short:pt-1.5 short:pb-4">
+      <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-10 pt-2 sm:px-5 sm:pb-8 sm:pt-3 short:pt-1.5 short:pb-4">
         {route === "/" && <Boundary name="Dashboard" full><DashboardPage /></Boundary>}
         {route === "/settings" && <Boundary name="Settings" full><SettingsPage /></Boundary>}
         {route === "/setup" && <SetupPage onFinish={() => go("/")} />}
       </main>
 
-      {/* Phone tab bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
-        {routes.map((r) => (
-          <button
-            key={r.path} onClick={() => go(r.path)}
-            className={cn("flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium", route === r.path ? "text-accent" : "text-muted")}
-          >
-            <r.icon size={20} /> {r.label}
-          </button>
-        ))}
-      </nav>
+      {/* Phone: no tab bar — a handle that brings the tabs up */}
+      <PhoneNav route={route} go={go} />
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 z-50 flex max-w-[92vw] -translate-x-1/2 items-start gap-2 rounded-xl border border-pgm/40 bg-panel-2 px-4 py-3 text-sm shadow-2xl sm:bottom-6">
+        <div className="fixed bottom-8 left-1/2 z-50 flex max-w-[92vw] -translate-x-1/2 items-start gap-2 rounded-xl border border-pgm/40 bg-panel-2 px-4 py-3 text-sm shadow-2xl sm:bottom-6">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-bad" />
           <span><b className="text-fg">{toast.source}:</b> <span className="text-muted">{toast.text}</span></span>
         </div>
@@ -213,5 +204,46 @@ function ExitCorner() {
         </div>
       )}
     </>
+  );
+}
+
+/** Phones: a small handle at the bottom edge; tap or swipe it up for the
+ *  tabs, so the dashboard keeps the whole screen. */
+function PhoneNav({ route, go }: { route: string; go: (p: Route) => void }) {
+  const [open, setOpen] = useState(false);
+  const y0 = useRef<number | null>(null);
+  const swipe = (up: boolean) => ({
+    onPointerDown: (e: React.PointerEvent) => { y0.current = e.clientY; },
+    onPointerUp: (e: React.PointerEvent) => {
+      const d = y0.current === null ? 0 : e.clientY - y0.current;
+      y0.current = null;
+      if (up ? d < -20 : d > 20) setOpen(up);
+      else if (Math.abs(d) < 8 && up) setOpen(true); // a tap on the handle
+    },
+  });
+  return (
+    <div className="sm:hidden">
+      {!open && (
+        <button type="button" aria-label="Show Dashboard and Settings" {...swipe(true)}
+          className="fixed bottom-0 left-1/2 z-40 flex h-7 w-24 -translate-x-1/2 touch-none items-center justify-center pb-[env(safe-area-inset-bottom)]">
+          <span className="h-1.5 w-12 rounded-full bg-line-strong shadow-[0_0_0_3px_rgba(0,0,0,.35)]" />
+        </button>
+      )}
+      <div className={cn("fixed inset-0 z-40 bg-black/50 transition-opacity", open ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setOpen(false)} />
+      <nav {...swipe(false)}
+        className={cn("fixed inset-x-0 bottom-0 z-50 touch-none rounded-t-3xl border-t border-line bg-panel px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl transition-transform duration-200",
+          open ? "translate-y-0" : "translate-y-full")}>
+        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-line-strong" />
+        <div className="grid grid-cols-2 gap-3">
+          {routes.map((r) => (
+            <button key={r.path} type="button" onClick={() => { setOpen(false); go(r.path); }}
+              className={cn("flex h-16 items-center justify-center gap-2 rounded-2xl border text-base font-semibold",
+                route === r.path ? "border-accent bg-accent/15 text-accent" : "border-line bg-bg text-muted")}>
+              <r.icon size={20} /> {r.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+    </div>
   );
 }

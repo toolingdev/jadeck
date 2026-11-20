@@ -119,7 +119,8 @@ func (s *Scene) Render(dst *image.RGBA, v View, name string, tally color.Color) 
 
 	// on-screen label and clock, like a camera's OSD
 	s.textMu.Lock()
-	label(dst, s.fonts.label, 18, 34, name, color.White)
+	nw := (&font.Drawer{Face: s.fonts.label}).MeasureString(name).Ceil()
+	label(dst, s.fonts.label, (w-nw)/2, 34, name, color.White) // top centre, clear of jadeck's badges
 	label(dst, s.fonts.small, w-130, h-18, time.Now().Format("15:04:05"), color.RGBA{220, 220, 220, 255})
 	s.textMu.Unlock()
 	if tally != nil {

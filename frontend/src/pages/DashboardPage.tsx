@@ -406,7 +406,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
       {editing && <Library onAdd={(d) => !touch.swallowClick() && addWidget(d)} onDragType={setDragType} onTouchStart={touch.start} />}
 
       <div className="min-w-0 flex-1">
-        <div className={cn("mb-3 flex flex-wrap items-center gap-2 short:mb-1.5", locked && "hidden")}>
+        <div className={cn("mb-3 flex flex-wrap items-center gap-2 max-sm:mb-2 short:mb-1.5", !editing && "max-sm:flex-nowrap", locked && "hidden")}>
           {editing ? (
             <>
               <Input value={draft!.name} onChange={(e) => commit({ ...draft!, name: e.target.value }, "name")} className="h-9 w-40 sm:w-48" aria-label="Dashboard name" />
@@ -423,18 +423,19 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
           ) : (
             <>
               <button type="button" onClick={() => setDialog("picker")}
-                className="flex h-9 items-center gap-2 rounded-xl border border-line bg-panel px-3 text-sm font-semibold hover:border-line-strong">
+                className="flex h-9 min-w-0 items-center gap-2 rounded-xl border border-line bg-panel px-3 text-sm font-semibold hover:border-line-strong max-sm:flex-1">
                 <KindIcon size={15} className="text-muted" />
-                {shown.name}
+                <span className="truncate">{shown.name}</span>
                 {isDefaultFor.includes(device) && <Star size={12} className="fill-accent text-accent" />}
                 <ChevronDown size={15} className="text-muted" />
               </button>
-              <span className="flex items-center gap-1 text-xs text-dim short:hidden">Layout locked{view.note && ` · ${view.note}`}</span>
+              <span className="flex items-center gap-1 text-xs text-dim max-sm:hidden short:hidden">Layout locked{view.note && ` · ${view.note}`}</span>
               <div className="ml-auto flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={enterFullScreen} title="Only the dashboard, and the screen stays awake. The ✕ in the corner (tap twice) or Esc leaves.">
-                  <Maximize2 size={14} /> Full screen
+                <Button size="sm" variant="ghost" onClick={enterFullScreen} aria-label="Full screen" title="Only the dashboard, and the screen stays awake. The ✕ in the corner (tap twice) or Esc leaves."
+                  className="max-sm:h-9 max-sm:w-9 max-sm:border max-sm:border-line max-sm:px-0">
+                  <Maximize2 size={14} /><span className="max-sm:hidden">Full screen</span>
                 </Button>
-                <Button size="sm" onClick={() => startEdit(shown)}><Pencil size={14} /> Edit</Button>
+                <Button size="sm" onClick={() => startEdit(shown)} aria-label="Edit" className="max-sm:h-9 max-sm:w-9 max-sm:px-0"><Pencil size={14} /><span className="max-sm:hidden">Edit</span></Button>
               </div>
             </>
           )}
