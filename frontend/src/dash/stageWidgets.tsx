@@ -449,9 +449,12 @@ export function StageLive({ s }: { s: Settings }) {
   if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected — on-air state unknown.</Note>;
   const live = sw.streaming;
   return (
-    <div className={cn("@container flex h-full items-center justify-center rounded-full border-2 px-3 text-center font-bold transition-colors",
+    <div className={cn("@container flex h-full items-center justify-center rounded-full border-2 px-2 text-center font-bold transition-colors",
       live ? "border-pgm bg-pgm text-white" : "border-line-strong bg-panel-2 text-dim")}>
-      <span className="truncate text-[clamp(12px,min(40cqh,9cqw),44px)] leading-none tracking-wide">
+      {/* The size comes from the box, so the words always fit — never cut
+          off: "WE ARE LIVE" needs ~6.6em of width, "OFF AIR" / "● LIVE" ~4.6em. */}
+      <span className={cn("whitespace-nowrap leading-none",
+        live ? "text-[min(42cqh,13cqw,48px)] @max-[15rem]:text-[min(42cqh,17cqw,48px)]" : "text-[min(42cqh,17cqw,48px)]")}>
         {live ? <>● <span className="@max-[15rem]:hidden">WE ARE </span>LIVE</> : "OFF AIR"}
       </span>
     </div>
