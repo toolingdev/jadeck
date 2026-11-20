@@ -15,3 +15,10 @@ frontend/node_modules/
 /recon-upgrade/
 /RECON.md
 /goal-notes/
+
+# old screenshots / mocks kept locally only
+ui-preview-*.png
+design/6-cameras-system-setup.png
+design/video-feeds-mock.png
+.claude/
+scripts/migrate-from-python.ps1
