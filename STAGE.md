@@ -51,10 +51,12 @@ Booth dashboard. On an existing install, add them to Booth yourself (Edit
 1. Open the controller on the iPad, Dashboard → pick **Stage — iPad**.
 2. Settings → Stage channels → set **This screen's name** (e.g. "Pulpit
    iPad").
-3. Back on the dashboard, press **Lock screen**. The header and tab bar go
-   away, nothing can be bumped, and the screen stays awake (iPadOS 16.4 or
-   later; on older iPads set Auto-Lock to Never). **Hold the top-right
-   corner for 3 seconds** to unlock.
+3. Back on the dashboard, press **Full screen**. The header and tab bar go
+   away (and the browser's bars too, where the browser allows it), Edit is
+   hidden, and the screen stays awake (iPadOS 16.4 or later; on older iPads
+   set Auto-Lock to Never). To leave, **tap the faint ✕ in the top-right
+   corner twice**, or press Esc on a laptop. iPhone Safari can't hide its
+   own bars: Share → Add to Home Screen and open jadeck from there.
 4. For a hard lock, also use iPad Guided Access (outside this app).
 
 ## Behaviour worth knowing

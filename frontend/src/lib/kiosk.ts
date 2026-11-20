@@ -1,8 +1,9 @@
 import { useEffect, useSyncExternalStore } from "react";
 
-// Locked screen (the pulpit iPad): no header, no tab bar, no Edit, and
-// the screen stays awake. It belongs to this device only. Hold the
-// top-right corner for 3 seconds to unlock.
+// Full screen (the pulpit iPad, a phone at the booth): only the
+// dashboard, no header, no tab bar, no Edit, and the screen stays awake.
+// It belongs to this device only. The ✕ in the corner (tap twice) or
+// leaving the browser's full screen (Esc) ends it.
 
 const KEY = "ptz.locked";
 let locked = false;
@@ -56,4 +57,48 @@ export function useWakeLock(on: boolean) {
       sentinel?.release().catch(() => {});
     };
   }, [on]);
+}
+
+type FSDoc = Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
+type FSEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+
+/** Can this browser hide its own bars? (Not iPhone Safari.) */
+export const canFullScreen = () => {
+  const el = document.documentElement as FSEl;
+  return !!(el.requestFullscreen || el.webkitRequestFullscreen) && (document.fullscreenEnabled ?? true);
+};
+
+/** Opened from the home screen (no browser bars already). */
+export const standalone = () =>
+  window.matchMedia?.("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+const inBrowserFS = () => !!(document.fullscreenElement || (document as FSDoc).webkitFullscreenElement);
+
+export function enterFullScreen() {
+  setLocked(true);
+  const el = document.documentElement as FSEl;
+  try {
+    const p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: "hide" }) : el.webkitRequestFullscreen?.();
+    p?.catch(() => { /* not allowed here: the app still hides its own bars */ });
+  } catch { /* ignore */ }
+}
+
+export function exitFullScreen() {
+  setLocked(false);
+  if (inBrowserFS()) {
+    const d = document as FSDoc;
+    (d.exitFullscreen ? d.exitFullscreen() : d.webkitExitFullscreen?.())?.catch(() => {});
+  }
+}
+
+// Esc (or the browser's own exit) also leaves our full screen. Only on
+// a change: a screen that was full screen before a reload stays put.
+// A browser that drops full screen right away (it isn't allowed here)
+// doesn't count: the app keeps hiding its own bars.
+let fsSince = 0;
+for (const ev of ["fullscreenchange", "webkitfullscreenchange"]) {
+  document.addEventListener(ev, () => {
+    if (inBrowserFS()) fsSince = Date.now();
+    else if (locked && fsSince && Date.now() - fsSince > 1000) setLocked(false);
+  });
 }

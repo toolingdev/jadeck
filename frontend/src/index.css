@@ -2,6 +2,9 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
 
+/* A phone on its side (or a short, wide window): slim chrome. */
+@custom-variant short (@media (max-height: 500px) and (orientation: landscape));
+
 /* Dark only (standing preference). Broadcast conventions: red = program
    (live), green = preview, amber = the app's own accent. */
 @theme {

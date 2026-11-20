@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactGridLayout from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { Lock, Pencil, Undo2, Redo2, RotateCcw, Plus, Copy, Trash2, X, Check, ChevronDown, Star, Smartphone, Tablet, Monitor } from "lucide-react";
+import { Maximize2, Info, Pencil, Undo2, Redo2, RotateCcw, Plus, Copy, Trash2, X, Check, ChevronDown, Star, Smartphone, Tablet, Monitor } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLocal } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
@@ -12,9 +12,9 @@ import { WIDGET, type WidgetDef, type Settings } from "@/dash/widgets";
 import { WidgetView, Library, Inspector, SaveBadge } from "@/dash/editor";
 import { useTouchDrag } from "@/dash/touchDrag";
 import { useAddonWidgets } from "@/dash/addonWidgets";
-import { setLocked } from "@/lib/kiosk";
+import { enterFullScreen } from "@/lib/kiosk";
 import { VideoCount, VIDEO_TYPES } from "@/dash/videoCount";
-import { COLS, ROW_H, SCREENS, SCREEN_LABEL, screenFor, newId, bottomOf, stacked, type Dashboard, type Defaults, type Screen } from "@/dash/types";
+import { COLS, ROW_H, SCREENS, SCREEN_LABEL, screenFor, newId, bottomOf, stacked, twoUp, type Dashboard, type Defaults, type Screen } from "@/dash/types";
 
 const MARGIN: [number, number] = [12, 12];
 const PAD = 6;
@@ -65,9 +65,10 @@ export function KindBadge({ kind }: { kind: Screen }) {
 
 /** Which screen this device is (by viewport, not by the dashboard). */
 function useDeviceScreen() {
-  const [s, setS] = useState<Screen>(() => screenFor(window.innerWidth));
+  const read = () => ({ screen: screenFor(window.innerWidth, window.innerHeight), sideways: window.innerWidth > window.innerHeight });
+  const [s, setS] = useState(read);
   useEffect(() => {
-    const on = () => setS(screenFor(window.innerWidth));
+    const on = () => setS((o) => { const n = read(); return n.screen === o.screen && n.sideways === o.sideways ? o : n; });
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
@@ -77,7 +78,8 @@ function useDeviceScreen() {
 export function DashboardPage({ locked = false }: { locked?: boolean }) {
   useAddonWidgets(); // add-on widgets join the registry before widgets render
   const { log } = useLog();
-  const device = useDeviceScreen();
+  const { screen: device, sideways } = useDeviceScreen();
+  const [info, setInfo] = useState<string | null>(null);
   const [list, setList] = useState<Dashboard[] | null>(null);
   const [defaults, setDefaults] = useState<Defaults>({});
   const [pick, setPick] = useLocal<number | null>("ptz.dashboard", null); // this device's choice
@@ -122,10 +124,12 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   const view = useMemo(() => {
     if (!shown) return { cols: 12, layout: [], max: "max-w-none", note: "" };
     if (editing) return { cols: COLS[kind], layout: shown.layout, max: CANVAS_MAX[kind], note: "" };
+    // A phone on its side: two columns instead of one long scroll.
+    if (device === "phone" && sideways) return { cols: 8, layout: twoUp(shown.layout, 4), max: "max-w-none", note: "two columns sideways" };
     if (kind === "phone" && device !== "phone") return { cols: 4, layout: shown.layout, max: "max-w-[420px]", note: "phone dashboard" };
     if (kind !== "phone" && device === "phone") return { cols: 4, layout: stacked(shown.layout, 4), max: "max-w-none", note: "stacked for this phone" };
     return { cols: COLS[kind], layout: shown.layout, max: "max-w-none", note: "" };
-  }, [shown, editing, kind, device]);
+  }, [shown, editing, kind, device, sideways]);
   const colW = colWidth(width, view.cols, editing ? PAD : 0);
   // Measured height each widget needs to show all its contents.
   const [need, setNeed] = useState<Record<string, number>>({});
@@ -371,7 +375,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
       {editing && <Library onAdd={(d) => !touch.swallowClick() && addWidget(d)} onDragType={setDragType} onTouchStart={touch.start} />}
 
       <div className="min-w-0 flex-1">
-        <div className={cn("mb-3 flex flex-wrap items-center gap-2", locked && "hidden")}>
+        <div className={cn("mb-3 flex flex-wrap items-center gap-2 short:mb-1.5", locked && "hidden")}>
           {editing ? (
             <>
               <Input value={draft!.name} onChange={(e) => commit({ ...draft!, name: e.target.value }, "name")} className="h-9 w-40 sm:w-48" aria-label="Dashboard name" />
@@ -394,10 +398,10 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                 {isDefaultFor.includes(device) && <Star size={12} className="fill-accent text-accent" />}
                 <ChevronDown size={15} className="text-muted" />
               </button>
-              <span className="flex items-center gap-1 text-xs text-dim"><Lock size={12} /> Layout locked{view.note && ` · ${view.note}`}</span>
+              <span className="flex items-center gap-1 text-xs text-dim short:hidden">Layout locked{view.note && ` · ${view.note}`}</span>
               <div className="ml-auto flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setLocked(true)} title="Hide the header and keep this screen awake — for a stage iPad. Hold the top-right corner 3 s to unlock.">
-                  <Lock size={14} /> Lock screen
+                <Button size="sm" variant="ghost" onClick={enterFullScreen} title="Only the dashboard, and the screen stays awake. The ✕ in the corner (tap twice) or Esc leaves.">
+                  <Maximize2 size={14} /> Full screen
                 </Button>
                 <Button size="sm" onClick={() => startEdit(shown)}><Pencil size={14} /> Edit</Button>
               </div>
@@ -454,7 +458,9 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                     <WidgetView w={w} editing={editing} onNeed={onNeed} />
                     {editing && (
                       <div className={cn("absolute inset-0 z-10 rounded-[var(--radius-card)] transition", selected === w.id ? "ring-2 ring-accent" : "hover:ring-1 hover:ring-line-strong")}
-                        onClick={() => setSelected(w.id)} aria-label={`Select ${WIDGET[w.type]?.label ?? w.type}`} />
+                        onClick={() => { setSelected(w.id); setInfo(null); }} aria-label={`Select ${WIDGET[w.type]?.label ?? w.type}`}>
+                        <NameChip w={w} open={info === w.id} onInfo={() => setInfo(info === w.id ? null : w.id)} />
+                      </div>
                     )}
                   </div>
                 ))}
@@ -620,5 +626,32 @@ export function NewDashboard({ open, onClose, list, device, copyOf, onCreated }:
         <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" variant="accent">Create</Button></div>
       </form>
     </Dialog>
+  );
+}
+
+/** Edit mode: what a widget is, on the widget itself; ⓘ says what it does. */
+function NameChip({ w, open, onInfo }: { w: { id: string; type: string; settings?: Settings }; open: boolean; onInfo: () => void }) {
+  const def = WIDGET[w.type];
+  const s = (w.settings ?? {}) as Record<string, unknown>;
+  const detail = typeof s.channel === "string" ? s.channel
+    : Array.isArray(s.channels) && s.channels.length ? (s.channels as string[]).join(", ")
+    : typeof s.feed === "string" && s.feed ? s.feed : "";
+  const name = def?.label ?? w.type;
+  return (
+    <div className="no-drag pointer-events-none absolute left-2 top-2 z-20 max-w-[calc(100%-1rem)]">
+      <button type="button" onClick={(e) => { e.stopPropagation(); onInfo(); }} onPointerDown={(e) => e.stopPropagation()}
+        className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border border-accent bg-bg/90 px-2.5 py-1 text-[11px] font-semibold text-accent shadow backdrop-blur">
+        <span className="truncate">{name}{detail && <span className="font-medium text-accent/80"> · {detail}</span>}</span>
+        <Info size={12} className="shrink-0" />
+      </button>
+      {open && (
+        <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+          className="pointer-events-auto mt-1.5 w-64 max-w-[80vw] rounded-xl border border-accent bg-panel-2 p-3 text-xs shadow-2xl">
+          <p className="font-semibold text-fg">{name}</p>
+          <p className="mt-1 text-muted">{def?.description ?? "A widget from an add-on."}</p>
+          <p className="mt-2 text-dim">Tap the widget to change its settings.</p>
+        </div>
+      )}
+    </div>
   );
 }

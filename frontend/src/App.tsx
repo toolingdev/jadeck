@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, Check, Star } from "lucide-react";
+import { LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, Check, Star, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { setCamera, useCamera } from "@/lib/camera";
 import { useCameras } from "@/components/CameraSetup";
@@ -11,7 +11,7 @@ import { Dot } from "@/components/ui";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SettingsPage } from "@/pages/SettingsPage";
-import { setLocked, useLocked, useWakeLock } from "@/lib/kiosk";
+import { exitFullScreen, canFullScreen, standalone, useLocked, useWakeLock } from "@/lib/kiosk";
 import { Boundary } from "@/components/Boundary";
 
 // Everything you use is a dashboard (the old Camera page is the starter
@@ -112,14 +112,14 @@ export function App() {
         <main key={cam} className="w-full flex-1 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <Boundary name="Dashboard" full><DashboardPage locked /></Boundary>
         </main>
-        <UnlockCorner />
+        <ExitCorner />
       </div>
     );
   }
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 sm:px-5 short:h-11">
           <div className="flex min-w-0 items-center gap-2.5">
             <Dot on={online && status?.connected} />
             <CameraSwitcher fallback={camName}
@@ -136,7 +136,7 @@ export function App() {
               </button>
             ))}
           </nav>
-          <div className="ml-auto hidden items-center gap-3 font-mono text-[11px] text-muted tabular md:flex">
+          <div className="ml-auto hidden items-center gap-3 font-mono text-[11px] text-muted tabular md:flex short:hidden">
             <span>PAN <b className="inline-block w-[6ch] text-right text-fg">{status?.pan ?? "—"}</b></span>
             <span>TILT <b className="inline-block w-[6ch] text-right text-fg">{status?.tilt ?? "—"}</b></span>
             <span>ZOOM <b className="inline-block w-[6ch] text-right text-fg">{status?.zoom ?? "—"}</b></span>
@@ -149,7 +149,7 @@ export function App() {
 
       <UpdateBanner />
 
-      <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-24 pt-3 sm:px-5 sm:pb-8">
+      <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-24 pt-3 sm:px-5 sm:pb-8 short:pt-1.5 short:pb-4">
         {route === "/" && <Boundary name="Dashboard" full><DashboardPage /></Boundary>}
         {route === "/settings" && <Boundary name="Settings" full><SettingsPage /></Boundary>}
         {route === "/setup" && <SetupPage onFinish={() => go("/")} />}
@@ -177,33 +177,41 @@ export function App() {
   );
 }
 
-/** Hold the top-right corner for 3 seconds to leave the locked screen. */
-function UnlockCorner() {
-  const [t, setT] = useState<number | null>(null);
-  const [pct, setPct] = useState(0);
+/** Full screen's way out: a faint ✕; tap it twice (so a bump on stage
+ *  doesn't end it). On iPhone Safari, which can't hide its own bars, a
+ *  one-time tip: Add to Home Screen. */
+function ExitCorner() {
+  const [armed, setArmed] = useState(false);
+  const [tip, setTip] = useState(() => {
+    if (canFullScreen() || standalone()) return false;
+    try { return localStorage.getItem("ptz.fsTip") !== "1"; } catch { return false; }
+  });
   useEffect(() => {
-    if (t === null) return;
-    const iv = setInterval(() => {
-      const p = Math.min(1, (Date.now() - t) / 3000);
-      setPct(p);
-      if (p >= 1) {
-        clearInterval(iv);
-        setLocked(false);
-      }
-    }, 50);
-    return () => clearInterval(iv);
-  }, [t]);
-  const end = () => {
-    setT(null);
-    setPct(0);
-  };
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  useEffect(() => {
+    if (!tip) return;
+    try { localStorage.setItem("ptz.fsTip", "1"); } catch { /* ignore */ }
+    const t = setTimeout(() => setTip(false), 9000);
+    return () => clearTimeout(t);
+  }, [tip]);
   return (
-    <div className="fixed right-0 top-0 z-50 flex h-16 w-16 items-start justify-end p-2 [-webkit-touch-callout:none] select-none"
-      onPointerDown={() => setT(Date.now())} onPointerUp={end} onPointerLeave={end} onPointerCancel={end}
-      onContextMenu={(e) => e.preventDefault()} aria-label="Hold 3 seconds to unlock">
-      {pct > 0.12 && (
-        <span className="rounded-full bg-panel-2 px-2 py-1 text-[11px] font-semibold text-muted shadow">Unlocking… {Math.ceil(3 - pct * 3)}</span>
+    <>
+      <div className="fixed right-2 top-[max(0.5rem,env(safe-area-inset-top))] z-50 flex items-center gap-2">
+        {armed && <span className="rounded-full bg-panel-2 px-2.5 py-1 text-[11px] font-semibold text-fg shadow">Tap again to exit</span>}
+        <button type="button" aria-label="Exit full screen" onClick={() => (armed ? exitFullScreen() : setArmed(true))}
+          className={cn("flex h-8 w-8 items-center justify-center rounded-full border transition",
+            armed ? "border-accent bg-accent text-bg" : "border-white/20 bg-black/40 text-white/50")}>
+          <X size={15} />
+        </button>
+      </div>
+      {tip && (
+        <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 rounded-xl border border-line bg-panel-2 px-4 py-3 text-xs text-muted shadow-2xl" onClick={() => setTip(false)}>
+          <b className="text-fg">Hide Safari's bars too:</b> Share → Add to Home Screen, then open jadeck from there.
+        </div>
       )}
-    </div>
+    </>
   );
 }

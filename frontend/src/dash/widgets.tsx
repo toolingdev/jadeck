@@ -502,7 +502,7 @@ export const WIDGETS: WidgetDef[] = [
     ],
     Render: ({ s, editing }) => <StageSend s={s} editing={editing} /> },
   { type: "stage.show", label: "Message display", group: "stage", icon: MessagesSquare,
-    description: "Shows a channel's messages: big (latest only) for the stage, or the whole conversation for the booth.",
+    description: "Shows the messages sent to one stage channel: big (latest only) for the stage, or the whole conversation for the booth. With no message up it can show the clock.",
     size: { w: 8, h: 8, pw: 4, ph: 8 }, minPx: { w: 200, h: 100 },
     defaults: { channel: "pulpit", style: "big", hideOwn: true, tapSeen: true, showAge: true, empty: "clock" },
     fields: [
