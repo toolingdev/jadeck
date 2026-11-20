@@ -24,3 +24,8 @@ design/video-feeds-mock.png
 scripts/migrate-from-python.ps1
 auto.crt
 auto.key
+
+# e2e test output
+e2e/node_modules/
+e2e/report/
+e2e/results/

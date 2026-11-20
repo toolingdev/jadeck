@@ -174,7 +174,7 @@ function PhoneNav({ route, go }: { route: string; go: (p: Route) => void }) {
   });
   const tab = "flex h-7 w-16 items-center justify-center rounded-t-xl border border-b-0 border-line-strong text-fg";
   return (
-    <div className="sm:hidden">
+    <div className="sm:hidden" data-phone-nav>
       {!open && (
         <>
           {/* a hairline along the bottom edge: the tab hangs off the app's frame, not a widget */}
@@ -187,7 +187,7 @@ function PhoneNav({ route, go }: { route: string; go: (p: Route) => void }) {
       )}
       <div className={cn("fixed inset-0 z-40 bg-black/50 transition-opacity", open ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setOpen(false)} />
       <nav {...swipe(false)}
-        className={cn("fixed inset-x-0 bottom-0 z-50 touch-none transition-transform duration-200", open ? "translate-y-0" : "translate-y-[calc(100%+2rem)]")}>
+        className={cn("fixed inset-x-0 bottom-0 z-50 touch-none transition-transform duration-200", open ? "translate-y-0" : "invisible translate-y-[calc(100%+2rem)]")}>
         <button type="button" aria-label="Hide" onClick={() => setOpen(false)} className={cn(tab, "mx-auto -mb-px bg-panel")}>
           <ChevronDown size={18} />
         </button>

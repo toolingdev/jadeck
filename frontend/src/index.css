@@ -83,3 +83,10 @@ body {
   0%, 100% { box-shadow: 0 0 0 0 transparent; }
   50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 45%, transparent); }
 }
+
+/* Touch screens: every button and link is big enough to hit with a
+   finger (text-style ones too), at least 32px tall. */
+@media (pointer: coarse) {
+  main button:not([role="switch"]), main select, main [role="button"] { min-height: 32px; }
+  main a { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; min-width: 32px; }
+}
