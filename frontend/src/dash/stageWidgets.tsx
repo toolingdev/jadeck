@@ -6,6 +6,7 @@ import { useLog } from "@/lib/log";
 import { setCamera, useCamera } from "@/lib/camera";
 import { cn } from "@/lib/cn";
 import { StreamView } from "@/components/StreamView";
+import { useAutoSD } from "./videoCount";
 import {
   useStage, useScreenName, stageApi, timerLeft, fmtClock, parseTimerPreset, ago, MAX_TEXT,
   type ChannelState, type Message,
@@ -473,7 +474,8 @@ export function LiveCamPinned({ s, editing }: { s: Settings; editing: boolean })
   const header = useCamera();
   const cfg = useShared<StreamConfig>(pin ? `/api/config?cam=${encodeURIComponent(pin)}` : "/api/config", 0).data;
   const { data: cams } = useShared<CameraInfo[]>("/api/cameras", 10000);
-  const sd = str(s.quality, "hd") === "sd";
+  const quality = str(s.quality, "hd");
+  const sd = useAutoSD(quality);
   const { state } = useTally(pin, Number(s.input) || 0);
   const tally = bool(s.tally, false) ? state : null;
   const cam = cams?.find((c) => c.id === (pin || header)) ?? cams?.find((c) => c.main);
@@ -482,7 +484,7 @@ export function LiveCamPinned({ s, editing }: { s: Settings; editing: boolean })
   return (
     <div className={cn("relative h-full rounded-[var(--radius-card)]", tally === "pgm" && "ring-[3px] ring-pgm", tally === "pvw" && "ring-[3px] ring-pvw")}>
       <StreamView key={`${pin}-${sd ? "sd" : "hd"}`} aspect="h-full"
-        title={title && <span className="flex items-center gap-1.5">{tally === "pgm" && <b className="text-pgm">● LIVE</b>}{tally === "pvw" && <b className="text-pvw">● NEXT</b>}{title}</span>}
+        title={(title || quality === "auto") && <span className="flex items-center gap-1.5">{tally === "pgm" && <b className="text-pgm">● LIVE</b>}{tally === "pvw" && <b className="text-pvw">● NEXT</b>}{title}{quality === "auto" && <span className="text-dim">{title ? " · " : ""}{sd ? "SD" : "HD"} auto</span>}</span>}
         whep={cfg ? (sd ? cfg.whepSd : cfg.whep) : undefined} hls={cfg ? (sd ? cfg.hlsSd : cfg.hls) : undefined} snapshot={cfg?.snapshot} />
       {tapToControl && !editing && (
         <button type="button" onClick={() => setCamera(cam?.main ? "" : pin)}

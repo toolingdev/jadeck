@@ -36,6 +36,7 @@ func (s *Server) stageRoutes(mux *http.ServeMux) {
 		if stageErr(w, err) {
 			return
 		}
+		s.Log.Info("stage channel created", "channel", c.ID, "name", c.Name)
 		writeJSON(w, 201, c)
 	})
 	mux.HandleFunc("PUT /api/stage/channels/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -47,12 +48,14 @@ func (s *Server) stageRoutes(mux *http.ServeMux) {
 		if stageErr(w, err) {
 			return
 		}
+		s.Log.Info("stage channel renamed", "channel", c.ID, "name", c.Name)
 		writeJSON(w, 200, c)
 	})
 	mux.HandleFunc("DELETE /api/stage/channels/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if stageErr(w, s.Stage.DeleteChannel(r.PathValue("id"))) {
 			return
 		}
+		s.Log.Info("stage channel deleted", "channel", r.PathValue("id"))
 		w.WriteHeader(204)
 	})
 	mux.HandleFunc("POST /api/stage/channels/{id}/messages", func(w http.ResponseWriter, r *http.Request) {
@@ -64,12 +67,14 @@ func (s *Server) stageRoutes(mux *http.ServeMux) {
 		if stageErr(w, err) {
 			return
 		}
+		s.Log.Info("stage message", "channel", r.PathValue("id"), "from", m.From, "text", m.Text, "online", s.stageOnline(r.PathValue("id")))
 		writeJSON(w, 201, m)
 	})
 	mux.HandleFunc("DELETE /api/stage/channels/{id}/messages", func(w http.ResponseWriter, r *http.Request) {
 		if stageErr(w, s.Stage.Clear(r.PathValue("id"))) {
 			return
 		}
+		s.Log.Info("stage cleared", "channel", r.PathValue("id"), "client", clientIP(r))
 		w.WriteHeader(204)
 	})
 	mux.HandleFunc("POST /api/stage/channels/{id}/seen", func(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +85,7 @@ func (s *Server) stageRoutes(mux *http.ServeMux) {
 		if stageErr(w, s.Stage.Seen(r.PathValue("id"), b.ID, b.Screen)) {
 			return
 		}
+		s.Log.Info("stage seen", "channel", r.PathValue("id"), "screen", b.Screen, "message", b.ID)
 		w.WriteHeader(204)
 	})
 	mux.HandleFunc("POST /api/stage/channels/{id}/timer", func(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +97,7 @@ func (s *Server) stageRoutes(mux *http.ServeMux) {
 		if stageErr(w, err) {
 			return
 		}
+		s.Log.Info("stage timer", "channel", r.PathValue("id"), "op", op.Op, "label", op.Label, "seconds", op.Seconds)
 		writeJSON(w, 200, map[string]any{"timer": t})
 	})
 	mux.HandleFunc("GET /api/stage/events", s.stageEvents)
@@ -132,6 +139,13 @@ func (s *Server) stageEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	sub, leave := s.Stage.Subscribe(q.Get("screen"), chans)
 	defer leave()
+	if sub.Screen != "" {
+		t0 := time.Now()
+		s.Log.Info("stage screen connected", "screen", sub.Screen, "channels", strings.Join(chans, ","), "client", clientIP(r))
+		defer func() {
+			s.Log.Info("stage screen disconnected", "screen", sub.Screen, "after", time.Since(t0).Round(time.Second).String())
+		}()
+	}
 
 	send := func() bool {
 		b, _ := json.Marshal(s.stageSnapshot(sub))
@@ -159,4 +173,18 @@ func (s *Server) stageEvents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// stageOnline names the screens listening on a channel right now.
+func (s *Server) stageOnline(id string) string {
+	for _, c := range s.Stage.State(nil) {
+		if c.ID == id {
+			names := []string{}
+			for _, sc := range c.Screens {
+				names = append(names, sc.Name)
+			}
+			return strings.Join(names, ", ")
+		}
+	}
+	return ""
 }

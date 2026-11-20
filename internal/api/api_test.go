@@ -23,11 +23,12 @@ import (
 	"ptz/internal/dashboards"
 	"ptz/internal/devices"
 	"ptz/internal/devices/sim"
+	"ptz/internal/logx"
 	"ptz/internal/macros"
 	"ptz/internal/mockcam"
 	"ptz/internal/settings"
-	"ptz/internal/update"
 	"ptz/internal/stage"
+	"ptz/internal/update"
 	"ptz/internal/video"
 	"ptz/web"
 )
@@ -97,7 +98,11 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &Server{Stage: stg, Cams: reg, Settings: setStore, Video: gw, Mock: true, Web: web.Dist, Legacy: web.Legacy, Log: quiet, Version: "test", Keys: keys, Trust: trust, Dashboards: dash,
+	logs := logx.New(nil)
+	logs.AttachDir(filepath.Join(dataDir, "logs"))
+	t.Cleanup(func() { logs.Close() })
+	quiet = logs.Logger()
+	srv := &Server{Logs: logs, Stage: stg, Cams: reg, Settings: setStore, Video: gw, Mock: true, Web: web.Dist, Legacy: web.Legacy, Log: quiet, Version: "test", Keys: keys, Trust: trust, Dashboards: dash,
 		Dev: dev, MacroStore: ms, Updates: um, Restart: Restarter{Mode: "exec"}}
 	srv.Macros = macros.NewEngine(ms, srv.MacroActions())
 	h := srv.Handler()

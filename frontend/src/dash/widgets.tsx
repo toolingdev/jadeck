@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   MonitorPlay, Gamepad2, Bookmark, LayoutGrid, Sun, Home as HomeIcon, Square, ZoomIn, Gauge,
   Tv, Presentation, ChevronsRight, Mic, MicOff, ListMusic, Play, ListChecks, Clock, Timer, Type, ScrollText,
-  ChevronLeft, ChevronRight, Loader2, MessageSquareText, MessagesSquare, Radio, type LucideIcon,
+  ChevronLeft, ChevronRight, Loader2, Activity, HeartPulse, MessageSquareText, MessagesSquare, Radio, type LucideIcon,
 } from "lucide-react";
+import { BandwidthWidget, HealthWidget } from "./metricsWidgets";
 import { StageSend, StageShow, StageTimer, StageLive, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK } from "./stageWidgets";
 import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
 import { useShared, refreshShared, useLocal } from "@/lib/hooks";
@@ -20,7 +21,7 @@ import { Macros } from "@/components/Macros";
 
 // ----------------------------------------------------------------- types
 
-export type Group = "stage" | "camera" | "switcher" | "slides" | "audio" | "macros" | "other";
+export type Group = "stage" | "camera" | "switcher" | "slides" | "audio" | "macros" | "metrics" | "other";
 export const GROUPS: { id: Group; label: string; needs?: "switcher" | "presentation" | "mixer" }[] = [
   { id: "stage", label: "Stage" },
   { id: "camera", label: "Camera" },
@@ -28,6 +29,7 @@ export const GROUPS: { id: Group; label: string; needs?: "switcher" | "presentat
   { id: "slides", label: "Slides", needs: "presentation" },
   { id: "audio", label: "Audio", needs: "mixer" },
   { id: "macros", label: "Macros" },
+  { id: "metrics", label: "Metrics" },
   { id: "other", label: "Other" },
 ];
 
@@ -502,10 +504,11 @@ export const WIDGETS: WidgetDef[] = [
     Render: ({ s }) => <StageLive s={s} /> },
 
   { type: "camera.live", label: "Live view", group: "camera", icon: MonitorPlay, description: "A camera's picture. Drop several and pick a camera for each to build a multiview.",
-    size: { w: 6, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: { quality: "hd", camera: "", tally: false, tapToControl: true },
+    size: { w: 6, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: { quality: "auto", camera: "", tally: false, tapToControl: true },
     fields: [
       CAMERA_FIELD,
-      { key: "quality", label: "Quality", type: "select", options: [{ value: "hd", label: "HD" }, { value: "sd", label: "SD (lighter — use for several feeds)" }] },
+      { key: "quality", label: "Quality", type: "select", help: "Auto: HD when it's the only video on the screen, SD when there are several or on a phone.",
+        options: [{ value: "auto", label: "Auto (recommended)" }, { value: "hd", label: "HD — always" }, { value: "sd", label: "SD — always (lighter)" }] },
       label("title", "Title on the picture"),
       { key: "tally", label: "Tally border (red live, green next)", type: "bool", help: "From vMix: the input whose name matches the camera, or pick it below." },
       { key: "input", label: "vMix input for tally", type: "input", showIf: (s) => bool(s.tally) },
@@ -578,6 +581,17 @@ export const WIDGETS: WidgetDef[] = [
     Render: ({ s }) => <MacroButton s={s} /> },
   { type: "macros.list", label: "Macro list", group: "macros", icon: ListChecks, description: "All macros, with the builder.",
     size: { w: 5, h: 7, ph: 8 }, min: { w: 3, h: 4 }, defaults: {}, fields: [], Render: () => <Fill><Macros /></Fill> },
+
+  { type: "metrics.bandwidth", label: "Video bandwidth", group: "metrics", icon: Activity,
+    description: "Live: how much video goes to screens and comes from cameras / vMix, per feed, who's watching, and the vMix SRT link.",
+    size: { w: 6, h: 7, pw: 4, ph: 8 }, min: { w: 3, h: 3 }, defaults: { viewers: true, senders: true },
+    fields: [{ key: "viewers", label: "List who's watching", type: "bool" }, { key: "senders", label: "Show the vMix SRT link", type: "bool" }],
+    Render: ({ s }) => <BandwidthWidget s={s} /> },
+  { type: "metrics.health", label: "System health", group: "metrics", icon: HeartPulse,
+    description: "Cameras, vMix, slides, mixer, stream gateway and stage screens: up or down, since when, and recent problems.",
+    size: { w: 4, h: 6, pw: 4, ph: 6 }, min: { w: 2, h: 3 }, defaults: { problems: true },
+    fields: [{ key: "problems", label: "Show recent problems", type: "bool" }],
+    Render: ({ s }) => <HealthWidget s={s} /> },
 
   { type: "other.clock", label: "Clock", group: "other", icon: Clock, description: "The time, big.",
     size: { w: 3, h: 3, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: { seconds: false, date: false },

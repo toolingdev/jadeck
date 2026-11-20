@@ -4,16 +4,56 @@ import { useStream } from "@/lib/stream";
 import { cn } from "@/lib/cn";
 import { Badge, Button } from "@/components/ui";
 
-const tierLabel = { connecting: "Connecting…", webrtc: "WebRTC · Live", hls: "HLS · Live", snapshot: "Snapshot preview", nosignal: "No signal" } as const;
+const tierLabel = { connecting: "Connecting…", webrtc: "WebRTC · Live", hls: "HLS · Live", snapshot: "Snapshot preview", nosignal: "No signal", paused: "Paused — not visible" } as const;
+
+/**
+ * True while the box can be seen: the tab is showing and the box is on
+ * screen. Turning off waits a little (a quick app switch or scroll past
+ * doesn't drop and rebuild the stream); turning on is immediate.
+ */
+function useSeen(ref: React.RefObject<HTMLElement | null>) {
+  const [docOn, setDocOn] = useState(() => document.visibilityState === "visible");
+  const [onScreen, setOnScreen] = useState(true);
+  useEffect(() => {
+    let t: number | undefined;
+    const on = () => {
+      clearTimeout(t);
+      if (document.visibilityState === "visible") setDocOn(true);
+      else t = window.setTimeout(() => setDocOn(false), 15000);
+    };
+    document.addEventListener("visibilitychange", on);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("visibilitychange", on);
+    };
+  }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    let t: number | undefined;
+    const io = new IntersectionObserver(([e]) => {
+      clearTimeout(t);
+      if (e.isIntersecting) setOnScreen(true);
+      else t = window.setTimeout(() => setOnScreen(false), 3000);
+    });
+    io.observe(el);
+    return () => {
+      clearTimeout(t);
+      io.disconnect();
+    };
+  }, [ref]);
+  return docOn && onScreen;
+}
 
 export function StreamView({ whep, hls, snapshot, title, noSignalText, overlay, className, fullscreen = true, aspect = "aspect-video", onMedia }: {
   whep?: string; hls?: string; snapshot?: string; title?: ReactNode; noSignalText?: string;
   overlay?: ReactNode; className?: string; fullscreen?: boolean; aspect?: string;
   onMedia?: (el: HTMLVideoElement | HTMLImageElement | null) => void;
 }) {
-  const { videoRef, tier, snapUrl, retry } = useStream({ whep, hls, snapshot });
   const imgRef = useRef<HTMLImageElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const seen = useSeen(boxRef);
+  const { videoRef, tier, snapUrl, retry } = useStream({ whep, hls, snapshot, active: seen });
   const [fs, setFs] = useState(false);
 
   useEffect(() => {

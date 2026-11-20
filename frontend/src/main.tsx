@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
 import { LogProvider } from "./lib/log";
+import { installErrorReporting } from "./lib/report";
+
+installErrorReporting();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -101,6 +101,11 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	camID := u.Cfg.ID
 	owner := fmt.Sprintf("ws-%d", ownerSeq.Add(1))
+	t0 := time.Now()
+	s.Log.Debug("control socket opened", "camera", camID, "client", clientIP(r), "id", owner)
+	defer func() {
+		s.Log.Debug("control socket closed", "camera", camID, "client", clientIP(r), "id", owner, "after", time.Since(t0).Round(time.Second).String())
+	}()
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 

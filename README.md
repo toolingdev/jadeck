@@ -40,7 +40,7 @@ The setup wizard opens in the browser. See [SETUP.md](SETUP.md).
 ## Docs
 
 [SETUP.md](SETUP.md) · [DEVICES.md](DEVICES.md) · [DASHBOARD.md](DASHBOARD.md) ·
-[STAGE.md](STAGE.md) · [MACROS.md](MACROS.md) · [MCP.md](MCP.md) · [UPDATE.md](UPDATE.md)
+[STAGE.md](STAGE.md) · [MACROS.md](MACROS.md) · [MCP.md](MCP.md) · [DIAGNOSE.md](DIAGNOSE.md) · [UPDATE.md](UPDATE.md)
 
 ## Develop
 

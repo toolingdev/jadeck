@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { Button, Input, Select, Switch } from "@/components/ui";
 import { WIDGETS, WIDGET, GROUPS, UnknownWidget, type WidgetDef, type Field, type Settings } from "@/dash/widgets";
 import type { Item, Widget } from "@/dash/types";
+import { Boundary } from "@/components/Boundary";
 
 // Edit-mode pieces of the dashboard page: widget view, library,
 // inspector and the save badge.
@@ -17,7 +18,7 @@ export function WidgetView({ w, editing }: { w: Widget; editing: boolean }) {
   const R = def.Render;
   return (
     <div className={cn("h-full", editing && "pointer-events-none select-none")}>
-      <R s={w.settings} editing={editing} />
+      <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
     </div>
   );
 }

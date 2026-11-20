@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +22,7 @@ import (
 	"ptz/internal/dashboards"
 	"ptz/internal/devices"
 	"ptz/internal/imageconf"
+	"ptz/internal/logx"
 	"ptz/internal/macros"
 	"ptz/internal/netinfo"
 	"ptz/internal/settings"
@@ -54,14 +57,23 @@ type Server struct {
 	Dashboards  *dashboards.Store
 	Trust       *auth.Trust
 	Stage       *stage.Store
+	Logs        *logx.Logs // diagnostics: log ring, files, level
 
-	hub *hub
-	mux *http.ServeMux
+	hub    *hub
+	mux    *http.ServeMux
+	health health
 }
 
 func (s *Server) Handler() http.Handler {
 	s.hub = newHub()
-	s.Cams.OnStatus = func(id string, st camera.Status) { s.hub.broadcast(id, statusMsg(id, st)) }
+	s.Cams.OnStatus = func(id string, st camera.Status) {
+		s.hub.broadcast(id, statusMsg(id, st))
+		name := id
+		if u := s.Cams.Get(id); u != nil {
+			name = u.Cfg.Name
+		}
+		s.track("camera "+name, st.Connected, st.Error)
+	}
 
 	mux := http.NewServeMux()
 	s.mux = mux
@@ -100,6 +112,9 @@ func (s *Server) Handler() http.Handler {
 	s.macroRoutes(mux)
 	if s.Stage != nil {
 		s.stageRoutes(mux)
+	}
+	if s.Logs != nil {
+		s.diagRoutes(mux)
 	}
 	s.updateRoutes(mux)
 	if s.Keys != nil {
@@ -185,22 +200,66 @@ func (s *Server) page(fsys fs.FS, name string) http.HandlerFunc {
 type statusWriter struct {
 	http.ResponseWriter
 	code int
+	body []byte // first bytes of an error answer, for the log
 }
 
 func (w *statusWriter) WriteHeader(c int) { w.code = c; w.ResponseWriter.WriteHeader(c) }
 
-// Unwrap lets the WebSocket upgrader reach the real writer.
+func (w *statusWriter) Write(b []byte) (int, error) {
+	if w.code >= 400 && len(w.body) < 300 {
+		w.body = append(w.body, b[:min(len(b), 300-len(w.body))]...)
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+// Unwrap lets the WebSocket upgrader and event streams reach the real writer.
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
+// logRequests logs every change (non-GET) and every failed read, with
+// the reason the server gave, and turns a panic into a logged 500
+// instead of a dropped connection.
 func logRequests(log *slog.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, code: 200}
 		t := time.Now()
+		defer func() {
+			if p := recover(); p != nil {
+				if p == http.ErrAbortHandler {
+					panic(p)
+				}
+				log.Error("panic serving request", "method", r.Method, "path", r.URL.Path, "panic", fmt.Sprint(p), "stack", string(debug.Stack()))
+				if sw.code == 200 {
+					fail(sw, 500, "internal error (logged)")
+				}
+				return
+			}
+			api := strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/mcp")
+			if !api || r.URL.Path == "/api/diag/client" {
+				return
+			}
+			if r.Method == http.MethodGet && sw.code < 400 {
+				return
+			}
+			attrs := []any{"method", r.Method, "path", r.URL.Path, "code", sw.code, "ms", time.Since(t).Milliseconds(), "client", clientIP(r)}
+			if c := r.Header.Get("X-PTZ-Camera"); c != "" {
+				attrs = append(attrs, "camera", c)
+			}
+			if sw.code >= 400 {
+				var e struct{ Detail string }
+				if json.Unmarshal(sw.body, &e) == nil && e.Detail != "" {
+					attrs = append(attrs, "reason", e.Detail)
+				}
+			}
+			switch {
+			case sw.code >= 500:
+				log.Error("api", attrs...)
+			case sw.code >= 400:
+				log.Warn("api", attrs...)
+			default:
+				log.Info("api", attrs...)
+			}
+		}()
 		h.ServeHTTP(sw, r)
-		if strings.HasPrefix(r.URL.Path, "/api/") && r.Method != http.MethodGet {
-			log.Info("api", "method", r.Method, "path", r.URL.Path, "code", sw.code,
-				"ms", time.Since(t).Milliseconds())
-		}
 	})
 }
 

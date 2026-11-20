@@ -72,8 +72,10 @@ func (s *Server) switcherState(ctx context.Context) map[string]any {
 	st, err := d.Switcher.State(ctx)
 	if err != nil {
 		out["error"] = err.Error()
+		s.track("switcher ("+d.SwitcherCfg.Driver+")", false, err.Error())
 		return out
 	}
+	s.track("switcher ("+d.SwitcherCfg.Driver+")", true, st.Version)
 	out["connected"] = true
 	out["inputs"], out["preview"], out["active"] = st.Inputs, st.Preview, st.Active
 	out["streaming"], out["recording"], out["fadeToBlack"] = st.Streaming, st.Recording, st.FadeToBlack
@@ -148,6 +150,7 @@ func (s *Server) presentationStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	info := d.Presentation.Info()
+	s.track("slides ("+d.PresentationCfg.Driver+")", info.Available, info.Target)
 	out["available"], out["port"], out["actions"] = info.Available, info.Target, d.Presentation.Actions()
 	for k, v := range info.Details { // channel, notes, lastSent for the MIDI driver
 		out[k] = v
@@ -214,6 +217,7 @@ func (s *Server) mixerStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, err := d.Mixer.Probe(ctx)
+	s.track("mixer ("+d.MixerCfg.Driver+")", err == nil, errText(err))
 	if err != nil {
 		out["error"] = err.Error()
 		out["channels"] = chans(false)

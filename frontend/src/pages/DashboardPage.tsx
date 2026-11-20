@@ -12,6 +12,7 @@ import { WIDGET, type WidgetDef, type Settings } from "@/dash/widgets";
 import { WidgetView, Library, Inspector, SaveBadge } from "@/dash/editor";
 import { useTouchDrag } from "@/dash/touchDrag";
 import { setLocked } from "@/lib/kiosk";
+import { VideoCount, VIDEO_TYPES } from "@/dash/videoCount";
 import { COLS, ROW_H, SCREENS, SCREEN_LABEL, screenFor, newId, bottomOf, stacked, type Dashboard, type Defaults, type Screen } from "@/dash/types";
 
 const MARGIN: [number, number] = [12, 12];
@@ -397,6 +398,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
             style={editing && mounted ? { backgroundSize: `${(width - MARGIN[0]) / view.cols}px 100%`, backgroundPosition: `${MARGIN[0] / 2}px 0` } : undefined}
             onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
             {mounted && (
+              <VideoCount.Provider value={shown.widgets.filter((w) => VIDEO_TYPES.has(w.type)).length}>
               <ReactGridLayout
                 width={width}
                 layout={gridLayout}
@@ -424,6 +426,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                   </div>
                 ))}
               </ReactGridLayout>
+              </VideoCount.Provider>
             )}
             {dropCell && (
               <div className="pointer-events-none absolute z-20 rounded-[var(--radius-card)] border-2 border-dashed border-accent bg-accent/10"

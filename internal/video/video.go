@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -102,6 +103,41 @@ type Gateway struct {
 	logs       []string
 	kick       chan struct{}
 	cmd        *exec.Cmd
+	stats      statsState
+	repeats    map[string]*repeat
+}
+
+type repeat struct {
+	at time.Time
+	n  int
+}
+
+var tsPrefix = regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} `)
+
+// quiet reports whether line repeats one already logged in the last
+// minute (and counts it). Once the minute is up the next repeat is
+// logged with how many were held back.
+func (g *Gateway) quiet(line string) bool {
+	key := tsPrefix.ReplaceAllString(line, "")
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.repeats == nil {
+		g.repeats = map[string]*repeat{}
+	}
+	r := g.repeats[key]
+	now := time.Now()
+	if r != nil && now.Sub(r.at) < time.Minute {
+		r.n++
+		return true
+	}
+	if r != nil && r.n > 0 {
+		g.Log.Info("gateway: earlier message repeated", "times", r.n, "line", key)
+	}
+	g.repeats[key] = &repeat{at: now}
+	if len(g.repeats) > 500 {
+		g.repeats = map[string]*repeat{key: g.repeats[key]}
+	}
+	return false
 }
 
 func (g *Gateway) init() {
@@ -222,6 +258,28 @@ func (g *Gateway) setState(st, err string) {
 }
 
 func (g *Gateway) addLog(line string) {
+	// Into the app's log too: problems as warnings, the rest at debug.
+	// The same message repeating (a camera that's off, retried every few
+	// seconds) is written once a minute with a count, not every time.
+	if g.Log != nil && g.quiet(line) {
+		g.mu.Lock()
+		g.logs = append(g.logs, line)
+		if len(g.logs) > 60 {
+			g.logs = g.logs[len(g.logs)-60:]
+		}
+		g.mu.Unlock()
+		return
+	}
+	if g.Log != nil {
+		switch {
+		case strings.Contains(line, " ERR ") || strings.Contains(line, "[ERR]"):
+			g.Log.Warn("gateway", "line", line)
+		case strings.Contains(line, " WAR ") || strings.Contains(line, "[WAR]"):
+			g.Log.Warn("gateway", "line", line)
+		default:
+			g.Log.Debug("gateway", "line", line)
+		}
+	}
 	g.mu.Lock()
 	g.logs = append(g.logs, line)
 	if len(g.logs) > 60 {
@@ -335,6 +393,7 @@ func (g *Gateway) runOnce(ctx context.Context, bin string) error {
 	g.mu.Lock()
 	g.cmd = cmd
 	g.mu.Unlock()
+	go g.sampleStats(cctx) // bandwidth, while this process lives
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	ready := time.NewTicker(500 * time.Millisecond)

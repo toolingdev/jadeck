@@ -404,6 +404,7 @@ func (m *Manager) Apply(req ApplyRequest) (string, error) {
 		return "", fmt.Errorf("launch helper: %w", err)
 	}
 	cmd.Process.Release()
+	m.Log.Info("applying update — restarting", "from", m.Current, "to", s.Version, "mode", req.Mode, "helperLog", filepath.Join(m.Dir, "helper.log"))
 	return s.Version, nil
 }
 

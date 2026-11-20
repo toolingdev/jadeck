@@ -219,6 +219,9 @@ type Store struct {
 	subs []Listener
 }
 
+// Path is the settings file (its folder is the data folder).
+func (s *Store) Path() string { return s.path }
+
 // Open loads path; when the file does not exist, seed is used and saved.
 func Open(path string, seed func() Settings) (*Store, error) {
 	st := &Store{path: path}

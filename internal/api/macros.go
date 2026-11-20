@@ -272,6 +272,18 @@ func (s *Server) runMacro(w http.ResponseWriter, r *http.Request) {
 		macroErr(w, err)
 		return
 	}
+	if rep.OK {
+		s.Log.Info("macro ran", "macro", rep.Name, "steps", len(rep.Steps), "client", clientIP(r))
+	} else {
+		failed, why := 0, ""
+		if rep.FailedStep != nil {
+			failed = *rep.FailedStep
+		}
+		if rep.Error != nil {
+			why = *rep.Error
+		}
+		s.Log.Warn("macro stopped", "macro", rep.Name, "step", failed, "reason", why, "client", clientIP(r))
+	}
 	writeJSON(w, 200, rep)
 }
 

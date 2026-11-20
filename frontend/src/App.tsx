@@ -13,6 +13,7 @@ import { CameraPage } from "@/pages/CameraPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { setLocked, useLocked, useWakeLock } from "@/lib/kiosk";
+import { Boundary } from "@/components/Boundary";
 
 type Route = "/" | "/dashboard" | "/settings" | "/setup";
 const routes: { path: Route; label: string; icon: typeof Camera }[] = [
@@ -108,7 +109,7 @@ export function App() {
     return (
       <div className="flex min-h-full flex-col">
         <main key={cam} className="w-full flex-1 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <DashboardPage locked />
+          <Boundary name="Dashboard" full><DashboardPage locked /></Boundary>
         </main>
         <UnlockCorner />
       </div>
@@ -148,9 +149,9 @@ export function App() {
       <UpdateBanner />
 
       <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-24 pt-3 sm:px-5 sm:pb-8">
-        {route === "/" && <CameraPage />}
-        {route === "/dashboard" && <DashboardPage />}
-        {route === "/settings" && <SettingsPage />}
+        {route === "/" && <Boundary name="Camera page" full><CameraPage /></Boundary>}
+        {route === "/dashboard" && <Boundary name="Dashboard" full><DashboardPage /></Boundary>}
+        {route === "/settings" && <Boundary name="Settings" full><SettingsPage /></Boundary>}
         {route === "/setup" && <SetupPage onFinish={() => go("/")} />}
       </main>
 

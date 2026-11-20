@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"ptz/internal/config"
 	"ptz/internal/dashboards"
 	"ptz/internal/devices"
+	"ptz/internal/logx"
 	"ptz/internal/macros"
 	"ptz/internal/mockcam"
 	"ptz/internal/netinfo"
@@ -114,7 +116,7 @@ func runCmd(args []string) {
 	fs.BoolVar(&f.mock, "mock", false, "run against the built-in mock camera and simulated devices")
 	fs.StringVar(&f.envFile, "env", "", "env file with PTZ_* settings (default: ptz.env beside the binary, or $PTZ_ENV_FILE)")
 	fs.Parse(args)
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log := logs.Logger()
 
 	if !svc.Interactive() {
 		// Started by the OS service manager.
@@ -137,6 +139,11 @@ func runCmd(args []string) {
 		os.Exit(1)
 	}
 }
+
+// logs is the one log for the process: console, rotating files in the
+// data folder (attached once it is known), and the in-memory ring the
+// diagnostics API serves.
+var logs = logx.New(os.Stderr)
 
 type program struct {
 	f      flags
@@ -278,6 +285,11 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 		return fmt.Errorf("env file %s: %w", envFile, err)
 	}
 	cfg := config.FromEnv(f.mock)
+	if err := logs.AttachDir(filepath.Join(cfg.DataDir, "logs")); err != nil {
+		log.Warn("log files not written — logging to the console only", "dir", filepath.Join(cfg.DataDir, "logs"), "err", err)
+	}
+	defer logs.Close()
+	log.Info("starting", "version", Version, "mode", mode, "os", runtime.GOOS+"/"+runtime.GOARCH, "data", cfg.DataDir, "mock", cfg.Mock)
 
 	if cfg.Mock {
 		// Two simulated cameras: the first is set up, the second waits
@@ -379,7 +391,7 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 	defer names.Close()
 
 	hs := &httpServer{host: cfg.BindHost, log: log, errc: make(chan error, 1)}
-	srv := &api.Server{Stage: stg, Keys: keys, Trust: trust, Dashboards: dash, Cams: reg, Settings: setStore, Video: gw, Mock: cfg.Mock,
+	srv := &api.Server{Logs: logs, Stage: stg, Keys: keys, Trust: trust, Dashboards: dash, Cams: reg, Settings: setStore, Video: gw, Mock: cfg.Mock,
 		Names: names, BindHost: cfg.BindHost, PortLocked: portLocked, Port: hs.Port,
 		Web: web.Dist, Legacy: web.Legacy, Log: log, Version: Version,
 		Dev: dev, DevFile: devFile, DevicesPath: cfg.DevicesPath, MacroStore: ms, Updates: um,
@@ -393,6 +405,7 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 	}
 	names.Set(set.System.Name)
 	setStore.OnChange(func(old, next settings.Settings) {
+		srv.LogSettingsChange(old, next)
 		srv.ApplySettings(next)
 		if !portLocked && next.System.Port != old.System.Port {
 			if err := hs.listen(next.System.Port); err != nil {

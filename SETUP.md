@@ -92,6 +92,41 @@ Video ports: 8889 (WebRTC), 8888 (HLS), UDP 8189 (WebRTC media), UDP 8890
 (SRT in, only when program or confidence is on), and 127.0.0.1:9997 (the
 gateway's control API, this PC only).
 
+### Where the work happens
+
+| Step | Who | Network |
+|---|---|---|
+| Encode the camera picture | The camera (HD and SD streams at once, on its own chip) | |
+| Camera → controller PC | MediaMTX pulls RTSP, **once per feed**, only while someone watches | TCP |
+| Encode the program feed | vMix (its SRT output) | |
+| vMix → controller PC | SRT | UDP 8890 |
+| Controller PC → screens | MediaMTX repackages, **no re-encoding** (tiny CPU) | WebRTC: UDP 8189 · HLS: TCP 8888 |
+| Decode | Each phone / iPad / PC (hardware video) | |
+
+Everything is one-to-one (no multicast). The cost of many video widgets
+is Wi-Fi and the viewing device, so the app keeps it down by itself:
+
+- Several widgets showing the same feed on one screen share **one**
+  connection.
+- A feed nobody can see — the screen off, the tab hidden, the widget
+  scrolled away — **pauses** and resumes when it's visible again.
+- Live view's **Auto** quality (the default) uses HD when it's the only
+  video on the screen and the camera's lighter SD stream when there are
+  several, or on a phone.
+- The **Video bandwidth** widget (Metrics group) shows it live: per feed,
+  who's watching, and the vMix SRT link's delay and loss.
+
+### Sending the program (or any vMix output) by SRT
+
+Turn on **Settings → Live video → Program output**. The card shows the
+address, e.g. `srt://192.168.1.20:8890?streamid=publish:program`. In vMix:
+**Settings → Outputs / NDI / SRT → Output 1 (Program) → ⚙ → SRT**, type
+**Caller**, paste the address's host and port, and set the stream ID to
+`publish:program`. A modest setting is plenty for phones: 1280×720,
+H.264, 2–3 Mbps, latency 200 ms. This is separate from the YouTube
+stream; it doesn't change it. The confidence feed works the same way with
+`publish:confidence` (from vMix or Proclaim's output).
+
 ## Moving from env files
 
 On first start, an existing `ptz.env` seeds the settings once. It carries
