@@ -47,14 +47,15 @@ export function VideoFeedsSection() {
             return (
               <button key={f.id} type="button" disabled={f.source === "camera"} onClick={() => f.source !== "camera" && setDraft({ id: f.id, name: f.name, source: f.source as "push" | "pull", url: f.url ?? "" })}
                 className={cn("flex w-full items-center gap-3 rounded-xl border bg-panel px-3.5 py-3 text-left", draft?.id === f.id ? "border-accent" : "border-line", f.source !== "camera" && "hover:border-line-strong")}>
-                <span className={cn("w-[84px] shrink-0 rounded-md bg-panel-2 px-2 py-1 text-center text-[10px] font-bold tracking-[0.08em]", tone)}>{label}</span>
+                <span className={cn("w-[84px] shrink-0 rounded-md bg-panel-2 px-2 py-1 text-center text-[10px] font-bold tracking-[0.08em] max-sm:w-auto", tone)}>{label}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{f.name}</span>
                   <span className="block truncate text-xs text-muted">
                     {f.source === "camera" ? `${f.detail} · turn live video on/off under Cameras below` : f.source === "push" ? `SRT push · stream id ${f.push?.streamId}` : `pull · ${f.url}`}
                   </span>
+                  <span className="mt-0.5 block text-xs sm:hidden">{status(f)}</span>
                 </span>
-                <span className="shrink-0 text-xs">{status(f)}</span>
+                <span className="shrink-0 text-xs max-sm:hidden">{status(f)}</span>
               </button>
             );
           })}

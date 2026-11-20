@@ -82,7 +82,7 @@ export function DashboardSettings() {
             const defFor = SCREENS.filter((s) => defaults[s] === d.id);
             return (
               <div key={d.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-panel-2 px-3 py-2.5">
-                <span className="min-w-0 flex-1">
+                <span className="min-w-[12rem] flex-1">
                   <span className="flex items-center gap-2 text-sm font-semibold">{d.name} <KindBadge kind={d.kind} /></span>
                   <span className="block text-[11px] text-dim">
                     {defFor.length > 0 && <span className="text-accent"><Star size={10} className="mr-0.5 inline fill-accent" />default for {defFor.map((s) => SCREEN_LABEL[s].toLowerCase() + "s").join(", ")} · </span>}

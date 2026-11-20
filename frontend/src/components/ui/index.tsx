@@ -52,10 +52,11 @@ export function Card({ className, ...p }: HTMLAttributes<HTMLDivElement>) {
 
 export function CardHeader({ title, meta, children, className }: { title: ReactNode; meta?: ReactNode; children?: ReactNode; className?: string }) {
   return (
-    <header className={cn("flex items-center gap-3 px-4 pt-3.5 pb-2", className)}>
-      <h2 className="text-[13px] font-semibold tracking-wide text-fg">{title}</h2>
-      {meta && <span className="text-[11px] uppercase tracking-[0.08em] text-dim">{meta}</span>}
-      <div className="ml-auto flex items-center gap-2">{children}</div>
+    <header className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3.5 pb-2", className)}>
+      <h2 className="shrink-0 text-[13px] font-semibold tracking-wide text-fg">{title}</h2>
+      {/* phones: the note goes under the title instead of squeezing beside it */}
+      {meta && <span className="text-[11px] uppercase tracking-[0.08em] text-dim max-sm:order-3 max-sm:basis-full">{meta}</span>}
+      <div className="ml-auto flex shrink-0 items-center gap-2">{children}</div>
     </header>
   );
 }

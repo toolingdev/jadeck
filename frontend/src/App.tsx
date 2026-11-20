@@ -149,7 +149,7 @@ export function App() {
 
       <UpdateBanner />
 
-      <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-10 pt-2 sm:px-5 sm:pb-8 sm:pt-3 short:pt-1.5 short:pb-4">
+      <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-20 pt-2 sm:px-5 sm:pb-8 sm:pt-3 short:pt-1.5 short:pb-4">
         {route === "/" && <Boundary name="Dashboard" full><DashboardPage /></Boundary>}
         {route === "/settings" && <Boundary name="Settings" full><SettingsPage /></Boundary>}
         {route === "/setup" && <SetupPage onFinish={() => go("/")} />}
