@@ -12,6 +12,7 @@ import { UpdateBanner } from "@/components/UpdateBanner";
 import { CameraPage } from "@/pages/CameraPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { setLocked, useLocked, useWakeLock } from "@/lib/kiosk";
 
 type Route = "/" | "/dashboard" | "/settings" | "/setup";
 const routes: { path: Route; label: string; icon: typeof Camera }[] = [
@@ -99,7 +100,20 @@ export function App() {
     }
   };
 
+  const locked = useLocked() && route === "/dashboard";
+  useWakeLock(locked);
+
   const camName = status?.device?.devname || "Camera";
+  if (locked) {
+    return (
+      <div className="flex min-h-full flex-col">
+        <main key={cam} className="w-full flex-1 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <DashboardPage locked />
+        </main>
+        <UnlockCorner />
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-full flex-col">
       <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
@@ -157,6 +171,37 @@ export function App() {
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-bad" />
           <span><b className="text-fg">{toast.source}:</b> <span className="text-muted">{toast.text}</span></span>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Hold the top-right corner for 3 seconds to leave the locked screen. */
+function UnlockCorner() {
+  const [t, setT] = useState<number | null>(null);
+  const [pct, setPct] = useState(0);
+  useEffect(() => {
+    if (t === null) return;
+    const iv = setInterval(() => {
+      const p = Math.min(1, (Date.now() - t) / 3000);
+      setPct(p);
+      if (p >= 1) {
+        clearInterval(iv);
+        setLocked(false);
+      }
+    }, 50);
+    return () => clearInterval(iv);
+  }, [t]);
+  const end = () => {
+    setT(null);
+    setPct(0);
+  };
+  return (
+    <div className="fixed right-0 top-0 z-50 flex h-16 w-16 items-start justify-end p-2 [-webkit-touch-callout:none] select-none"
+      onPointerDown={() => setT(Date.now())} onPointerUp={end} onPointerLeave={end} onPointerCancel={end}
+      onContextMenu={(e) => e.preventDefault()} aria-label="Hold 3 seconds to unlock">
+      {pct > 0.12 && (
+        <span className="rounded-full bg-panel-2 px-2 py-1 text-[11px] font-semibold text-muted shadow">Unlocking… {Math.ceil(3 - pct * 3)}</span>
       )}
     </div>
   );

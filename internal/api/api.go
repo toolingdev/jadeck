@@ -23,6 +23,7 @@ import (
 	"ptz/internal/macros"
 	"ptz/internal/netinfo"
 	"ptz/internal/settings"
+	"ptz/internal/stage"
 	"ptz/internal/update"
 	"ptz/internal/video"
 )
@@ -52,6 +53,7 @@ type Server struct {
 	Keys        *auth.Store
 	Dashboards  *dashboards.Store
 	Trust       *auth.Trust
+	Stage       *stage.Store
 
 	hub *hub
 	mux *http.ServeMux
@@ -96,6 +98,9 @@ func (s *Server) Handler() http.Handler {
 		s.dashboardRoutes(mux)
 	}
 	s.macroRoutes(mux)
+	if s.Stage != nil {
+		s.stageRoutes(mux)
+	}
 	s.updateRoutes(mux)
 	if s.Keys != nil {
 		s.keyRoutes(mux)

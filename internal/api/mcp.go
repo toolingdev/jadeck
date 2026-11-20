@@ -386,6 +386,30 @@ func (s *Server) mcpServer(k *auth.Key, ip string) *mcp.Server {
 			}
 			return s.call(ctx, "DELETE", "/api/macros/"+strconv.FormatInt(id, 10), nil)
 		})
+	// stage messages
+	if s.Stage != nil {
+		a("stage", "stage_status", "Stage messages", "Channels (Pulpit, Worship, …) with today's messages, replies, who saw them, timers and which screens are online.", true, get("/api/stage"))
+		addTool(&tools, s, k, ip, "stage", "stage_send", "Send stage message", "Show a short message (≤ 280 characters) on every screen linked to a channel, e.g. the pulpit iPad.", false,
+			func(ctx context.Context, in stageSendIn) (*mcp.CallToolResult, error) {
+				id, err := s.stageChannelID(in.Channel)
+				if err != nil {
+					return nil, err
+				}
+				from := in.From
+				if from == "" {
+					from = "Agent"
+				}
+				return s.call(ctx, "POST", "/api/stage/channels/"+id+"/messages", map[string]string{"text": in.Text, "from": from})
+			})
+		addTool(&tools, s, k, ip, "stage", "stage_timer", "Stage timer", "Start (label + seconds), pause, resume, add seconds to, or stop a channel's countdown.", false,
+			func(ctx context.Context, in stageTimerIn) (*mcp.CallToolResult, error) {
+				id, err := s.stageChannelID(in.Channel)
+				if err != nil {
+					return nil, err
+				}
+				return s.call(ctx, "POST", "/api/stage/channels/"+id+"/timer", map[string]any{"op": in.Op, "label": in.Label, "seconds": in.Seconds})
+			})
+	}
 	// updates
 	a("update.apply", "update_check", "Check for update", "Check GitHub for a newer signed release.", false, post("/api/update/check"))
 	a("update.apply", "update_apply", "Apply update", "Install the verified staged update (restarts the controller; rolls back automatically on failure).", false, post("/api/update/apply"))
@@ -399,4 +423,27 @@ func (s *Server) mcpServer(k *auth.Key, ip string) *mcp.Server {
 		}
 	}
 	return srv
+}
+
+type stageSendIn struct {
+	Channel string `json:"channel" jsonschema:"channel name or id, e.g. Pulpit"`
+	Text    string `json:"text" jsonschema:"the message, at most 280 characters"`
+	From    string `json:"from,omitempty" jsonschema:"who it is from (default Agent)"`
+}
+
+type stageTimerIn struct {
+	Channel string `json:"channel" jsonschema:"channel name or id"`
+	Op      string `json:"op" jsonschema:"start, pause, resume, add or stop"`
+	Label   string `json:"label,omitempty" jsonschema:"for start, e.g. Sermon"`
+	Seconds int    `json:"seconds,omitempty" jsonschema:"for start: length; for add: seconds to add (negative takes time off)"`
+}
+
+// stageChannelID finds a channel by id or (case-insensitive) name.
+func (s *Server) stageChannelID(name string) (string, error) {
+	for _, c := range s.Stage.Channels() {
+		if c.ID == name || strings.EqualFold(c.Name, name) {
+			return c.ID, nil
+		}
+	}
+	return "", fmt.Errorf("no channel named %q", name)
 }

@@ -203,6 +203,7 @@ func Open(path string) (*Store, error) {
 			layouts TEXT NOT NULL,
 			updated_at TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS defaults (kind TEXT PRIMARY KEY, dashboard_id INTEGER NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS seeds (name TEXT PRIMARY KEY)`,
 	} {
 		if _, err := db.Exec(q); err != nil {
 			db.Close()
@@ -225,7 +226,30 @@ func Open(path string) (*Store, error) {
 	if err := s.ensureDefaults(); err != nil {
 		return nil, err
 	}
+	// After the defaults: a starter Stage dashboard never becomes a
+	// device's default by surprise.
+	if err := s.seedOnce("stage-v1", StageTablet, StagePhone); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// seedOnce adds starter dashboards that came with a later version, once:
+// deleting them afterwards is respected.
+func (s *Store) seedOnce(name string, make ...func() Dashboard) error {
+	var n int
+	s.db.QueryRow(`SELECT COUNT(*) FROM seeds WHERE name = ?`, name).Scan(&n)
+	if n > 0 {
+		return nil
+	}
+	for _, f := range make {
+		d := f()
+		if _, err := s.Create(&d); err != nil {
+			return fmt.Errorf("starter dashboard %q: %w", d.Name, err)
+		}
+	}
+	_, err := s.db.Exec(`INSERT INTO seeds (name) VALUES (?)`, name)
+	return err
 }
 
 // migrate adds kind/layout to stores from the multi-layout version: an
@@ -507,12 +531,50 @@ func Booth() Dashboard {
 		{"favorites", "audio.favorites", map[string]any{}},
 		{"macros", "macros.list", map[string]any{}},
 		{"log", "other.log", map[string]any{}},
+		{"stage", "stage.send", map[string]any{"channels": []any{"pulpit"}, "textBox": true}},
+		{"replies", "stage.show", map[string]any{"channel": "pulpit", "style": "conversation"}},
 	}
 	layout := []Item{
 		{"program", 0, 0, 7, 8}, {"confidence", 7, 0, 5, 6},
 		{"inputs", 7, 6, 5, 4}, {"cutfade", 0, 8, 4, 3}, {"slides", 4, 8, 3, 3},
 		{"camlive", 0, 11, 4, 5}, {"move", 4, 11, 4, 9}, {"presets", 8, 11, 4, 6},
 		{"favorites", 0, 20, 8, 5}, {"macros", 8, 17, 4, 8}, {"log", 0, 25, 12, 5},
+		{"stage", 0, 30, 6, 9}, {"replies", 6, 30, 6, 9},
 	}
 	return Dashboard{Name: "Booth", Kind: "tablet", Widgets: ws, Layout: layout}
+}
+
+// StageTablet is the pulpit iPad: live status, the booth's message big,
+// the stream, quick replies. Lock it from the dashboard menu.
+func StageTablet() Dashboard {
+	ws := []Widget{
+		{"live", "stage.live", map[string]any{"mode": "both"}},
+		{"timer", "stage.timer", map[string]any{"channel": "pulpit"}},
+		{"msg", "stage.show", map[string]any{"channel": "pulpit", "style": "big"}},
+		{"stream", "switcher.program", map[string]any{}},
+		{"cam", "camera.live", map[string]any{"quality": "sd", "tally": true}},
+		{"reply", "stage.send", map[string]any{"channels": []any{"pulpit"}, "textBox": false, "sendOnTap": true}},
+	}
+	layout := []Item{
+		{"live", 0, 0, 8, 2}, {"timer", 8, 0, 4, 2},
+		{"msg", 0, 2, 8, 10}, {"stream", 8, 2, 4, 5}, {"cam", 8, 7, 4, 5},
+		{"reply", 0, 12, 12, 3},
+	}
+	return Dashboard{Name: "Stage — iPad", Kind: "tablet", Widgets: ws, Layout: layout}
+}
+
+// StagePhone is the worship leader's phone.
+func StagePhone() Dashboard {
+	ws := []Widget{
+		{"live", "stage.live", map[string]any{"mode": "both"}},
+		{"timer", "stage.timer", map[string]any{"channel": "worship"}},
+		{"msg", "stage.show", map[string]any{"channel": "worship", "style": "big"}},
+		{"reply", "stage.send", map[string]any{"channels": []any{"worship"}, "textBox": false, "sendOnTap": true}},
+		{"stream", "switcher.program", map[string]any{}},
+	}
+	layout := []Item{
+		{"live", 0, 0, 4, 2}, {"timer", 0, 2, 4, 2}, {"msg", 0, 4, 4, 8},
+		{"reply", 0, 12, 4, 4}, {"stream", 0, 16, 4, 5},
+	}
+	return Dashboard{Name: "Stage — phone", Kind: "phone", Widgets: ws, Layout: layout}
 }

@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   MonitorPlay, Gamepad2, Bookmark, LayoutGrid, Sun, Home as HomeIcon, Square, ZoomIn, Gauge,
   Tv, Presentation, ChevronsRight, Mic, MicOff, ListMusic, Play, ListChecks, Clock, Timer, Type, ScrollText,
-  ChevronLeft, ChevronRight, Loader2, type LucideIcon,
+  ChevronLeft, ChevronRight, Loader2, MessageSquareText, MessagesSquare, Radio, type LucideIcon,
 } from "lucide-react";
+import { StageSend, StageShow, StageTimer, StageLive, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK } from "./stageWidgets";
 import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
 import { useShared, refreshShared, useLocal } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
@@ -19,8 +20,9 @@ import { Macros } from "@/components/Macros";
 
 // ----------------------------------------------------------------- types
 
-export type Group = "camera" | "switcher" | "slides" | "audio" | "macros" | "other";
+export type Group = "stage" | "camera" | "switcher" | "slides" | "audio" | "macros" | "other";
 export const GROUPS: { id: Group; label: string; needs?: "switcher" | "presentation" | "mixer" }[] = [
+  { id: "stage", label: "Stage" },
   { id: "camera", label: "Camera" },
   { id: "switcher", label: "Switcher", needs: "switcher" },
   { id: "slides", label: "Slides", needs: "presentation" },
@@ -30,7 +32,7 @@ export const GROUPS: { id: Group; label: string; needs?: "switcher" | "presentat
 ];
 
 export type Field = {
-  key: string; label: string; type: "select" | "bool" | "text" | "number" | "source";
+  key: string; label: string; type: "select" | "bool" | "text" | "number" | "source" | "list" | "channel" | "channels" | "camera" | "input";
   options?: { value: string; label: string }[]; source?: "presets" | "macros" | "favorites" | "slideActions";
   help?: string; showIf?: (s: Settings) => boolean;
 };
@@ -132,7 +134,8 @@ function ZoomCol({ home }: { home: boolean }) {
 }
 
 function OnePreset({ s }: { s: Settings }) {
-  const { data } = useShared<Preset[]>("/api/presets", 15000);
+  const cam = str(s.camera);
+  const { data } = usePinnedPresets(cam) as { data: Preset[] | null };
   const { log } = useLog();
   const name = str(s.preset);
   const p = data?.find((x) => x.name === name);
@@ -141,7 +144,7 @@ function OnePreset({ s }: { s: Settings }) {
     <button
       onClick={async () => {
         if (!p) return log("Camera", `No preset named “${name}”`, false);
-        try { await api(`/api/presets/${p.id}/recall`, "POST"); log("Camera", `Preset “${p.name}”`); }
+        try { await recallPinned(cam, p.id); log("Camera", `Preset “${p.name}”`); }
         catch (e) { log("Camera", `Preset “${p.name}” failed — ${(e as Error).message}`, false); }
       }}
       className="flex h-full w-full flex-col items-start justify-center rounded-[var(--radius-card)] border border-line bg-panel-2 px-4 text-left transition hover:border-line-strong active:scale-[0.98]"
@@ -198,13 +201,6 @@ function Feed({ kind }: { kind: "program" | "confidence" | "camera"; s: Settings
   const cfg = useCfg();
   if (kind === "program") return <StreamView title="Program" whep={cfg?.programWhep} hls={cfg?.programHls} aspect="h-full" noSignalText="The program feed isn't reaching the stream gateway yet." />;
   return <StreamView title="Confidence" whep={cfg?.confidenceWhep} hls={cfg?.confidenceHls} aspect="h-full" noSignalText="The confidence feed isn't reaching the gateway yet." />;
-}
-
-function LiveCam({ s }: { s: Settings }) {
-  const cfg = useCfg();
-  const sd = str(s.quality, "hd") === "sd";
-  return <StreamView key={sd ? "sd" : "hd"} title={str(s.title) || undefined} aspect="h-full"
-    whep={cfg ? (sd ? cfg.whepSd : cfg.whep) : undefined} hls={cfg ? (sd ? cfg.hlsSd : cfg.hls) : undefined} snapshot={cfg?.snapshot} />;
 }
 
 function useSwitcher() {
@@ -460,11 +456,62 @@ function LogWidget() {
 
 const label = (k: string, l: string, extra: Partial<Field> = {}): Field => ({ key: k, label: l, type: "text", ...extra });
 
+const CAMERA_FIELD: Field = { key: "camera", label: "Camera", type: "camera", help: "“Follow the header” drives whichever camera is picked at the top." };
+
 export const WIDGETS: WidgetDef[] = [
-  { type: "camera.live", label: "Live view", group: "camera", icon: MonitorPlay, description: "The camera picture.",
-    size: { w: 6, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: { quality: "hd" },
-    fields: [{ key: "quality", label: "Quality", type: "select", options: [{ value: "hd", label: "HD" }, { value: "sd", label: "SD (lighter)" }] }, label("title", "Title on the picture")],
-    Render: ({ s }) => <LiveCam s={s} /> },
+  { type: "stage.send", label: "Message sender", group: "stage", icon: MessageSquareText,
+    description: "Send to a channel: type a message, or tap a quick one. With the text box off it's a row of reply buttons.",
+    size: { w: 6, h: 9, pw: 4, ph: 9 }, min: { w: 2, h: 2 },
+    defaults: { channels: ["pulpit"], textBox: true, sendOnTap: false, showSeen: true, quick: DEFAULT_QUICK, timers: [] },
+    fields: [
+      { key: "channels", label: "Sends to channels", type: "channels" },
+      { key: "textBox", label: "Text box (free typing)", type: "bool" },
+      { key: "quick", label: "Quick messages", type: "list", help: "One per line, in order. Replies like “👍 Got it” work the same way." },
+      { key: "sendOnTap", label: "Quick message sends on tap", type: "bool", help: "Off: tapping fills the text box so you can edit it first." },
+      { key: "showSeen", label: "Show delivered / seen", type: "bool" },
+      { key: "timers", label: "Timer buttons", type: "list", help: "One per line, e.g. “Sermon 30” or “Worship 20:00”. Starts that channel's countdown." },
+    ],
+    Render: ({ s, editing }) => <StageSend s={s} editing={editing} /> },
+  { type: "stage.show", label: "Message display", group: "stage", icon: MessagesSquare,
+    description: "Shows a channel's messages: big (latest only) for the stage, or the whole conversation for the booth.",
+    size: { w: 8, h: 8, pw: 4, ph: 8 }, min: { w: 2, h: 2 },
+    defaults: { channel: "pulpit", style: "big", hideOwn: true, tapSeen: true, showAge: true, empty: "clock" },
+    fields: [
+      { key: "channel", label: "Shows channel", type: "channel" },
+      { key: "style", label: "Style", type: "select", options: [{ value: "big", label: "Big — latest message" }, { value: "conversation", label: "Conversation — both directions" }] },
+      { key: "hideOwn", label: "Hide this screen's own messages", type: "bool", showIf: (s) => str(s.style, "big") === "big", help: "So a reply sent from here doesn't cover the booth's message." },
+      { key: "tapSeen", label: "Tap to mark seen", type: "bool", showIf: (s) => str(s.style, "big") === "big" },
+      { key: "showAge", label: "Show how old (“3 min ago”)", type: "bool", showIf: (s) => str(s.style, "big") === "big" },
+      { key: "empty", label: "When there's no message", type: "select", showIf: (s) => str(s.style, "big") === "big",
+        options: [{ value: "clock", label: "Show the clock" }, { value: "waiting", label: "“Waiting for a message”" }, { value: "blank", label: "Blank" }] },
+    ],
+    Render: ({ s, editing }) => <StageShow s={s} editing={editing} /> },
+  { type: "stage.timer", label: "Stage timer", group: "stage", icon: Timer,
+    description: "A channel's countdown (started from a Message sender's timer buttons, a macro, or the agent). Same time on every screen.",
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 2, h: 1 }, defaults: { channel: "pulpit", controls: false },
+    fields: [{ key: "channel", label: "Channel", type: "channel" }, { key: "controls", label: "Pause / +1 / stop buttons", type: "bool", help: "For the booth; leave off on stage screens." }],
+    Render: ({ s, editing }) => <StageTimer s={s} editing={editing} /> },
+  { type: "stage.live", label: "Live status", group: "stage", icon: Radio,
+    description: "WE ARE LIVE when vMix is streaming, and/or this camera's tally: red live, green next.",
+    size: { w: 8, h: 2, pw: 4, ph: 2 }, min: { w: 2, h: 1 }, defaults: { mode: "both", camera: "" },
+    fields: [
+      { key: "mode", label: "Shows", type: "select", options: [{ value: "both", label: "Stream + camera tally" }, { value: "stream", label: "Stream only (we are live)" }, { value: "tally", label: "Camera tally only" }] },
+      { ...CAMERA_FIELD, showIf: (s) => str(s.mode, "both") !== "stream" },
+      { key: "input", label: "vMix input for that camera", type: "input", showIf: (s) => str(s.mode, "both") !== "stream", help: "Leave on Auto to match by camera name." },
+    ],
+    Render: ({ s }) => <StageLive s={s} /> },
+
+  { type: "camera.live", label: "Live view", group: "camera", icon: MonitorPlay, description: "A camera's picture. Drop several and pick a camera for each to build a multiview.",
+    size: { w: 6, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: { quality: "hd", camera: "", tally: false, tapToControl: true },
+    fields: [
+      CAMERA_FIELD,
+      { key: "quality", label: "Quality", type: "select", options: [{ value: "hd", label: "HD" }, { value: "sd", label: "SD (lighter — use for several feeds)" }] },
+      label("title", "Title on the picture"),
+      { key: "tally", label: "Tally border (red live, green next)", type: "bool", help: "From vMix: the input whose name matches the camera, or pick it below." },
+      { key: "input", label: "vMix input for tally", type: "input", showIf: (s) => bool(s.tally) },
+      { key: "tapToControl", label: "“Control this camera” button", type: "bool", showIf: (s) => !!str(s.camera), help: "Makes it the camera the header and Move widgets drive." },
+    ],
+    Render: ({ s, editing }) => <LiveCamPinned s={s} editing={editing} /> },
   { type: "camera.move", label: "Move", group: "camera", icon: Gamepad2, description: "Arrows and/or joystick, with Home, zoom, stop and speed.",
     size: { w: 5, h: 10, ph: 10 }, min: { w: 3, h: 6 },
     defaults: { controls: "switchable", opensIn: "buttons", home: true, zoom: true, speed: true, startFine: false },
@@ -479,7 +526,7 @@ export const WIDGETS: WidgetDef[] = [
     Render: ({ s }) => <MoveWidget s={s} /> },
   { type: "camera.preset", label: "One preset", group: "camera", icon: Bookmark, description: "A single big preset button.",
     size: { w: 3, h: 2, pw: 2, ph: 2 }, min: { w: 1, h: 2 }, defaults: {},
-    fields: [{ key: "preset", label: "Preset", type: "source", source: "presets" }, label("label", "Label (optional)")],
+    fields: [CAMERA_FIELD, { key: "preset", label: "Preset", type: "source", source: "presets" }, label("label", "Label (optional)")],
     Render: ({ s }) => <OnePreset s={s} /> },
   { type: "camera.presets", label: "Presets", group: "camera", icon: LayoutGrid, description: "All presets.",
     size: { w: 6, h: 6, ph: 7 }, min: { w: 3, h: 3 }, defaults: {}, fields: [],

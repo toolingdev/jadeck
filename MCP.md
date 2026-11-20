@@ -59,4 +59,5 @@ preset_recall · image_settings_set · white_balance_pick · preset_save ·
 preset_rename · preset_delete · switcher_status · switcher_preview ·
 switcher_cut · switcher_fade · slides_status · slides_action ·
 mixer_status · mixer_mute · macros_list · macro_run · macro_save ·
-macro_delete · update_check · update_apply · update_status · devices_info
+macro_delete · stage_status · stage_send · stage_timer · update_check ·
+update_apply · update_status · devices_info

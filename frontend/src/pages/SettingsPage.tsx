@@ -4,6 +4,7 @@ import { api, type ApiKey, type AuditEntry, type Scope } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
 import { DeviceSetup } from "@/components/DeviceSetup";
 import { DashboardSettings } from "@/components/DashboardSettings";
+import { StageSettings } from "@/components/StageSettings";
 import { CamerasCard } from "@/components/CameraSetup";
 import { SystemCard, VideoCard } from "@/components/SystemSetup";
 import { useLog } from "@/lib/log";
@@ -17,6 +18,7 @@ export function SettingsPage() {
       <VideoCard />
       <SystemCard />
       <div className="lg:col-span-2"><DashboardSettings /></div>
+      <div className="lg:col-span-2"><StageSettings /></div>
       <div className="lg:col-span-2"><Keys /></div>
       <Connect />
       <Audit />

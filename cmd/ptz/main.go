@@ -37,6 +37,7 @@ import (
 	"ptz/internal/mockcam"
 	"ptz/internal/netinfo"
 	"ptz/internal/settings"
+	"ptz/internal/stage"
 	"ptz/internal/svc"
 	"ptz/internal/update"
 	"ptz/internal/video"
@@ -366,6 +367,11 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 	}
 	defer dash.Close()
 
+	stg, err := stage.Open(filepath.Join(cfg.DataDir, "stage.json"))
+	if err != nil {
+		return fmt.Errorf("stage messages: %w", err)
+	}
+
 	reg := cams.New(ctx, cfg.DataDir, log)
 	defer reg.Close()
 	gw := &video.Gateway{Dir: filepath.Join(cfg.DataDir, "video"), ExeDir: config.ExeDir(), Log: log}
@@ -373,7 +379,7 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 	defer names.Close()
 
 	hs := &httpServer{host: cfg.BindHost, log: log, errc: make(chan error, 1)}
-	srv := &api.Server{Keys: keys, Trust: trust, Dashboards: dash, Cams: reg, Settings: setStore, Video: gw, Mock: cfg.Mock,
+	srv := &api.Server{Stage: stg, Keys: keys, Trust: trust, Dashboards: dash, Cams: reg, Settings: setStore, Video: gw, Mock: cfg.Mock,
 		Names: names, BindHost: cfg.BindHost, PortLocked: portLocked, Port: hs.Port,
 		Web: web.Dist, Legacy: web.Legacy, Log: log, Version: Version,
 		Dev: dev, DevFile: devFile, DevicesPath: cfg.DevicesPath, MacroStore: ms, Updates: um,

@@ -27,6 +27,7 @@ import (
 	"ptz/internal/mockcam"
 	"ptz/internal/settings"
 	"ptz/internal/update"
+	"ptz/internal/stage"
 	"ptz/internal/video"
 	"ptz/web"
 )
@@ -92,7 +93,11 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { dash.Close() })
-	srv := &Server{Cams: reg, Settings: setStore, Video: gw, Mock: true, Web: web.Dist, Legacy: web.Legacy, Log: quiet, Version: "test", Keys: keys, Trust: trust, Dashboards: dash,
+	stg, err := stage.Open(filepath.Join(dataDir, "stage.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &Server{Stage: stg, Cams: reg, Settings: setStore, Video: gw, Mock: true, Web: web.Dist, Legacy: web.Legacy, Log: quiet, Version: "test", Keys: keys, Trust: trust, Dashboards: dash,
 		Dev: dev, MacroStore: ms, Updates: um, Restart: Restarter{Mode: "exec"}}
 	srv.Macros = macros.NewEngine(ms, srv.MacroActions())
 	h := srv.Handler()

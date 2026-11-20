@@ -12,6 +12,9 @@ program per computer, with no cloud and no accounts.
 - **Devices:** vMix, Proclaim (MIDI), Behringer WING (OSC), and others
   through drivers.
 - **Dashboards:** drag-and-drop layouts for phones, tablets and desktops.
+- **Stage screens:** the booth sends "5 minutes" to the pulpit iPad, the
+  speaker taps "👍 Got it". Live / next tally, the stream and a shared
+  countdown on any phone or tablet. See [STAGE.md](STAGE.md).
 - **Macros:** one tap runs mute + switch + slide + preset.
 - **Agents:** an MCP server with scoped, revocable API keys.
 - **Updates:** signed releases, installed from Settings.
@@ -37,7 +40,7 @@ The setup wizard opens in the browser. See [SETUP.md](SETUP.md).
 ## Docs
 
 [SETUP.md](SETUP.md) · [DEVICES.md](DEVICES.md) · [DASHBOARD.md](DASHBOARD.md) ·
-[MACROS.md](MACROS.md) · [MCP.md](MCP.md) · [UPDATE.md](UPDATE.md)
+[STAGE.md](STAGE.md) · [MACROS.md](MACROS.md) · [MCP.md](MCP.md) · [UPDATE.md](UPDATE.md)
 
 ## Develop
 

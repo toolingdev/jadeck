@@ -37,6 +37,7 @@ var Scopes = []Scope{
 	{"mixer", "Audio mutes", "Read and change channel mutes on the mixer."},
 	{"macros.run", "Run macros", "List and run macros."},
 	{"macros.edit", "Edit macros", "Create, change, import and delete macros."},
+	{"stage", "Stage messages", "Read and send stage messages, replies and timers."},
 	{"update.apply", "Apply updates", "Check for and apply signed app updates."},
 }
 

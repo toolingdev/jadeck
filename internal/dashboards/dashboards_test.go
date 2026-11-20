@@ -16,7 +16,7 @@ func TestStore(t *testing.T) {
 	}
 	defer s.Close()
 	l, _ := s.List()
-	if len(l) != 1 || l[0].Name != "Booth" || l[0].Kind != "tablet" || len(l[0].Layout) != len(l[0].Widgets) {
+	if len(l) != 3 || l[0].Name != "Booth" || l[0].Kind != "tablet" || len(l[0].Layout) != len(l[0].Widgets) {
 		t.Fatalf("seed: %+v", l)
 	}
 	defs, _ := s.Defaults()
@@ -71,10 +71,38 @@ func TestMigratesOldMultiLayoutStore(t *testing.T) {
 	}
 	defer s.Close()
 	l, _ := s.List()
-	if len(l) != 1 || l[0].Kind != "tablet" || l[0].Layout[0].X != 3 || l[0].Layout[0].W != 5 {
+	if len(l) != 3 || l[1].Name != "Stage — iPad" || l[2].Name != "Stage — phone" {
+		t.Fatalf("stage starters not added once: %+v", l)
+	}
+	if l[0].Kind != "tablet" || l[0].Layout[0].X != 3 || l[0].Layout[0].W != 5 {
 		t.Fatalf("%+v", l)
 	}
 	if d, _ := s.Defaults(); d["phone"] != l[0].ID {
 		t.Fatalf("defaults %v", d)
+	}
+}
+
+func TestStageStartersSeededOnceAndNotDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "d.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, _ := s.List()
+	if len(l) != 3 {
+		t.Fatalf("fresh store: %d dashboards", len(l))
+	}
+	d, _ := s.Defaults()
+	for k, id := range d {
+		if id != l[0].ID {
+			t.Fatalf("%s default is %d, want Booth", k, id)
+		}
+	}
+	s.Delete(l[2].ID)
+	s.Close()
+	s, _ = Open(path)
+	defer s.Close()
+	if l, _ := s.List(); len(l) != 2 {
+		t.Fatalf("deleted starter came back: %d", len(l))
 	}
 }

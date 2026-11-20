@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Search, X, Copy, Trash2, Loader2, CloudOff } from "lucide-react";
-import type { DevicesInfo, Preset, Macro, MixerStatus, PresentationStatus } from "@/lib/api";
+import type { DevicesInfo, Preset, Macro, MixerStatus, PresentationStatus, CameraInfo, SwitcherStatus } from "@/lib/api";
+import { useChannels, stageApi } from "@/lib/stage";
 import { useShared } from "@/lib/hooks";
 import { cn } from "@/lib/cn";
 import { Button, Input, Select, Switch } from "@/components/ui";
@@ -87,7 +88,7 @@ export function Inspector({ w, onChange, onRemove, onDuplicate, onClose, pos }: 
       {def?.description && <p className="mb-3 text-xs text-muted">{def.description}</p>}
       <div className="space-y-3">
         {def?.fields.filter((f) => !f.showIf || f.showIf(s)).map((f) => (
-          <FieldInput key={f.key} f={f} value={s[f.key] ?? def.defaults[f.key]} onChange={(v) => onChange({ ...s, [f.key]: v })} />
+          <FieldInput key={f.key} f={f} all={s} value={s[f.key] ?? def.defaults[f.key]} onChange={(v) => onChange({ ...s, [f.key]: v })} />
         ))}
         {def && def.fields.length === 0 && <p className="text-xs text-dim">Nothing to set — drag and resize it on the grid.</p>}
       </div>
@@ -100,8 +101,8 @@ export function Inspector({ w, onChange, onRemove, onDuplicate, onClose, pos }: 
   );
 }
 
-function FieldInput({ f, value, onChange }: { f: Field; value: unknown; onChange: (v: unknown) => void }) {
-  const opts = useSourceOptions(f);
+function FieldInput({ f, value, onChange, all }: { f: Field; value: unknown; onChange: (v: unknown) => void; all: Settings }) {
+  const opts = useSourceOptions(f, typeof all.camera === "string" ? all.camera : "");
   const label = <span className="mb-1 block text-xs text-muted">{f.label}</span>;
   const help = f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>;
   if (f.type === "bool") {
@@ -111,6 +112,19 @@ function FieldInput({ f, value, onChange }: { f: Field; value: unknown; onChange
         <Switch checked={!!value} onChange={onChange} label={f.label} />
       </label>
     );
+  }
+  if (f.type === "list") {
+    const lines = Array.isArray(value) ? (value as string[]) : [];
+    return <ListField label={f.label} help={f.help} value={lines} onChange={onChange} />;
+  }
+  if (f.type === "channel" || f.type === "channels") {
+    return <ChannelField f={f} value={value} onChange={onChange} />;
+  }
+  if (f.type === "camera") {
+    return <CameraField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
+  }
+  if (f.type === "input") {
+    return <InputField f={f} value={Number(value) || 0} onChange={onChange} />;
   }
   if (f.type === "select" || f.type === "source") {
     const options = f.type === "select" ? f.options ?? [] : [{ value: "", label: "Choose…" }, ...opts];
@@ -124,8 +138,8 @@ function FieldInput({ f, value, onChange }: { f: Field; value: unknown; onChange
   );
 }
 
-function useSourceOptions(f: Field): { value: string; label: string }[] {
-  const presets = useShared<Preset[]>(f.source === "presets" ? "/api/presets" : null, 0).data;
+function useSourceOptions(f: Field, cam: string): { value: string; label: string }[] {
+  const presets = useShared<Preset[]>(f.source === "presets" ? (cam ? `/api/presets?cam=${encodeURIComponent(cam)}` : "/api/presets") : null, 0).data;
   const macros = useShared<Macro[]>(f.source === "macros" ? "/api/macros" : null, 0).data;
   const mixer = useShared<MixerStatus>(f.source === "favorites" ? "/api/mixer/status" : null, 0).data;
   const slides = useShared<PresentationStatus>(f.source === "slideActions" ? "/api/presentation/status" : null, 0).data;
@@ -137,6 +151,110 @@ function useSourceOptions(f: Field): { value: string; label: string }[] {
     case "slideActions": ref.current = (slides?.actions ?? []).map((a) => ({ value: a, label: a })); break;
   }
   return ref.current;
+}
+
+// ------------------------------------------------------ new field kinds
+
+/** One item per line; reorder with the arrows. */
+function ListField({ label, help, value, onChange }: { label: string; help?: string; value: string[]; onChange: (v: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const set = (next: string[]) => onChange(next.map((x) => x.trim()).filter(Boolean));
+  const move = (i: number, d: number) => {
+    const n = [...value];
+    const j = i + d;
+    if (j < 0 || j >= n.length) return;
+    [n[i], n[j]] = [n[j], n[i]];
+    set(n);
+  };
+  return (
+    <div>
+      <span className="mb-1 block text-xs text-muted">{label}</span>
+      <div className="space-y-1 rounded-lg border border-line bg-bg p-1.5">
+        {value.map((v, i) => (
+          <div key={i} className="flex items-center gap-1">
+            <Input value={v} className="h-8 flex-1 text-sm" onChange={(e) => { const n = [...value]; n[i] = e.target.value; onChange(n); }}
+              onBlur={() => set(value)} aria-label={`${label} ${i + 1}`} />
+            <button type="button" className="h-8 w-6 text-xs text-muted disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Move up">▲</button>
+            <button type="button" className="h-8 w-6 text-xs text-muted disabled:opacity-30" disabled={i === value.length - 1} onClick={() => move(i, 1)} aria-label="Move down">▼</button>
+            <button type="button" className="h-8 w-6 text-muted hover:text-bad" onClick={() => set(value.filter((_, k) => k !== i))} aria-label="Remove"><X size={13} /></button>
+          </div>
+        ))}
+        <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { set([...value, draft]); setDraft(""); } }}>
+          <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="＋ Add…" className="h-8 flex-1 text-sm" />
+          <Button size="sm" type="submit" disabled={!draft.trim()}>Add</Button>
+        </form>
+      </div>
+      {help && <span className="mt-1 block text-[11px] text-dim">{help}</span>}
+    </div>
+  );
+}
+
+const NEW_COLORS = ["#F5A524", "#60A5FA", "#4ADE80", "#F472B6", "#A78BFA", "#F87171"];
+
+function ChannelField({ f, value, onChange }: { f: Field; value: unknown; onChange: (v: unknown) => void }) {
+  const { channels } = useChannels();
+  const multi = f.type === "channels";
+  const picked = multi ? (Array.isArray(value) ? (value as string[]) : []) : [typeof value === "string" ? value : ""];
+  const [err, setErr] = useState("");
+  const create = async () => {
+    const name = window.prompt("New channel name (e.g. Kids room)")?.trim();
+    if (!name) return;
+    try {
+      const c = await stageApi.create(name, NEW_COLORS[channels.length % NEW_COLORS.length]);
+      onChange(multi ? [...picked, c.id] : c.id);
+      setErr("");
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+  const missing = picked.filter((id) => id && !channels.some((c) => c.id === id));
+  return (
+    <div>
+      <span className="mb-1 block text-xs text-muted">{f.label}</span>
+      <div className="space-y-0.5 rounded-lg border border-line bg-bg p-1">
+        {channels.map((c) => {
+          const on = picked.includes(c.id);
+          const others = c.screens.length;
+          return (
+            <button key={c.id} type="button"
+              onClick={() => onChange(multi ? (on ? picked.filter((x) => x !== c.id) : [...picked, c.id]) : c.id)}
+              className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm", on ? "bg-raise" : "hover:bg-panel-2")}>
+              <span className="w-4 text-accent">{on ? "✓" : ""}</span>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+              <span className="flex-1 truncate">{c.name}</span>
+              <span className="text-[11px] text-dim">{others} online</span>
+            </button>
+          );
+        })}
+        <button type="button" onClick={create} className="w-full rounded-md px-2 py-1.5 text-left text-sm text-muted hover:bg-panel-2">＋ New channel…</button>
+      </div>
+      {missing.length > 0 && <span className="mt-1 block text-[11px] text-bad">Linked to a deleted channel — pick another.</span>}
+      {err && <span className="mt-1 block text-[11px] text-bad">{err}</span>}
+      <span className="mt-1 block text-[11px] text-dim">Widgets on the same channel are linked, on any screen. Manage channels in Settings → Stage channels.</span>
+    </div>
+  );
+}
+
+function CameraField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
+  const cams = useShared<CameraInfo[]>("/api/cameras", 0).data ?? [];
+  const options = [{ value: "", label: "Follow the header's camera" }, ...cams.map((c) => ({ value: c.id, label: c.name }))];
+  return (
+    <label className="block"><span className="mb-1 block text-xs text-muted">{f.label}</span>
+      <Select value={value} onChange={onChange} options={options} />
+      {f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>}
+    </label>
+  );
+}
+
+function InputField({ f, value, onChange }: { f: Field; value: number; onChange: (v: number) => void }) {
+  const sw = useShared<SwitcherStatus>("/api/switcher/status", 0).data;
+  const options = [{ value: "0", label: "Auto (match the camera's name)" }, ...(sw?.inputs ?? []).map((i) => ({ value: String(i.number), label: `${i.number} · ${i.title}` }))];
+  return (
+    <label className="block"><span className="mb-1 block text-xs text-muted">{f.label}</span>
+      <Select value={String(value)} onChange={(v) => onChange(Number(v))} options={options} />
+      {f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>}
+    </label>
+  );
 }
 
 export function SaveBadge({ state, onRetry }: { state: "saved" | "pending" | "saving" | "error"; onRetry: () => void }) {

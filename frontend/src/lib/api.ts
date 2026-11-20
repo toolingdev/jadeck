@@ -17,7 +17,8 @@ export async function api<T = unknown>(path: string, method = "GET", body?: unkn
   try {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["Content-Type"] = "application/json";
-    if (getCamera()) headers["X-PTZ-Camera"] = getCamera();
+    // A widget pinned to one camera names it in the URL (?cam=); that wins.
+    if (getCamera() && !/[?&]cam=/.test(path)) headers["X-PTZ-Camera"] = getCamera();
     r = await fetch(path, {
       method,
       headers,

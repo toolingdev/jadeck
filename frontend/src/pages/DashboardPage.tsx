@@ -11,6 +11,7 @@ import { Badge, Button, Dialog, Input, Select } from "@/components/ui";
 import { WIDGET, type WidgetDef, type Settings } from "@/dash/widgets";
 import { WidgetView, Library, Inspector, SaveBadge } from "@/dash/editor";
 import { useTouchDrag } from "@/dash/touchDrag";
+import { setLocked } from "@/lib/kiosk";
 import { COLS, ROW_H, SCREENS, SCREEN_LABEL, screenFor, newId, bottomOf, stacked, type Dashboard, type Defaults, type Screen } from "@/dash/types";
 
 const MARGIN: [number, number] = [12, 12];
@@ -59,7 +60,7 @@ function useDeviceScreen() {
   return s;
 }
 
-export function DashboardPage() {
+export function DashboardPage({ locked = false }: { locked?: boolean }) {
   const { log } = useLog();
   const device = useDeviceScreen();
   const [list, setList] = useState<Dashboard[] | null>(null);
@@ -336,7 +337,7 @@ export function DashboardPage() {
       {editing && <Library onAdd={(d) => !touch.swallowClick() && addWidget(d)} onDragType={setDragType} onTouchStart={touch.start} />}
 
       <div className="min-w-0 flex-1">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className={cn("mb-3 flex flex-wrap items-center gap-2", locked && "hidden")}>
           {editing ? (
             <>
               <Input value={draft!.name} onChange={(e) => commit({ ...draft!, name: e.target.value }, "name")} className="h-9 w-40 sm:w-48" aria-label="Dashboard name" />
@@ -359,8 +360,11 @@ export function DashboardPage() {
                 {isDefaultFor.includes(device) && <Star size={12} className="fill-accent text-accent" />}
                 <ChevronDown size={15} className="text-muted" />
               </button>
-              <span className="flex items-center gap-1 text-xs text-dim"><Lock size={12} /> Locked{view.note && ` · ${view.note}`}</span>
+              <span className="flex items-center gap-1 text-xs text-dim"><Lock size={12} /> Layout locked{view.note && ` · ${view.note}`}</span>
               <div className="ml-auto flex items-center gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setLocked(true)} title="Hide the header and keep this screen awake — for a stage iPad. Hold the top-right corner 3 s to unlock.">
+                  <Lock size={14} /> Lock screen
+                </Button>
                 <Button size="sm" onClick={() => startEdit(shown)}><Pencil size={14} /> Edit</Button>
               </div>
             </>

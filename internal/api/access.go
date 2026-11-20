@@ -52,6 +52,10 @@ func scopeFor(method, path string) string {
 		return scopeAny // tool-level scopes apply inside
 	case path == "/api/config" || path == "/api/devices" || path == "/api/update/status":
 		return scopeAny
+	case path == "/api/stage/channels" || (has("/api/stage/channels/") && !strings.Contains(strings.TrimPrefix(path, "/api/stage/channels/"), "/")):
+		return scopeTrusted // create, rename, delete channels
+	case path == "/api/stage" || has("/api/stage/"):
+		return "stage"
 	case has("/api/dashboards"):
 		if read {
 			return scopeAny // a dashboard is UI layout, not device control
