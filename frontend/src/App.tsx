@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, Check, Star, X } from "lucide-react";
+import { LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, ChevronUp, Check, Star, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { setCamera, useCamera } from "@/lib/camera";
 import { useCameras } from "@/components/CameraSetup";
@@ -207,41 +207,45 @@ function ExitCorner() {
   );
 }
 
-/** Phones: a small handle at the bottom edge; tap or swipe it up for the
- *  tabs, so the dashboard keeps the whole screen. */
+/** Phones: a small tab with an arrow at the bottom edge (not a bar — that
+ *  reads as the iPhone's home indicator). ⌃ or a swipe up brings the tabs
+ *  up; ⌄ on the open tray, a swipe down or a tap outside puts them away. */
 function PhoneNav({ route, go }: { route: string; go: (p: Route) => void }) {
   const [open, setOpen] = useState(false);
   const y0 = useRef<number | null>(null);
-  const swipe = (up: boolean) => ({
+  const swipe = (toOpen: boolean) => ({
     onPointerDown: (e: React.PointerEvent) => { y0.current = e.clientY; },
     onPointerUp: (e: React.PointerEvent) => {
       const d = y0.current === null ? 0 : e.clientY - y0.current;
       y0.current = null;
-      if (up ? d < -20 : d > 20) setOpen(up);
-      else if (Math.abs(d) < 8 && up) setOpen(true); // a tap on the handle
+      if (toOpen ? d < -20 : d > 20) setOpen(toOpen);
     },
   });
+  const tab = "flex h-7 w-16 items-center justify-center rounded-t-xl border border-b-0 border-line-strong text-fg";
   return (
     <div className="sm:hidden">
       {!open && (
-        <button type="button" aria-label="Show Dashboard and Settings" {...swipe(true)}
-          className="fixed bottom-0 left-1/2 z-40 flex h-7 w-24 -translate-x-1/2 touch-none items-center justify-center pb-[env(safe-area-inset-bottom)]">
-          <span className="h-1.5 w-12 rounded-full bg-line-strong shadow-[0_0_0_3px_rgba(0,0,0,.35)]" />
+        <button type="button" aria-label="Show Dashboard and Settings" onClick={() => setOpen(true)} {...swipe(true)}
+          className={cn(tab, "fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-40 -translate-x-1/2 touch-none rounded-b-xl border-b bg-panel-2/95 shadow-lg backdrop-blur")}>
+          <ChevronUp size={18} />
         </button>
       )}
       <div className={cn("fixed inset-0 z-40 bg-black/50 transition-opacity", open ? "opacity-100" : "pointer-events-none opacity-0")} onClick={() => setOpen(false)} />
       <nav {...swipe(false)}
-        className={cn("fixed inset-x-0 bottom-0 z-50 touch-none rounded-t-3xl border-t border-line bg-panel px-4 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl transition-transform duration-200",
-          open ? "translate-y-0" : "translate-y-full")}>
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-line-strong" />
-        <div className="grid grid-cols-2 gap-3">
-          {routes.map((r) => (
-            <button key={r.path} type="button" onClick={() => { setOpen(false); go(r.path); }}
-              className={cn("flex h-16 items-center justify-center gap-2 rounded-2xl border text-base font-semibold",
-                route === r.path ? "border-accent bg-accent/15 text-accent" : "border-line bg-bg text-muted")}>
-              <r.icon size={20} /> {r.label}
-            </button>
-          ))}
+        className={cn("fixed inset-x-0 bottom-0 z-50 touch-none transition-transform duration-200", open ? "translate-y-0" : "translate-y-[calc(100%+2rem)]")}>
+        <button type="button" aria-label="Hide" onClick={() => setOpen(false)} className={cn(tab, "mx-auto -mb-px bg-panel")}>
+          <ChevronDown size={18} />
+        </button>
+        <div className="border-t border-line bg-panel px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl">
+          <div className="grid grid-cols-2 gap-3">
+            {routes.map((r) => (
+              <button key={r.path} type="button" onClick={() => { setOpen(false); go(r.path); }}
+                className={cn("flex h-14 items-center justify-center gap-2 rounded-2xl border text-base font-semibold",
+                  route === r.path ? "border-accent bg-accent/15 text-accent" : "border-line bg-bg text-muted")}>
+                <r.icon size={20} /> {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </nav>
     </div>
