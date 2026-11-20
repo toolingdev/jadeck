@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"ptz/internal/sim"
@@ -59,7 +60,7 @@ func main() {
 	flag.Parse()
 
 	c.Log = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	for _, a := range []*string{&c.Switcher, &c.Slides, &c.Mixer} {
 		if c.Host != "127.0.0.1" {
