@@ -138,3 +138,43 @@ func TestStageScopes(t *testing.T) {
 		}
 	}
 }
+
+func TestStageCueReplies(t *testing.T) {
+	e := setup(t)
+	code, m, _ := e.do(t, "POST", "/api/stage/channels/worship/messages", map[string]any{"text": "Wrap up", "from": "Booth"})
+	if code != 201 {
+		t.Fatalf("send: %d %v", code, m)
+	}
+	id := m["id"].(string)
+	reply := func(screen, text string) map[string]any {
+		code, r, _ := e.do(t, "POST", "/api/stage/channels/worship/reply", map[string]any{"id": id, "screen": screen, "text": text})
+		if code != 200 {
+			t.Fatalf("reply: %d %v", code, r)
+		}
+		return r
+	}
+	// each screen answers for itself; a second answer replaces the first
+	reply("Worship lead", "Need 2 min")
+	reply("Keys", "👍 Got it")
+	r := reply("Worship lead", "👍 Got it")
+	reps := r["replies"].([]any)
+	if len(reps) != 2 || r["done"] == true {
+		t.Fatalf("two screens, one answer each, not done: %v", r)
+	}
+	if reps[0].(map[string]any)["text"] != "👍 Got it" || len(r["seen"].([]any)) != 2 {
+		t.Fatalf("latest answer kept and counts as seen: %v", r)
+	}
+
+	// one answer is enough on this channel: the first reply finishes it
+	if code, _, _ := e.do(t, "PUT", "/api/stage/channels/worship", map[string]any{"name": "Worship", "color": "#3b82f6", "oneAnswer": true}); code != 200 {
+		t.Fatalf("set oneAnswer: %d", code)
+	}
+	_, m, _ = e.do(t, "POST", "/api/stage/channels/worship/messages", map[string]any{"text": "Mic check", "from": "Booth"})
+	id = m["id"].(string)
+	if r := reply("Keys", "OK"); r["done"] != true {
+		t.Fatalf("one answer is enough: %v", r)
+	}
+	if code, _, _ := e.do(t, "POST", "/api/stage/channels/worship/reply", map[string]any{"id": "nope", "screen": "Keys", "text": "x"}); code < 400 {
+		t.Fatalf("a missing cue is an error: %d", code)
+	}
+}

@@ -21,6 +21,7 @@ import (
 //	POST   /api/stage/channels/{id}/messages  {text, from}
 //	DELETE /api/stage/channels/{id}/messages  clear
 //	POST   /api/stage/channels/{id}/seen      {id, screen}
+//	POST   /api/stage/channels/{id}/reply     {id, screen, text}  a screen answers a cue
 //	POST   /api/stage/channels/{id}/timer     {op, label, seconds}
 //	GET    /api/stage/events?screen=&channels=a,b   event stream
 func (s *Server) stageRoutes(mux *http.ServeMux) {
@@ -40,13 +41,22 @@ func (s *Server) stageRoutes(mux *http.ServeMux) {
 		writeJSON(w, 201, c)
 	})
 	mux.HandleFunc("PUT /api/stage/channels/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var b struct{ Name, Color string }
+		var b struct {
+			Name, Color string
+			OneAnswer   *bool `json:"oneAnswer"`
+		}
 		if !decode(w, r, &b) {
 			return
 		}
 		c, err := s.Stage.UpdateChannel(r.PathValue("id"), b.Name, b.Color)
 		if stageErr(w, err) {
 			return
+		}
+		if b.OneAnswer != nil {
+			if stageErr(w, s.Stage.SetOneAnswer(c.ID, *b.OneAnswer)) {
+				return
+			}
+			c.OneAnswer = *b.OneAnswer
 		}
 		s.Log.Info("stage channel renamed", "channel", c.ID, "name", c.Name)
 		writeJSON(w, 200, c)
@@ -87,6 +97,18 @@ func (s *Server) stageRoutes(mux *http.ServeMux) {
 		}
 		s.Log.Info("stage seen", "channel", r.PathValue("id"), "screen", b.Screen, "message", b.ID)
 		w.WriteHeader(204)
+	})
+	mux.HandleFunc("POST /api/stage/channels/{id}/reply", func(w http.ResponseWriter, r *http.Request) {
+		var b struct{ ID, Screen, Text string }
+		if !decode(w, r, &b) {
+			return
+		}
+		m, err := s.Stage.Reply(r.PathValue("id"), b.ID, b.Screen, b.Text)
+		if stageErr(w, err) {
+			return
+		}
+		s.Log.Info("stage reply", "channel", r.PathValue("id"), "screen", b.Screen, "reply", b.Text, "cue", m.Text)
+		writeJSON(w, 200, m)
 	})
 	mux.HandleFunc("POST /api/stage/channels/{id}/timer", func(w http.ResponseWriter, r *http.Request) {
 		var op stage.TimerOp

@@ -232,6 +232,217 @@ function Bubble({ m, mine, fresh, color }: { m: Message; mine: boolean; fresh: b
   );
 }
 
+// ------------------------------------------------------------------ cue
+
+/** Cue: the one message widget. On its channels it can show the cue that
+ *  arrives (big, with quick replies — a reply answers it for this screen)
+ *  and/or send cues (quick messages, a text box) and show each screen's
+ *  answer. Every Cue widget on the same channel, on any screen, is linked. */
+export function StageCue({ s, editing }: { s: Settings; editing: boolean }) {
+  const ids = list(s.channels);
+  const { channels, online, loaded, offset } = useStage(ids.length ? ids : ["-"]);
+  const me = useScreenName();
+  const live = channels.filter((c) => ids.includes(c.id));
+  const incoming = bool(s.incoming, true);
+  const outgoing = bool(s.outgoing, false);
+  if (!ids.length) return <Note>Pick a channel in this widget's settings.</Note>;
+  if (loaded && live.length === 0) return <ChannelMissing id={ids[0]} />;
+  return (
+    <Box className={cn("bg-panel-2 transition", !online && "opacity-60 grayscale")}>
+      <div className="flex h-full min-h-0 flex-col">
+        {incoming && <CueIn live={live} me={me} offset={offset} s={s} editing={editing} fill={!outgoing} />}
+        {incoming && outgoing && <div className="mx-3 shrink-0 border-t border-line" />}
+        {outgoing && <CueOut live={live} me={me} s={s} editing={editing} online={online} />}
+      </div>
+    </Box>
+  );
+}
+
+/** The newest cue for this screen: from someone else, not answered for
+ *  everyone, not yet answered here. */
+function pendingCue(live: ChannelState[], me: string) {
+  let best: { c: ChannelState; m: Message } | null = null;
+  for (const c of live) {
+    for (const m of c.messages) {
+      if (m.from === me || m.done || (m.replies ?? []).some((r) => r.screen === me)) continue;
+      if (!best || m.at > best.m.at) best = { c, m };
+    }
+  }
+  return best;
+}
+
+function CueIn({ live, me, offset, s, editing, fill }: { live: ChannelState[]; me: string; offset: number; s: Settings; editing: boolean; fill: boolean }) {
+  useNow(15000);
+  const cur = pendingCue(live, me);
+  const replies = list(s.replies, DEFAULT_REPLIES);
+  const { log } = useLog();
+  const [pulse, setPulse] = useState(false);
+  const last = useRef<string | null>(null);
+  useEffect(() => {
+    if (!cur || cur.m.id === last.current) return;
+    const first = last.current === null;
+    last.current = cur.m.id;
+    if (first) return;
+    setPulse(true);
+    const t = setTimeout(() => setPulse(false), 4000);
+    return () => clearTimeout(t);
+  }, [cur?.m.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const answer = async (text: string) => {
+    if (editing || !cur) return;
+    try {
+      await stageApi.reply(cur.c.id, cur.m.id, text);
+      log("Stage", `Answered “${cur.m.text}”: ${text}`);
+    } catch (e) {
+      log("Stage", (e as Error).message, false);
+    }
+  };
+  const color = cur?.c.color ?? "#F5A524";
+  const empty = str(s.empty, "clock");
+  return (
+    <div className={cn("flex min-h-0 flex-col p-3", fill ? "flex-1" : "flex-[2]")}
+      style={cur ? { boxShadow: `inset 0 0 0 3px ${color}`, borderRadius: "var(--radius-card)", animation: pulse ? "stage-pulse 1s ease-in-out 4" : undefined } : undefined}>
+      <div className="mb-1 flex shrink-0 items-center gap-2 text-[12px] font-bold uppercase tracking-[0.08em] text-muted">
+        {cur ? (
+          <>
+            <span className="truncate">{cur.m.from || "Booth"} · {hhmm(cur.m.at)}</span>
+            {Date.now() + offset - new Date(cur.m.at).getTime() > 90_000 && <span className="normal-case tracking-normal text-dim">({ago(cur.m.at, offset)})</span>}
+          </>
+        ) : <span className="truncate">{live.map((c) => c.name).join(" · ")}</span>}
+      </div>
+      {cur ? (
+        <div className="flex min-h-[3rem] flex-1 flex-col" style={{ color }}><FitText text={cur.m.text} /></div>
+      ) : empty === "clock" ? <BigClock /> : empty === "waiting" ? (
+        <div className="flex flex-1 items-center justify-center text-sm text-dim">Nothing waiting</div>
+      ) : <div className="flex-1" />}
+      {cur && replies.length > 0 && (
+        <div className="mt-2 grid shrink-0 grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-1.5">
+          {replies.map((r) => (
+            <button key={r} type="button" onClick={() => answer(r)}
+              className="no-drag min-h-11 rounded-lg border border-line bg-bg px-2 py-1.5 text-sm font-semibold text-fg transition hover:border-line-strong active:scale-[0.97]">
+              {r}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CueOut({ live, me, s, editing, online }: { live: ChannelState[]; me: string; s: Settings; editing: boolean; online: boolean }) {
+  const { log } = useLog();
+  const quick = list(s.quick, DEFAULT_QUICK);
+  const timers = list(s.timers);
+  const textBox = bool(s.textBox, false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const send = async (t: string) => {
+    if (editing || !t.trim() || !live.length) return;
+    setBusy(true);
+    try {
+      await Promise.all(live.map((c) => stageApi.send(c.id, t)));
+      log("Stage", `“${t}” → ${live.map((c) => c.name).join(", ")}`);
+      setFlash(t);
+      setTimeout(() => setFlash(null), 1500);
+      if (t === text) setText("");
+    } catch (e) {
+      log("Stage", `Not sent — ${(e as Error).message}`, false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const clear = async () => {
+    if (editing) return;
+    try {
+      await Promise.all(live.map((c) => stageApi.clear(c.id)));
+      log("Stage", `Cleared ${live.map((c) => c.name).join(", ")}`);
+    } catch (e) {
+      log("Stage", (e as Error).message, false);
+    }
+  };
+  const timer = async (op: string, seconds = 0, label = "") => {
+    if (editing) return;
+    try {
+      await Promise.all(live.map((c) => stageApi.timer(c.id, op, seconds, label)));
+    } catch (e) {
+      log("Stage", (e as Error).message, false);
+    }
+  };
+  // My newest cue on each channel, and every other screen's answer to it.
+  const answers = live.map((c) => {
+    const mine = [...c.messages].reverse().find((m) => m.from === me);
+    if (!mine) return null;
+    const others = c.screens.filter((x) => x.name !== me && x.online).map((x) => x.name);
+    const replied = mine.replies ?? [];
+    const waiting = mine.done ? [] : others.filter((n) => !replied.some((r) => r.screen === n));
+    return { c, mine, replied, waiting };
+  }).filter(Boolean) as { c: ChannelState; mine: Message; replied: { screen: string; text: string; at: string }[]; waiting: string[] }[];
+  const anyTimer = live.some((c) => c.timer);
+  const screens = new Set(live.flatMap((c) => c.screens.filter((x) => x.name !== me && x.online).map((x) => x.name))).size;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="truncate text-[12px] font-semibold">Cue → {live.map((c) => c.name).join(", ")}</span>
+        <span className={cn("ml-auto shrink-0 text-[11px]", online ? "text-good" : "text-bad")}>{online ? `● ${screens} screen${screens === 1 ? "" : "s"}` : "offline"}</span>
+      </div>
+      {answers.length > 0 && (
+        <div className="shrink-0 space-y-0.5 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-[12px]">
+          {answers.map(({ c, mine, replied, waiting }) => (
+            <div key={c.id}>
+              <div className="truncate text-muted">{live.length > 1 && `${c.name}: `}“{mine.text}” · {hhmm(mine.at)}{mine.done && " · answered"}</div>
+              {replied.map((r) => <div key={r.screen} className="truncate font-semibold text-good">✓ {r.screen}: {r.text} · {hhmm(r.at)}</div>)}
+              {waiting.map((n) => <div key={n} className="truncate text-dim">… {n}: not answered yet</div>)}
+            </div>
+          ))}
+        </div>
+      )}
+      {quick.length > 0 && (
+        <div className="grid shrink-0 grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1.5">
+          {quick.map((q) => (
+            <button key={q} type="button" disabled={busy} onClick={() => send(q)}
+              className={cn("no-drag min-h-11 rounded-lg border px-2 py-1.5 text-sm font-semibold transition active:scale-[0.97]",
+                flash === q ? "border-good bg-good/15 text-good" : "border-line bg-bg text-fg hover:border-line-strong")}>
+              {flash === q ? "✓ Sent" : q}
+            </button>
+          ))}
+        </div>
+      )}
+      {textBox && (
+        <div className="flex shrink-0 gap-1.5">
+          <textarea value={text} maxLength={MAX_TEXT} rows={2} placeholder="Type a cue…"
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(text); } }}
+            className="no-drag min-w-0 flex-1 resize-none rounded-lg border border-line bg-bg px-3 py-2 text-[15px] outline-none focus:border-accent" />
+          <button type="button" disabled={busy || !text.trim()} onClick={() => send(text)}
+            className="no-drag flex w-16 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-40" aria-label="Send"><Send size={16} /></button>
+        </div>
+      )}
+      <div className="flex shrink-0 flex-wrap gap-1.5">
+        {timers.map((t) => {
+          const p = parseTimerPreset(t);
+          return p && (
+            <button key={t} type="button" onClick={() => timer("start", p.seconds, p.label)}
+              className="no-drag h-9 rounded-lg border border-line bg-bg px-2.5 text-xs font-semibold">⏱ {p.label || "Timer"} {fmtClock(p.seconds)}</button>
+          );
+        })}
+        {anyTimer && <button type="button" onClick={() => timer("stop")} className="no-drag h-9 rounded-lg border border-line bg-bg px-2.5 text-xs text-bad">Stop timer</button>}
+        <button type="button" onClick={clear} className="no-drag ml-auto flex h-9 items-center gap-1.5 rounded-lg border border-line bg-bg px-2.5 text-xs text-muted">
+          <Eraser size={13} /> Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Old message widgets, drawn as a Cue with the same settings. */
+export function sendAsCue(s: Settings): Settings {
+  const pad = s.textBox === false;
+  return { channels: s.channels, incoming: false, outgoing: true, textBox: !pad, quick: s.quick ?? (pad ? DEFAULT_REPLIES : DEFAULT_QUICK), timers: s.timers };
+}
+export function showAsCue(s: Settings): Settings {
+  return { channels: [s.channel], incoming: true, outgoing: false, replies: s.tapSeen === false ? [] : DEFAULT_REPLIES, empty: s.empty };
+}
+
 // -------------------------------------------------------- message sender
 
 export function StageSend({ s, editing }: { s: Settings; editing: boolean }) {

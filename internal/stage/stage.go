@@ -39,6 +39,9 @@ type Channel struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
+	// OneAnswer: the first reply to a cue answers it for everyone (it
+	// leaves every screen). Off: each screen answers for itself.
+	OneAnswer bool `json:"oneAnswer,omitempty"`
 }
 
 type Message struct {
@@ -48,6 +51,17 @@ type Message struct {
 	At   time.Time `json:"at"`
 	// Seen lists the screens that tapped "seen" on this message.
 	Seen []string `json:"seen"`
+	// Replies: each screen's answer to this cue (its latest one).
+	Replies []Reply `json:"replies"`
+	// Done: answered for everyone (a channel with OneAnswer).
+	Done bool `json:"done,omitempty"`
+}
+
+// Reply is one screen's answer to a cue ("👍 Got it").
+type Reply struct {
+	Screen string    `json:"screen"`
+	Text   string    `json:"text"`
+	At     time.Time `json:"at"`
 }
 
 // Timer counts down to EndsAt while running; paused, it keeps Left.
@@ -261,6 +275,18 @@ func (s *Store) CreateChannel(name, color string) (Channel, error) {
 	return c.Channel, s.changed()
 }
 
+// SetOneAnswer turns "the first reply answers it for everyone" on or off.
+func (s *Store) SetOneAnswer(id string, on bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.find(id)
+	if c == nil {
+		return ErrNotFound
+	}
+	c.OneAnswer = on
+	return s.changed()
+}
+
 func (s *Store) UpdateChannel(id, name, color string) (Channel, error) {
 	name, color, err := clean(name, color)
 	if err != nil {
@@ -314,7 +340,7 @@ func (s *Store) Send(id, text, from string) (Message, error) {
 		return Message{}, ErrNotFound
 	}
 	s.today(c)
-	m := Message{ID: newID(), Text: text, From: from, At: s.now().UTC(), Seen: []string{}}
+	m := Message{ID: newID(), Text: text, From: from, At: s.now().UTC(), Seen: []string{}, Replies: []Reply{}}
 	c.Messages = append(c.Messages, m)
 	if len(c.Messages) > maxMessages {
 		c.Messages = c.Messages[len(c.Messages)-maxMessages:]
@@ -359,6 +385,56 @@ func (s *Store) Seen(id, msgID, screen string) error {
 		return s.changed()
 	}
 	return errorf("that message is gone")
+}
+
+// Reply records screen's answer to cue msgID (it also counts as seen).
+// One screen has one answer; a new one replaces it. On a OneAnswer
+// channel the first answer makes the cue Done for everyone.
+func (s *Store) Reply(id, msgID, screen, text string) (Message, error) {
+	screen, text = strings.TrimSpace(screen), strings.TrimSpace(text)
+	if screen == "" {
+		return Message{}, errorf("which screen is answering?")
+	}
+	if text == "" {
+		return Message{}, errorf("the reply is empty")
+	}
+	if utf8.RuneCountInString(text) > MaxText {
+		return Message{}, errorf("replies are limited to %d characters", MaxText)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.find(id)
+	if c == nil {
+		return Message{}, ErrNotFound
+	}
+	for i := range c.Messages {
+		m := &c.Messages[i]
+		if m.ID != msgID {
+			continue
+		}
+		r := Reply{Screen: screen, Text: text, At: s.now().UTC()}
+		replaced := false
+		for j := range m.Replies {
+			if m.Replies[j].Screen == screen {
+				m.Replies[j], replaced = r, true
+			}
+		}
+		if !replaced {
+			m.Replies = append(m.Replies, r)
+		}
+		seen := false
+		for _, n := range m.Seen {
+			seen = seen || n == screen
+		}
+		if !seen {
+			m.Seen = append(m.Seen, screen)
+		}
+		if c.OneAnswer {
+			m.Done = true
+		}
+		return *m, s.changed()
+	}
+	return Message{}, errorf("that cue is gone")
 }
 
 // ---------------------------------------------------------------- timer

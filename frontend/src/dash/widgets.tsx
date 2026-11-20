@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { BandwidthWidget, HealthWidget } from "./metricsWidgets";
 import { ComingUp } from "./scheduleWidget";
-import { StageSend, StageShow, StageTimer, StageLive, TallyLight, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK } from "./stageWidgets";
+import { StageShow, StageCue, sendAsCue, showAsCue, StageTimer, StageLive, TallyLight, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK, DEFAULT_REPLIES } from "./stageWidgets";
 import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
 import { useShared, refreshShared, useLocal, useWidgetConn } from "@/lib/hooks";
 import { withConn } from "@/lib/addons";
@@ -60,6 +60,7 @@ export type WidgetDef = {
 };
 
 const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
+const list = (v: unknown, d: string[] = []) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : d);
 const bool = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
 
 /** Chrome for widgets that aren't already a card. */
@@ -494,33 +495,38 @@ const conn = (cap: "switcher" | "slides" | "mixer"): Field => ({ key: "connectio
 const CAMERA_FIELD: Field = { key: "camera", label: "Camera", type: "camera", help: "Cameras are added under Settings → Cameras." };
 
 export const WIDGETS: WidgetDef[] = [
-  { type: "stage.send", label: "Message sender", group: "stage", icon: MessageSquareText,
-    description: "Send to a channel: type a message, or tap a quick one. With the text box off it's a row of reply buttons.",
-    size: { w: 6, h: 9, pw: 4, ph: 9 }, minPx: { w: 240, h: 260 },
-    defaults: { channels: ["pulpit"], textBox: true, sendOnTap: false, showSeen: true, quick: DEFAULT_QUICK, timers: [] },
+  { type: "stage.cue", label: "Cue", group: "stage", icon: MessagesSquare,
+    description: "Messages on a stage channel. Up front: the cue shows big with reply buttons — a reply answers it. At the booth: quick messages and a text box, and each screen's answer. Every Cue on the same channel is linked.",
+    size: { w: 6, h: 9, pw: 4, ph: 8 },
+    minPx: (s) => {
+      const inc = bool(s.incoming, true), out = bool(s.outgoing, false);
+      let h = 24;
+      if (inc) h += 130 + (list(s.replies, DEFAULT_REPLIES).length ? 52 : 0);
+      if (out) h += 34 + Math.ceil(list(s.quick, DEFAULT_QUICK).length / 2) * 50 + (bool(s.textBox, false) ? 64 : 0) + 44;
+      return { w: 220, h };
+    },
+    defaults: { channels: ["pulpit"], incoming: true, outgoing: false, replies: DEFAULT_REPLIES, quick: DEFAULT_QUICK, textBox: false, empty: "clock", timers: [] },
     fields: [
-      { key: "channels", label: "Sends to channels", type: "channels" },
-      { key: "textBox", label: "Text box (free typing)", type: "bool" },
-      { key: "quick", label: "Quick messages", type: "list", help: "One per line, in order. Replies like “👍 Got it” work the same way." },
-      { key: "sendOnTap", label: "Quick message sends on tap", type: "bool", help: "Off: tapping fills the text box so you can edit it first." },
-      { key: "showSeen", label: "Show delivered / seen", type: "bool" },
-      { key: "timers", label: "Timer buttons", type: "list", help: "One per line, e.g. “Sermon 30” or “Worship 20:00”. Starts that channel's countdown." },
+      { key: "channels", label: "Channels", type: "channels", help: "Every Cue widget on the same channel, on any screen, is linked." },
+      { key: "incoming", label: "Show cues that arrive here", type: "bool", help: "Big, with reply buttons. For the person up front." },
+      { key: "replies", label: "Reply buttons", type: "list", showIf: (s) => bool(s.incoming, true), help: "One per line. Tapping one answers the cue for this screen." },
+      { key: "empty", label: "When nothing's waiting", type: "select", showIf: (s) => bool(s.incoming, true),
+        options: [{ value: "clock", label: "Show the clock" }, { value: "waiting", label: "“Nothing waiting”" }, { value: "blank", label: "Blank" }] },
+      { key: "outgoing", label: "Send cues from here", type: "bool", help: "Quick messages, and each screen's answer. For the booth or office." },
+      { key: "quick", label: "Quick messages", type: "list", showIf: (s) => bool(s.outgoing, false), help: "One per line. Tapping one sends it." },
+      { key: "textBox", label: "Text box (free typing)", type: "bool", showIf: (s) => bool(s.outgoing, false) },
+      { key: "timers", label: "Timer buttons", type: "list", showIf: (s) => bool(s.outgoing, false), help: "One per line, e.g. “Sermon 30”. Starts that channel's countdown." },
     ],
-    Render: ({ s, editing }) => <StageSend s={s} editing={editing} /> },
-  { type: "stage.show", label: "Message display", group: "stage", icon: MessagesSquare,
-    description: "Shows the messages sent to one stage channel: big (latest only) for the stage, or the whole conversation for the booth. With no message up it can show the clock.",
-    size: { w: 8, h: 8, pw: 4, ph: 8 }, minPx: { w: 200, h: 100 },
-    defaults: { channel: "pulpit", style: "big", hideOwn: true, tapSeen: true, showAge: true, empty: "clock" },
-    fields: [
-      { key: "channel", label: "Shows channel", type: "channel" },
-      { key: "style", label: "Style", type: "select", options: [{ value: "big", label: "Big — latest message" }, { value: "conversation", label: "Conversation — both directions" }] },
-      { key: "hideOwn", label: "Hide this screen's own messages", type: "bool", showIf: (s) => str(s.style, "big") === "big", help: "So a reply sent from here doesn't cover the booth's message." },
-      { key: "tapSeen", label: "Tap to mark seen", type: "bool", showIf: (s) => str(s.style, "big") === "big" },
-      { key: "showAge", label: "Show how old (“3 min ago”)", type: "bool", showIf: (s) => str(s.style, "big") === "big" },
-      { key: "empty", label: "When there's no message", type: "select", showIf: (s) => str(s.style, "big") === "big",
-        options: [{ value: "clock", label: "Show the clock" }, { value: "waiting", label: "“Waiting for a message”" }, { value: "blank", label: "Blank" }] },
-    ],
-    Render: ({ s, editing }) => <StageShow s={s} editing={editing} /> },
+    Render: ({ s, editing }) => <StageCue s={s} editing={editing} /> },
+  // Older message widgets: kept working (drawn as a Cue), not offered any more.
+  { type: "stage.send", hidden: true, label: "Message sender", group: "stage", icon: MessageSquareText,
+    description: "Replaced by Cue.", size: { w: 6, h: 9, pw: 4, ph: 9 }, minPx: { w: 220, h: 120 },
+    defaults: { channels: ["pulpit"], textBox: true }, fields: [{ key: "channels", label: "Channels", type: "channels" }],
+    Render: ({ s, editing }) => <StageCue s={sendAsCue(s)} editing={editing} /> },
+  { type: "stage.show", hidden: true, label: "Message display", group: "stage", icon: MessagesSquare,
+    description: "Replaced by Cue.", size: { w: 8, h: 8, pw: 4, ph: 8 }, minPx: { w: 200, h: 100 },
+    defaults: { channel: "pulpit", style: "big" }, fields: [{ key: "channel", label: "Channel", type: "channel" }],
+    Render: ({ s, editing }) => str(s.style, "big") === "conversation" ? <StageShow s={s} editing={editing} /> : <StageCue s={showAsCue(s)} editing={editing} /> },
   { type: "stage.timer", label: "Stage timer", group: "stage", icon: Timer,
     description: "A channel's countdown (started from a Message sender's timer buttons, a macro, or the agent). Same time on every screen.",
     size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: (s) => (bool(s.controls) ? { w: 260, h: 64 } : { w: 140, h: 64 }), defaults: { channel: "pulpit", controls: false },

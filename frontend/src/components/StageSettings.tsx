@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, Eraser } from "lucide-react";
 import { useLog } from "@/lib/log";
 import { useChannels, useScreenName, setScreenName, stageApi, type ChannelState } from "@/lib/stage";
-import { Button, Card, CardBody, CardHeader, Dialog, Input } from "@/components/ui";
+import { Button, Card, CardBody, CardHeader, Dialog, Input, Switch } from "@/components/ui";
 
 const COLORS = ["#F5A524", "#60A5FA", "#4ADE80", "#F472B6", "#A78BFA", "#F87171", "#2DD4BF", "#E8EBF0"];
 
@@ -71,6 +71,11 @@ export function StageSettings() {
                 {c.screens.length ? `Online: ${c.screens.map((x) => x.name).join(", ")}` : "No screen online"}
                 {" · "}{c.messages.length} message{c.messages.length === 1 ? "" : "s"} today{c.timer ? ` · timer “${c.timer.label || "Timer"}”` : ""}
               </div>
+              <label className="mt-1.5 flex w-fit cursor-pointer items-center gap-2 text-xs text-muted">
+                <Switch checked={!!c.oneAnswer} label="One answer is enough"
+                  onChange={(v) => stageApi.setOneAnswer(c, v).catch((e) => log("Settings", (e as Error).message, false))} />
+                One answer is enough <span className="text-dim">— the first reply answers a cue for everyone</span>
+              </label>
             </div>
             <div className="flex gap-1">
               <Button size="sm" variant="ghost" onClick={() => { setErr(""); setEdit({ id: c.id, name: c.name, color: c.color }); }}><Pencil size={13} /> Rename</Button>
@@ -79,7 +84,7 @@ export function StageSettings() {
             </div>
           </div>
         ))}
-        <p className="text-[11px] text-dim">A channel is a name and a color. Put a Message sender and a Message display on the same channel — on any dashboards, any devices — and they talk to each other. Messages are kept for today only.</p>
+        <p className="text-[11px] text-dim">A channel is a name and a color. Every Cue widget on the same channel — on any dashboard, any device — is linked: a cue sent from one shows on the others, and each screen answers it with a reply. Messages are kept for today only.</p>
       </CardBody>
 
       <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)} title={edit?.id ? "Rename channel" : "New channel"}>

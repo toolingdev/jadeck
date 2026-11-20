@@ -106,3 +106,43 @@ func TestStageStartersSeededOnceAndNotDefault(t *testing.T) {
 		t.Fatalf("deleted starter came back: %d", len(l))
 	}
 }
+
+func TestOldMessageWidgetsBecomeCue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "d.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// what a phone looked like before Cue: a display + a reply pad, and a
+	// booth's typing sender
+	old := Dashboard{Name: "Old stage", Kind: "phone", Widgets: []Widget{
+		{"msg", "stage.show", map[string]any{"channel": "worship", "style": "big", "empty": "blank"}},
+		{"reply", "stage.send", map[string]any{"channels": []any{"worship"}, "textBox": false, "quick": []any{"Yes", "No"}}},
+		{"booth", "stage.send", map[string]any{"channels": []any{"pulpit"}, "textBox": true}},
+	}, Layout: []Item{{"msg", 0, 0, 4, 8}, {"reply", 0, 8, 4, 3}, {"booth", 0, 11, 4, 6}}}
+	d, err := s.Create(&old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// run the upgrade again as a fresh start would (it's recorded as done)
+	s.db.Exec(`DELETE FROM seeds WHERE name = 'cue-v1'`)
+	s.Close()
+	s, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(d.ID)
+	if len(got.Widgets) != 2 || len(got.Layout) != 2 {
+		t.Fatalf("display + reply pad merged into one: %+v", got.Widgets)
+	}
+	front, booth := got.Widgets[0], got.Widgets[1]
+	if front.Type != "stage.cue" || front.Settings["incoming"] != true || len(front.Settings["replies"].([]any)) != 2 || front.Settings["empty"] != "blank" {
+		t.Fatalf("front cue: %+v", front)
+	}
+	if got.Layout[0].H != 11 {
+		t.Fatalf("the merged cue takes the space of both: %+v", got.Layout[0])
+	}
+	if booth.Type != "stage.cue" || booth.Settings["outgoing"] != true || booth.Settings["textBox"] != true {
+		t.Fatalf("booth cue: %+v", booth)
+	}
+}

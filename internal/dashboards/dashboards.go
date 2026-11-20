@@ -235,7 +235,131 @@ func Open(path string) (*Store, error) {
 	if err := s.seedOnce("camera-v1", CameraDesktop, CameraPhone); err != nil {
 		return nil, err
 	}
+	if err := s.once("cue-v1", s.toCue); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// once runs a one-time upgrade of the saved dashboards.
+func (s *Store) once(name string, run func() error) error {
+	var n int
+	s.db.QueryRow(`SELECT COUNT(*) FROM seeds WHERE name = ?`, name).Scan(&n)
+	if n > 0 {
+		return nil
+	}
+	if err := run(); err != nil {
+		return fmt.Errorf("upgrading dashboards (%s): %w", name, err)
+	}
+	_, err := s.db.Exec(`INSERT INTO seeds (name) VALUES (?)`, name)
+	return err
+}
+
+// toCue turns the old message widgets into Cue widgets. A big Message
+// display plus a reply-pad sender on the same channel become one Cue
+// (the cue big, with those replies under it) in the space both took; a
+// typing sender becomes a sending Cue; a conversation view stays.
+func (s *Store) toCue() error {
+	list, err := s.List()
+	if err != nil {
+		return err
+	}
+	strs := func(v any) []any {
+		if a, ok := v.([]any); ok {
+			return a
+		}
+		return nil
+	}
+	for _, d := range list {
+		changed := false
+		at := map[string]int{}
+		for i, it := range d.Layout {
+			at[it.I] = i
+		}
+		drop := map[string]bool{}
+		for wi := range d.Widgets {
+			w := &d.Widgets[wi]
+			switch w.Type {
+			case "stage.show":
+				if st, _ := w.Settings["style"].(string); st == "conversation" {
+					continue
+				}
+				ch, _ := w.Settings["channel"].(string)
+				cue := map[string]any{"channels": []any{ch}, "incoming": true, "outgoing": false}
+				if e, ok := w.Settings["empty"].(string); ok {
+					cue["empty"] = e
+				}
+				// a reply pad on the same channel: its buttons become the replies
+				for pi, p := range d.Widgets {
+					if p.Type != "stage.send" || p.Settings["textBox"] != false || drop[p.ID] {
+						continue
+					}
+					chs := strs(p.Settings["channels"])
+					if len(chs) != 1 || chs[0] != ch {
+						continue
+					}
+					if q := strs(p.Settings["quick"]); len(q) > 0 {
+						cue["replies"] = q
+					}
+					drop[d.Widgets[pi].ID] = true
+					if a, ok := at[w.ID]; ok {
+						if b, ok := at[p.ID]; ok {
+							A, B := d.Layout[a], d.Layout[b]
+							x0, y0 := min(A.X, B.X), min(A.Y, B.Y)
+							x1, y1 := max(A.X+A.W, B.X+B.W), max(A.Y+A.H, B.Y+B.H)
+							d.Layout[a] = Item{I: A.I, X: x0, Y: y0, W: x1 - x0, H: y1 - y0}
+						}
+					}
+					break
+				}
+				w.Type, w.Settings, changed = "stage.cue", cue, true
+			case "stage.send":
+				if w.Settings["textBox"] == false {
+					continue // handled with its display; a lone reply pad keeps sending
+				}
+				cue := map[string]any{"channels": w.Settings["channels"], "incoming": false, "outgoing": true, "textBox": true}
+				for _, k := range []string{"quick", "timers"} {
+					if v, ok := w.Settings[k]; ok {
+						cue[k] = v
+					}
+				}
+				w.Type, w.Settings, changed = "stage.cue", cue, true
+			}
+		}
+		for wi := range d.Widgets {
+			w := &d.Widgets[wi]
+			if w.Type == "stage.send" && !drop[w.ID] && w.Settings["textBox"] == false {
+				// a reply pad with no display: a sending Cue with those buttons
+				w.Type = "stage.cue"
+				q := w.Settings["quick"]
+				if q == nil {
+					q = []any{"👍 Got it", "Ready", "Mic problem", "+2 min"}
+				}
+				w.Settings = map[string]any{"channels": w.Settings["channels"], "incoming": false, "outgoing": true, "quick": q}
+				changed = true
+			}
+		}
+		if len(drop) > 0 {
+			ws, ls := d.Widgets[:0], d.Layout[:0]
+			for _, w := range d.Widgets {
+				if !drop[w.ID] {
+					ws = append(ws, w)
+				}
+			}
+			for _, it := range d.Layout {
+				if !drop[it.I] {
+					ls = append(ls, it)
+				}
+			}
+			d.Widgets, d.Layout = ws, ls
+		}
+		if changed {
+			if _, err := s.Update(d.ID, &d); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // seedOnce adds starter dashboards that came with a later version, once:
@@ -535,8 +659,8 @@ func Booth() Dashboard {
 		{"favorites", "audio.favorites", map[string]any{}},
 		{"macros", "macros.list", map[string]any{}},
 		{"log", "other.log", map[string]any{}},
-		{"stage", "stage.send", map[string]any{"channels": []any{"pulpit"}, "textBox": true}},
-		{"replies", "stage.show", map[string]any{"channel": "pulpit", "style": "conversation"}},
+		{"stage", "stage.cue", map[string]any{"channels": []any{"pulpit"}, "incoming": false, "outgoing": true, "textBox": true}},
+		{"replies", "stage.cue", map[string]any{"channels": []any{"worship"}, "incoming": false, "outgoing": true, "textBox": true}},
 	}
 	layout := []Item{
 		{"program", 0, 0, 7, 8}, {"confidence", 7, 0, 5, 6},
@@ -554,15 +678,13 @@ func StageTablet() Dashboard {
 	ws := []Widget{
 		{"live", "stage.live", map[string]any{"mode": "stream"}},
 		{"timer", "stage.timer", map[string]any{"channel": "pulpit"}},
-		{"msg", "stage.show", map[string]any{"channel": "pulpit", "style": "big"}},
+		{"msg", "stage.cue", map[string]any{"channels": []any{"pulpit"}, "incoming": true, "outgoing": false}},
 		{"stream", "switcher.program", map[string]any{}},
 		{"cam", "camera.live", map[string]any{"quality": "sd", "tally": true}},
-		{"reply", "stage.send", map[string]any{"channels": []any{"pulpit"}, "textBox": false, "sendOnTap": true}},
 	}
 	layout := []Item{
 		{"live", 0, 0, 8, 2}, {"timer", 8, 0, 4, 2},
-		{"msg", 0, 2, 8, 10}, {"stream", 8, 2, 4, 5}, {"cam", 8, 7, 4, 5},
-		{"reply", 0, 12, 12, 3},
+		{"msg", 0, 2, 8, 13}, {"stream", 8, 2, 4, 5}, {"cam", 8, 7, 4, 5},
 	}
 	return Dashboard{Name: "Stage — iPad", Kind: "tablet", Widgets: ws, Layout: layout}
 }
@@ -572,13 +694,12 @@ func StagePhone() Dashboard {
 	ws := []Widget{
 		{"live", "stage.live", map[string]any{"mode": "stream"}},
 		{"timer", "stage.timer", map[string]any{"channel": "worship"}},
-		{"msg", "stage.show", map[string]any{"channel": "worship", "style": "big"}},
-		{"reply", "stage.send", map[string]any{"channels": []any{"worship"}, "textBox": false, "sendOnTap": true}},
+		{"msg", "stage.cue", map[string]any{"channels": []any{"worship"}, "incoming": true, "outgoing": false}},
 		{"stream", "switcher.program", map[string]any{}},
 	}
 	layout := []Item{
-		{"live", 0, 0, 4, 2}, {"timer", 0, 2, 4, 2}, {"msg", 0, 4, 4, 8},
-		{"reply", 0, 12, 4, 4}, {"stream", 0, 16, 4, 5},
+		{"live", 0, 0, 4, 2}, {"timer", 0, 2, 4, 2}, {"msg", 0, 4, 4, 10},
+		{"stream", 0, 14, 4, 5},
 	}
 	return Dashboard{Name: "Stage — phone", Kind: "phone", Widgets: ws, Layout: layout}
 }

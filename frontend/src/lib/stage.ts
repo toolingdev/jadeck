@@ -6,13 +6,14 @@ import { api } from "./api";
 // state of those channels on every change (it's small), plus its clock,
 // so every screen's countdown agrees to the second.
 
-export type Message = { id: string; text: string; from: string; at: string; seen: string[] };
+export type Reply = { screen: string; text: string; at: string };
+export type Message = { id: string; text: string; from: string; at: string; seen: string[]; replies?: Reply[]; done?: boolean };
 export type StageTimer = { label: string; running: boolean; endsAt: string; left: number; total: number };
 export type ChannelState = {
-  id: string; name: string; color: string;
+  id: string; name: string; color: string; oneAnswer?: boolean;
   messages: Message[]; timer: StageTimer | null; screens: { name: string; online: boolean }[];
 };
-export type Channel = { id: string; name: string; color: string };
+export type Channel = { id: string; name: string; color: string; oneAnswer?: boolean };
 type Snap = { now: string; maxText: number; channels: ChannelState[] };
 
 export const MAX_TEXT = 280;
@@ -150,6 +151,8 @@ export const stageApi = {
   send: (ch: string, text: string) => api(`/api/stage/channels/${ch}/messages`, "POST", { text, from: screenName }),
   clear: (ch: string) => api(`/api/stage/channels/${ch}/messages`, "DELETE"),
   seen: (ch: string, id: string) => api(`/api/stage/channels/${ch}/seen`, "POST", { id, screen: screenName }),
+  reply: (ch: string, id: string, text: string) => api(`/api/stage/channels/${ch}/reply`, "POST", { id, text, screen: screenName }),
+  setOneAnswer: (c: Channel, on: boolean) => api<Channel>(`/api/stage/channels/${c.id}`, "PUT", { name: c.name, color: c.color, oneAnswer: on }),
   timer: (ch: string, op: string, seconds = 0, label = "") => api(`/api/stage/channels/${ch}/timer`, "POST", { op, seconds, label }),
   create: (name: string, color: string) => api<Channel>("/api/stage/channels", "POST", { name, color }),
   update: (id: string, name: string, color: string) => api<Channel>(`/api/stage/channels/${id}`, "PUT", { name, color }),
