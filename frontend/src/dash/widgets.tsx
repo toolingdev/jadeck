@@ -3,10 +3,11 @@ import {
   MonitorPlay, Gamepad2, Bookmark, LayoutGrid, Sun, Home as HomeIcon, Square, ZoomIn, Gauge,
   Tv, Presentation, ChevronsRight, Mic, MicOff, ListMusic, Play, ListChecks, Clock, Timer, Type, ScrollText,
   ChevronLeft, ChevronRight, Loader2, Activity, HeartPulse, MessageSquareText, MessagesSquare, Radio, type LucideIcon,
+  Lightbulb,
 } from "lucide-react";
 import { BandwidthWidget, HealthWidget } from "./metricsWidgets";
 import { ComingUp } from "./scheduleWidget";
-import { StageSend, StageShow, StageTimer, StageLive, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK } from "./stageWidgets";
+import { StageSend, StageShow, StageTimer, StageLive, TallyLight, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK } from "./stageWidgets";
 import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
 import { useShared, refreshShared, useLocal, useWidgetConn } from "@/lib/hooks";
 import { withConn } from "@/lib/addons";
@@ -525,15 +526,17 @@ export const WIDGETS: WidgetDef[] = [
     size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: (s) => (bool(s.controls) ? { w: 260, h: 64 } : { w: 140, h: 64 }), defaults: { channel: "pulpit", controls: false },
     fields: [{ key: "channel", label: "Channel", type: "channel" }, { key: "controls", label: "Pause / +1 / stop buttons", type: "bool", help: "For the booth; leave off on stage screens." }],
     Render: ({ s, editing }) => <StageTimer s={s} editing={editing} /> },
-  { type: "stage.live", label: "Live status", group: "stage", icon: Radio,
-    description: "WE ARE LIVE while the switcher is streaming. Can also show whether a camera is on program or up next.",
-    size: { w: 8, h: 2, pw: 4, ph: 2 }, minPx: (s) => (str(s.mode, "stream") === "tally" ? { w: 140, h: 40 } : { w: 300, h: 40 }), defaults: { mode: "stream", camera: "" },
-    fields: [
-      { key: "mode", label: "Shows", type: "select", options: [{ value: "stream", label: "We're live (streaming)" }, { value: "both", label: "We're live + camera tally" }, { value: "tally", label: "Camera tally only" }] },
-      { ...CAMERA_FIELD, showIf: (s) => str(s.mode, "stream") !== "stream" },
-      { key: "input", label: "Switcher input for that camera", type: "input", showIf: (s) => str(s.mode, "stream") !== "stream", help: "Only if it differs from Settings → Connections → (switcher) → Cameras on this switcher." },
-    ],
+  { type: "stage.live", label: "On air", group: "stage", icon: Radio,
+    description: "WE ARE LIVE while the switcher is streaming, OFF AIR when it isn't. Any size — down to a small pill.",
+    size: { w: 8, h: 2, pw: 4, ph: 2 }, minPx: { w: 90, h: 28 }, defaults: {},
+    fields: [],
     Render: ({ s }) => <StageLive s={s} /> },
+  { type: "stage.tally", label: "Tally light", group: "stage", icon: Lightbulb,
+    description: "One camera: ON (red) when it's on program, NEXT (green) when it's in preview.",
+    size: { w: 3, h: 3, pw: 2, ph: 3 }, minPx: { w: 70, h: 56 }, defaults: { camera: "" },
+    fields: [CAMERA_FIELD,
+      { key: "input", label: "Switcher input for this camera", type: "input", help: "Only if it differs from Settings → Connections → (switcher) → Cameras on this switcher." }],
+    Render: ({ s }) => <TallyLight s={s} /> },
 
   { type: "video", label: "Video", group: "camera", icon: MonitorPlay,
     description: "Any feed: a camera, the program, slides… Drop several to build a multiview.",

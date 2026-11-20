@@ -439,35 +439,42 @@ export function useTally(cameraId: string, input: number) {
   }, [sw, cams, cameraId, input]);
 }
 
+/** On air: are we streaming? Big red WE ARE LIVE, grey OFF AIR. The
+ *  text follows the box, down to a small "● LIVE" pill. (An old Live
+ *  status widget set to "camera tally only" shows as a Tally light.) */
 export function StageLive({ s }: { s: Settings }) {
-  const mode = str(s.mode, "stream");
-  const { sw, state } = useTally(str(s.camera), Number(s.input) || 0);
+  const { data: sw } = useShared<SwitcherStatus>("/api/switcher/status", 1000);
+  if (str(s.mode) === "tally") return <TallyLight s={s} />;
   if (!sw) return <Note>Reading the switcher…</Note>;
-  if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected — live status unknown.</Note>;
-  const tally = mode !== "stream" ? state : null;
-  const streaming = sw.streaming;
-  // We're live comes first: it's what the front needs to know. The
-  // camera's tally is a second line (or the whole thing in tally-only).
-  let cls = "border-line bg-panel-2 text-muted", text = "Not live", sub = "";
-  if (mode !== "tally" && streaming) {
-    cls = "border-pgm bg-pgm text-white";
-    text = "● WE ARE LIVE";
-    if (tally === "pgm") sub = "your camera is on";
-    else if (tally === "pvw") sub = "your camera is up next";
-  } else if (tally === "pgm") {
-    cls = "border-pgm bg-pgm/25 text-bad";
-    text = "● Your camera is on program";
-  } else if (tally === "pvw") {
-    cls = "border-pvw bg-pvw/25 text-good";
-    text = "● Your camera is up next";
-  } else if (mode === "tally" && state === null) {
-    cls = "border-line bg-panel-2 text-dim";
-    text = "Camera not on the switcher — set it in Settings → Connections";
-  }
+  if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected — on-air state unknown.</Note>;
+  const live = sw.streaming;
   return (
-    <div className={cn("flex h-full flex-col items-center justify-center rounded-full border-2 px-4 text-center font-bold transition-colors", cls)}>
-      <span className="truncate text-[clamp(14px,2.6vw,22px)]">{text}</span>
-      {sub && <span className="truncate text-xs font-semibold opacity-90">{sub}</span>}
+    <div className={cn("@container flex h-full items-center justify-center rounded-full border-2 px-3 text-center font-bold transition-colors",
+      live ? "border-pgm bg-pgm text-white" : "border-line-strong bg-panel-2 text-dim")}>
+      <span className="truncate text-[clamp(12px,min(40cqh,9cqw),44px)] leading-none tracking-wide">
+        {live ? <>● <span className="@max-[15rem]:hidden">WE ARE </span>LIVE</> : "OFF AIR"}
+      </span>
+    </div>
+  );
+}
+
+/** Tally light: is this camera on program (ON, red) or in preview
+ *  (NEXT, green)? Which input the camera is on comes from Settings →
+ *  Connections → (switcher) → Cameras on this switcher. */
+export function TallyLight({ s }: { s: Settings }) {
+  const { sw, state } = useTally(str(s.camera), Number(s.input) || 0);
+  const { data: cams } = useShared<CameraInfo[]>("/api/cameras", 10000);
+  const cam = cams?.find((c) => c.id === str(s.camera)) ?? cams?.find((c) => c.main);
+  if (!sw) return <Note>Reading the switcher…</Note>;
+  if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected.</Note>;
+  const cls = state === "pgm" ? "border-pgm bg-pgm text-white" : state === "pvw" ? "border-pvw bg-pvw text-white" : "border-line-strong bg-panel-2 text-dim";
+  const word = state === "pgm" ? "ON" : state === "pvw" ? "NEXT" : state === null ? "?" : "—";
+  return (
+    <div className={cn("@container flex h-full flex-col items-center justify-center rounded-[var(--radius-card)] border-2 px-2 text-center font-bold transition-colors", cls)}>
+      <span className="text-[clamp(14px,min(45cqh,22cqw),64px)] leading-none">{word}</span>
+      <span className="mt-1 max-w-full truncate text-[clamp(10px,min(14cqh,9cqw),20px)] font-semibold opacity-90">
+        {state === null ? `${cam?.name ?? "Camera"} isn't on the switcher` : cam?.name}
+      </span>
     </div>
   );
 }
