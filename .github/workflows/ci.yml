@@ -14,7 +14,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # No macOS runner: GitHub often has none free (jobs sit queued, then
+        # get cancelled). Mac binaries are cross-built on Linux below, and the
+        # tests run on a Mac before each release.
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
