@@ -3,6 +3,7 @@
 //	ptzsign keygen release.key      writes the private key, prints the public key
 //	ptzsign sign release.key SHA256SUMS > SHA256SUMS.sig
 //	ptzsign verify <public key> SHA256SUMS SHA256SUMS.sig
+//	ptzsign pub -                   reads the private key on stdin, prints the public key
 //
 // The private key is the only thing that can publish an update the
 // controllers will accept. Keep it in your password manager and as the
@@ -14,6 +15,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -55,6 +57,19 @@ func main() {
 			die("%v", err)
 		}
 		fmt.Println(base64.StdEncoding.EncodeToString(pub))
+	case "pub":
+		if len(os.Args) != 3 {
+			die("usage: pub <key> (\"-\" reads it from stdin)")
+		}
+		arg := os.Args[2]
+		if arg == "-" {
+			b, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				die("%v", err)
+			}
+			arg = string(b)
+		}
+		fmt.Println(base64.StdEncoding.EncodeToString(readKey(arg).Public().(ed25519.PublicKey)))
 	case "sign":
 		if len(os.Args) != 4 {
 			die("usage: sign <key> <file>")
