@@ -440,29 +440,34 @@ export function useTally(cameraId: string, input: number) {
 }
 
 export function StageLive({ s }: { s: Settings }) {
-  const mode = str(s.mode, "both");
+  const mode = str(s.mode, "stream");
   const { sw, state } = useTally(str(s.camera), Number(s.input) || 0);
   if (!sw) return <Note>Reading the switcher…</Note>;
-  if (!sw.connected) return <Note>{sw.label || "vMix"} not connected — live status unknown.</Note>;
-  const showTally = mode !== "stream" && state !== null;
+  if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected — live status unknown.</Note>;
+  const tally = mode !== "stream" ? state : null;
   const streaming = sw.streaming;
-  let cls = "border-line bg-panel-2 text-muted", text = "Not live";
-  if (showTally && state === "pgm") {
+  // We're live comes first: it's what the front needs to know. The
+  // camera's tally is a second line (or the whole thing in tally-only).
+  let cls = "border-line bg-panel-2 text-muted", text = "Not live", sub = "";
+  if (mode !== "tally" && streaming) {
     cls = "border-pgm bg-pgm text-white";
-    text = streaming || mode === "tally" ? "● WE ARE LIVE · your camera is on" : "● Your camera is on program";
-  } else if (showTally && state === "pvw") {
-    cls = "border-pvw bg-pvw text-white";
-    text = "● NEXT · your camera is up next";
-  } else if (mode !== "tally" && streaming) {
-    cls = "border-pgm/70 bg-pgm/20 text-bad";
     text = "● WE ARE LIVE";
+    if (tally === "pgm") sub = "your camera is on";
+    else if (tally === "pvw") sub = "your camera is up next";
+  } else if (tally === "pgm") {
+    cls = "border-pgm bg-pgm/25 text-bad";
+    text = "● Your camera is on program";
+  } else if (tally === "pvw") {
+    cls = "border-pvw bg-pvw/25 text-good";
+    text = "● Your camera is up next";
   } else if (mode === "tally" && state === null) {
     cls = "border-line bg-panel-2 text-dim";
-    text = "Camera not found in vMix — pick its input in settings";
+    text = "Camera not on the switcher — set it in Settings → Connections";
   }
   return (
-    <div className={cn("flex h-full items-center justify-center rounded-full border-2 px-4 text-center font-bold transition-colors", cls)}>
+    <div className={cn("flex h-full flex-col items-center justify-center rounded-full border-2 px-4 text-center font-bold transition-colors", cls)}>
       <span className="truncate text-[clamp(14px,2.6vw,22px)]">{text}</span>
+      {sub && <span className="truncate text-xs font-semibold opacity-90">{sub}</span>}
     </div>
   );
 }

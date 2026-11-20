@@ -526,12 +526,12 @@ export const WIDGETS: WidgetDef[] = [
     fields: [{ key: "channel", label: "Channel", type: "channel" }, { key: "controls", label: "Pause / +1 / stop buttons", type: "bool", help: "For the booth; leave off on stage screens." }],
     Render: ({ s, editing }) => <StageTimer s={s} editing={editing} /> },
   { type: "stage.live", label: "Live status", group: "stage", icon: Radio,
-    description: "WE ARE LIVE when vMix is streaming, and/or this camera's tally: red live, green next.",
-    size: { w: 8, h: 2, pw: 4, ph: 2 }, minPx: (s) => (str(s.mode, "both") === "tally" ? { w: 140, h: 40 } : { w: 300, h: 40 }), defaults: { mode: "both", camera: "" },
+    description: "WE ARE LIVE while the switcher is streaming. Can also show whether a camera is on program or up next.",
+    size: { w: 8, h: 2, pw: 4, ph: 2 }, minPx: (s) => (str(s.mode, "stream") === "tally" ? { w: 140, h: 40 } : { w: 300, h: 40 }), defaults: { mode: "stream", camera: "" },
     fields: [
-      { key: "mode", label: "Shows", type: "select", options: [{ value: "both", label: "Stream + camera tally" }, { value: "stream", label: "Stream only (we are live)" }, { value: "tally", label: "Camera tally only" }] },
-      { ...CAMERA_FIELD, showIf: (s) => str(s.mode, "both") !== "stream" },
-      { key: "input", label: "vMix input for that camera", type: "input", showIf: (s) => str(s.mode, "both") !== "stream", help: "Leave on Auto to match by camera name." },
+      { key: "mode", label: "Shows", type: "select", options: [{ value: "stream", label: "We're live (streaming)" }, { value: "both", label: "We're live + camera tally" }, { value: "tally", label: "Camera tally only" }] },
+      { ...CAMERA_FIELD, showIf: (s) => str(s.mode, "stream") !== "stream" },
+      { key: "input", label: "Switcher input for that camera", type: "input", showIf: (s) => str(s.mode, "stream") !== "stream", help: "Only if it differs from Settings → Connections → (switcher) → Cameras on this switcher." },
     ],
     Render: ({ s }) => <StageLive s={s} /> },
 

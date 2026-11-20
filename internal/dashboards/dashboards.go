@@ -552,7 +552,7 @@ func Booth() Dashboard {
 // the stream, quick replies. Lock it from the dashboard menu.
 func StageTablet() Dashboard {
 	ws := []Widget{
-		{"live", "stage.live", map[string]any{"mode": "both"}},
+		{"live", "stage.live", map[string]any{"mode": "stream"}},
 		{"timer", "stage.timer", map[string]any{"channel": "pulpit"}},
 		{"msg", "stage.show", map[string]any{"channel": "pulpit", "style": "big"}},
 		{"stream", "switcher.program", map[string]any{}},
@@ -570,7 +570,7 @@ func StageTablet() Dashboard {
 // StagePhone is the worship leader's phone.
 func StagePhone() Dashboard {
 	ws := []Widget{
-		{"live", "stage.live", map[string]any{"mode": "both"}},
+		{"live", "stage.live", map[string]any{"mode": "stream"}},
 		{"timer", "stage.timer", map[string]any{"channel": "worship"}},
 		{"msg", "stage.show", map[string]any{"channel": "worship", "style": "big"}},
 		{"reply", "stage.send", map[string]any{"channels": []any{"worship"}, "textBox": false, "sendOnTap": true}},
