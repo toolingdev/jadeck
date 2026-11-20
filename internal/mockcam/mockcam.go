@@ -37,6 +37,9 @@ type ptz struct{ pan, tilt, zoom int }
 
 type Mock struct {
 	Log *slog.Logger
+	// Snapshot, when set, serves /snapshot.jpg (the simulator's live
+	// picture) instead of the built-in still.
+	Snapshot func() []byte
 
 	mu          sync.Mutex
 	pan, tilt   int
@@ -398,6 +401,12 @@ func (m *Mock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.cgi(w, r.URL.RawQuery)
 	case r.URL.Path == "/snapshot.jpg":
 		w.Header().Set("Content-Type", "image/jpeg")
+		if m.Snapshot != nil {
+			if b := m.Snapshot(); len(b) > 0 {
+				w.Write(b)
+				return
+			}
+		}
 		w.Write(snapshotJPEG)
 	default:
 		http.NotFound(w, r)

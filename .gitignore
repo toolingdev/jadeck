@@ -22,3 +22,5 @@ design/6-cameras-system-setup.png
 design/video-feeds-mock.png
 .claude/
 scripts/migrate-from-python.ps1
+auto.crt
+auto.key
