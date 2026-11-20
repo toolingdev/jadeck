@@ -7,12 +7,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! op whoami >/dev/null 2>&1; then
-  eval "$(op signin)" 2>/dev/null || true
-fi
-if ! op whoami >/dev/null 2>&1; then
-  echo "1Password CLI isn't connected. In the 1Password app: Settings → Developer →"
-  echo "turn on \"Integrate with 1Password CLI\", then run this again."
+# Any vault command makes the 1Password app ask for Touch ID.
+if ! op vault list >/dev/null; then
+  echo "1Password didn't answer. Unlock the app (Settings → Developer → Integrate with 1Password CLI) and run this again."
   exit 1
 fi
 
