@@ -671,11 +671,12 @@ function NameChip({ w, onOpen }: { w: { id: string; type: string; settings?: Set
   const s = (w.settings ?? {}) as Record<string, unknown>;
   const feeds = useFeedNames();
   const cams = useCameraNames();
+  const mainCam = useMainCameraName();
   const detail = typeof s.channel === "string" ? s.channel
     : Array.isArray(s.channels) && s.channels.length ? (s.channels as string[]).join(", ")
-    : typeof s.feed === "string" && s.feed ? (s.feed === "cam:" ? "header's camera" : feeds[s.feed] ?? s.feed)
+    : typeof s.feed === "string" && s.feed ? (s.feed === "cam:" ? "main camera" : feeds[s.feed] ?? s.feed)
     : typeof s.camera === "string" && s.camera ? cams[s.camera] ?? "camera"
-    : def?.group === "camera" ? "header's camera" : "";
+    : def?.group === "camera" ? mainCam : "";
   return (
     <div className="no-drag pointer-events-none absolute left-2 top-2 z-20 max-w-[calc(100%-1rem)]">
       <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} onPointerDown={(e) => e.stopPropagation()}
@@ -692,6 +693,11 @@ function useFeedNames() {
   return Object.fromEntries((data?.feeds ?? []).map((f) => [f.id, f.name])) as Record<string, string>;
 }
 
+function useMainCameraName() {
+  const { data } = useShared<{ name: string; main?: boolean }[]>("/api/cameras", 0);
+  return data?.find((c) => c.main)?.name ?? "main camera";
+}
+
 function useCameraNames() {
   const { data } = useShared<{ id: string; name: string }[]>("/api/cameras", 0);
   return Object.fromEntries((data ?? []).map((c) => [c.id, c.name])) as Record<string, string>;
@@ -702,7 +708,7 @@ function FeedSwitch({ value, onPick }: { value: string; onPick: (v: string) => v
   const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 0);
   const feeds = data?.feeds ?? [];
   const [open, setOpen] = useState(false);
-  const name = value === "cam:" ? "Header's camera" : feeds.find((f) => f.id === value)?.name ?? "Feed";
+  const name = value === "cam:" ? "Main camera" : feeds.find((f) => f.id === value)?.name ?? "Feed";
   if (feeds.length < 2) return null;
   return (
     <div className="absolute bottom-2 left-2 z-20">

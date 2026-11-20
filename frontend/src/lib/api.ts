@@ -1,8 +1,6 @@
-import { getCamera } from "./camera";
-
 // Thin fetch wrapper. Errors carry the server's "detail" text so the UI
-// can show exactly why something didn't happen. Every call names the
-// camera this screen drives (X-PTZ-Camera).
+// can show exactly why something didn't happen. Camera calls name their
+// camera with ?cam= (see withCam); without it the server uses the main one.
 
 export class ApiError extends Error {
   status: number;
@@ -17,8 +15,6 @@ export async function api<T = unknown>(path: string, method = "GET", body?: unkn
   try {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["Content-Type"] = "application/json";
-    // A widget pinned to one camera names it in the URL (?cam=); that wins.
-    if (getCamera() && !/[?&]cam=/.test(path)) headers["X-PTZ-Camera"] = getCamera();
     r = await fetch(path, {
       method,
       headers,

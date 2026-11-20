@@ -1,39 +1,53 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { CamStatus } from "./api";
-import { getCamera, onCameraChange } from "./camera";
 
-// One WebSocket per page: status in, drive vectors out. The server's
-// drive protocol is a state, not a stream: send the vector when it
-// changes, plus a keepalive every 500 ms while it is non-zero (the
-// server stops the camera if it hears nothing for 1.2 s).
+// One WebSocket per camera in use: status in, drive vectors out. The
+// server's drive protocol is a state, not a stream: send the vector when
+// it changes, plus a keepalive every 500 ms while it is non-zero (the
+// server stops the camera if it hears nothing for 1.2 s). Each camera
+// widget drives its own camera ("" = the main camera).
 
 export type Drive = { pan: number; tilt: number; zoom: number; speed: number };
 
 type State = { status: CamStatus | null; online: boolean; noCamera: boolean };
 
-let state: State = { status: null, online: false, noCamera: false };
-const listeners = new Set<() => void>();
-let ws: WebSocket | null = null;
-let retry: number | undefined;
-let refs = 0;
+type Conn = {
+  cam: string;
+  state: State;
+  listeners: Set<() => void>;
+  ws: WebSocket | null;
+  retry?: number;
+  refs: number;
+  drive: Drive;
+  lastSent: string;
+  keepalive?: number;
+};
 
-const drive: Drive = { pan: 0, tilt: 0, zoom: 0, speed: 40 };
-let lastSent = "";
-let keepalive: number | undefined;
+const conns = new Map<string, Conn>();
 
-function emit(next: Partial<State>) {
-  state = { ...state, ...next };
-  listeners.forEach((l) => l());
+function conn(cam: string): Conn {
+  let c = conns.get(cam);
+  if (!c) {
+    c = { cam, state: { status: null, online: false, noCamera: false }, listeners: new Set(), ws: null, refs: 0,
+      drive: { pan: 0, tilt: 0, zoom: 0, speed: 40 }, lastSent: "" };
+    conns.set(cam, c);
+  }
+  return c;
 }
 
-function connect() {
-  const cam = getCamera();
-  const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control${cam ? `?cam=${encodeURIComponent(cam)}` : ""}`;
-  ws = new WebSocket(url);
+function emit(c: Conn, next: Partial<State>) {
+  c.state = { ...c.state, ...next };
+  c.listeners.forEach((l) => l());
+}
+
+function connect(c: Conn) {
+  const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control${c.cam ? `?cam=${encodeURIComponent(c.cam)}` : ""}`;
+  const ws = new WebSocket(url);
+  c.ws = ws;
   ws.onopen = () => {
-    emit({ online: true, noCamera: false });
-    lastSent = "";
-    flush();
+    emit(c, { online: true, noCamera: false });
+    c.lastSent = "";
+    flush(c);
   };
   ws.onmessage = (ev) => {
     try {
@@ -41,93 +55,85 @@ function connect() {
       if (m.t === "status") {
         const { t: _t, ...st } = m;
         void _t;
-        emit({ status: st as CamStatus });
+        emit(c, { status: st as CamStatus });
       }
     } catch {
       /* ignore */
     }
   };
   ws.onclose = (ev) => {
-    if (ws !== null && ev.target !== ws) return; // a socket we already replaced
-    emit({ online: false, noCamera: ev.code === 4004 });
-    ws = null;
-    if (refs > 0) retry = window.setTimeout(connect, ev.code === 4004 ? 3000 : 1500);
+    if (c.ws !== ws) return; // a socket we already replaced
+    emit(c, { online: false, noCamera: ev.code === 4004 });
+    c.ws = null;
+    if (c.refs > 0) c.retry = window.setTimeout(() => connect(c), ev.code === 4004 ? 3000 : 1500);
   };
 }
 
-function send(obj: unknown) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+function active(c: Conn) {
+  return c.drive.pan !== 0 || c.drive.tilt !== 0 || c.drive.zoom !== 0;
 }
 
-function active() {
-  return drive.pan !== 0 || drive.tilt !== 0 || drive.zoom !== 0;
+function flush(c: Conn, force = false) {
+  const d = c.drive;
+  const key = `${d.pan},${d.tilt},${d.zoom},${d.speed}`;
+  if (!force && key === c.lastSent) return;
+  c.lastSent = key;
+  const msg = active(c) ? { t: "drive", ...d } : { t: "stop" };
+  if (c.ws && c.ws.readyState === WebSocket.OPEN) c.ws.send(JSON.stringify(msg));
 }
 
-function flush(force = false) {
-  const key = `${drive.pan},${drive.tilt},${drive.zoom},${drive.speed}`;
-  if (!force && key === lastSent) return;
-  lastSent = key;
-  if (active()) send({ t: "drive", ...drive });
-  else send({ t: "stop" });
-}
-
-/** Update part of the drive vector (direction and/or speed). */
-export function setDrive(p: Partial<Drive>) {
-  Object.assign(drive, p);
-  flush();
-  if (active() && keepalive === undefined) {
-    keepalive = window.setInterval(() => flush(true), 500);
-  } else if (!active() && keepalive !== undefined) {
-    clearInterval(keepalive);
-    keepalive = undefined;
+/** Update part of a camera's drive vector (direction and/or speed). */
+export function setDrive(p: Partial<Drive>, cam = "") {
+  const c = conn(cam);
+  Object.assign(c.drive, p);
+  flush(c);
+  if (active(c) && c.keepalive === undefined) {
+    c.keepalive = window.setInterval(() => flush(c, true), 500);
+  } else if (!active(c) && c.keepalive !== undefined) {
+    clearInterval(c.keepalive);
+    c.keepalive = undefined;
   }
 }
 
-export function stopDrive() {
-  setDrive({ pan: 0, tilt: 0, zoom: 0 });
+/** Stop one camera, or every camera when none is named. */
+export function stopDrive(cam?: string) {
+  for (const c of cam === undefined ? [...conns.values()] : [conn(cam)]) {
+    if (active(c) || c.keepalive !== undefined) setDrive({ pan: 0, tilt: 0, zoom: 0 }, c.cam);
+  }
 }
 
-export function getSpeed() {
-  return drive.speed;
+export function getSpeed(cam = "") {
+  return conn(cam).drive.speed;
 }
 
-// Switching cameras: stop this one, then talk to the other.
-onCameraChange(() => {
-  stopDrive();
-  emit({ status: null });
-  if (!ws) return;
-  const old = ws;
-  ws = null;
-  old.onclose = null;
-  old.close();
-  clearTimeout(retry);
-  if (refs > 0) connect();
-});
-
-// Stop on tab hide / page leave: never leave the camera moving.
+// Stop on tab hide / page leave: never leave a camera moving.
 if (typeof window !== "undefined") {
-  window.addEventListener("blur", stopDrive);
+  window.addEventListener("blur", () => stopDrive());
   document.addEventListener("visibilitychange", () => document.hidden && stopDrive());
-  window.addEventListener("pagehide", stopDrive);
+  window.addEventListener("pagehide", () => stopDrive());
 }
 
-export function useControl(): State {
+export function useControl(cam = ""): State {
+  const c = conn(cam);
   useEffect(() => {
-    refs++;
-    if (!ws) connect();
+    c.refs++;
+    if (!c.ws) connect(c);
     return () => {
-      refs--;
-      if (refs === 0) {
-        clearTimeout(retry);
+      c.refs--;
+      if (c.refs === 0) {
+        stopDrive(c.cam);
+        clearTimeout(c.retry);
+        const ws = c.ws;
+        c.ws = null;
         ws?.close();
       }
     };
-  }, []);
+  }, [c]);
   return useSyncExternalStore(
     (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
+      c.listeners.add(l);
+      return () => c.listeners.delete(l);
     },
-    () => state,
+    () => c.state,
   );
 }

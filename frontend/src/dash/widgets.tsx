@@ -12,6 +12,7 @@ import { useShared, refreshShared, useLocal, useWidgetConn } from "@/lib/hooks";
 import { withConn } from "@/lib/addons";
 import { useLog } from "@/lib/log";
 import { setDrive, stopDrive } from "@/lib/control";
+import { useCam, useCamTitle } from "@/lib/camera";
 import { cn } from "@/lib/cn";
 import { Button, Dialog, Segmented } from "@/components/ui";
 import { StreamView } from "@/components/StreamView";
@@ -96,11 +97,13 @@ function MoveWidget({ s }: { s: Settings }) {
   const [speed, setSpeed] = useLocal("ptz.speed", 40);
   const [fine, setFine] = useLocal("ptz.fine", bool(s.startFine));
   const top = fine ? Math.min(FINE_SPEED, speed) : speed;
-  useEffect(() => setDrive({ speed: top }), [top, mode]);
+  const cam = useCam();
+  const camTitle = useCamTitle();
+  useEffect(() => setDrive({ speed: top }, cam), [top, mode, cam]);
   const home = bool(s.home, true), zoom = bool(s.zoom, true), showSpeed = bool(s.speed, true);
   const act = useCamAction();
   return (
-    <Frame title="Move" right={controls === "switchable" && (
+    <Frame title={camTitle ? `Move · ${camTitle}` : "Move"} right={controls === "switchable" && (
       <Segmented value={mode} onChange={setSaved} options={[{ value: "buttons", label: "Buttons" }, { value: "joystick", label: "Joystick" }]} />
     )}>
       <div className="flex h-full flex-col gap-3">
@@ -128,12 +131,13 @@ function MoveWidget({ s }: { s: Settings }) {
 
 function ZoomCol({ home }: { home: boolean }) {
   const act = useCamAction();
+  const cam = useCam();
   const h = home ? "h-14" : "h-16";
   return (
     <div className="flex shrink-0 flex-col gap-2">
       <HoldButton vec={{ zoom: 1 }} label="Zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><ZoomIn size={18} />TELE</HoldButton>
       <HoldButton vec={{ zoom: -1 }} label="Zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}>−<br />WIDE</HoldButton>
-      <button type="button" aria-label="Stop" onClick={() => { stopDrive(); act("Stop", "/api/ptz/stop"); }}
+      <button type="button" aria-label="Stop" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }}
         className={cn(h, "flex w-16 items-center justify-center rounded-2xl border border-pgm/50 bg-pgm/15 text-bad active:scale-[0.97]")}>
         <Square size={18} fill="currentColor" />
       </button>
@@ -185,8 +189,9 @@ function HomeWidget() {
 
 function StopWidget() {
   const act = useCamAction();
+  const cam = useCam();
   return (
-    <BigButton label="Stop camera" onClick={() => { stopDrive(); act("Stop", "/api/ptz/stop"); }} className="border-pgm bg-pgm tracking-[0.1em] text-white">
+    <BigButton label="Stop camera" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }} className="border-pgm bg-pgm tracking-[0.1em] text-white">
       <Square size={24} fill="currentColor" />STOP CAMERA
     </BigButton>
   );
@@ -485,7 +490,7 @@ const label = (k: string, l: string, extra: Partial<Field> = {}): Field => ({ ke
 const conn = (cap: "switcher" | "slides" | "mixer"): Field => ({ key: "connection", label: "Connection", type: "connection", cap,
   help: "Which one, when you have more than one." });
 
-const CAMERA_FIELD: Field = { key: "camera", label: "Camera", type: "camera", help: "“Follow the header” drives whichever camera is picked at the top." };
+const CAMERA_FIELD: Field = { key: "camera", label: "Camera", type: "camera", help: "Cameras are added under Settings → Cameras." };
 
 export const WIDGETS: WidgetDef[] = [
   { type: "stage.send", label: "Message sender", group: "stage", icon: MessageSquareText,
@@ -532,7 +537,7 @@ export const WIDGETS: WidgetDef[] = [
 
   { type: "video", label: "Video", group: "camera", icon: MonitorPlay,
     description: "Any feed: a camera, the program, slides… Drop several to build a multiview.",
-    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { feed: "", quality: "auto", tally: false, tapToControl: true, switchHere: true },
+    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { feed: "", quality: "auto", tally: false, switchHere: true },
     fields: [
       { key: "feed", label: "Feed", type: "feed", help: "Cameras, plus the feeds under Settings → Video feeds." },
       { key: "switchHere", label: "Let people switch the feed here", type: "bool", help: "A small name tag on the picture; tap it to pick another camera or feed. Two videos swap if needed. Off for stage screens." },
@@ -541,11 +546,10 @@ export const WIDGETS: WidgetDef[] = [
       label("title", "Title on the picture"),
       { key: "tally", label: "Tally border (red live, green next)", type: "bool", showIf: (s) => str(s.feed).startsWith("cam:"), help: "From the video switcher: the input whose name matches the camera, or pick it below." },
       { key: "input", label: "Switcher input for tally", type: "input", showIf: (s) => str(s.feed).startsWith("cam:") && bool(s.tally) },
-      { key: "tapToControl", label: "“Control this camera” button", type: "bool", showIf: (s) => str(s.feed).startsWith("cam:") },
     ],
     Render: ({ s, editing }) => <VideoWidget s={s} editing={editing} /> },
   { type: "camera.live", hidden: true, label: "Live view", group: "camera", icon: MonitorPlay, description: "A camera's picture. Drop several and pick a camera for each to build a multiview.",
-    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { quality: "auto", camera: "", tally: false, tapToControl: true },
+    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { quality: "auto", camera: "", tally: false },
     fields: [
       CAMERA_FIELD,
       { key: "quality", label: "Quality", type: "select", help: "Auto: HD when it's the only video on the screen, SD when there are several or on a phone.",
@@ -553,13 +557,13 @@ export const WIDGETS: WidgetDef[] = [
       label("title", "Title on the picture"),
       { key: "tally", label: "Tally border (red live, green next)", type: "bool", help: "From vMix: the input whose name matches the camera, or pick it below." },
       { key: "input", label: "vMix input for tally", type: "input", showIf: (s) => bool(s.tally) },
-      { key: "tapToControl", label: "“Control this camera” button", type: "bool", showIf: (s) => !!str(s.camera), help: "Makes it the camera the header and Move widgets drive." },
     ],
     Render: ({ s, editing }) => <LiveCamPinned s={s} editing={editing} /> },
   { type: "camera.move", label: "Move", group: "camera", icon: Gamepad2, description: "Arrows and/or joystick, with Home, zoom, stop and speed.",
     size: { w: 5, h: 10, ph: 10 }, minPx: { w: 260, h: 390 },
     defaults: { controls: "switchable", opensIn: "buttons", home: true, zoom: true, speed: true, startFine: false },
     fields: [
+      CAMERA_FIELD,
       { key: "controls", label: "Controls", type: "select", options: [{ value: "switchable", label: "Switchable (arrows ⇄ joystick)" }, { value: "buttons", label: "Arrows only" }, { value: "joystick", label: "Joystick only" }] },
       { key: "opensIn", label: "Opens in", type: "select", options: [{ value: "buttons", label: "Arrows" }, { value: "joystick", label: "Joystick" }], showIf: (s) => str(s.controls, "switchable") === "switchable", help: "Each device then remembers its last choice." },
       { key: "home", label: "Home button", type: "bool", help: "Centre of the arrows / beside the stick." },
@@ -573,19 +577,19 @@ export const WIDGETS: WidgetDef[] = [
     fields: [CAMERA_FIELD, { key: "preset", label: "Preset", type: "source", source: "presets" }, label("label", "Label (optional)")],
     Render: ({ s }) => <OnePreset s={s} /> },
   { type: "camera.presets", label: "Presets", group: "camera", icon: LayoutGrid, description: "All presets.",
-    size: { w: 6, h: 6, ph: 7 }, minPx: { w: 280, h: 180 }, defaults: {}, fields: [],
+    size: { w: 6, h: 6, ph: 7 }, minPx: { w: 280, h: 180 }, defaults: {}, fields: [CAMERA_FIELD],
     Render: () => <Fill><PresetGrid compact editable={false} /></Fill> },
   { type: "camera.picture", label: "Picture", group: "camera", icon: Sun, description: "Brightness, white balance and the other picture settings.",
-    size: { w: 5, h: 9, ph: 10 }, minPx: { w: 260, h: 370 }, defaults: {}, fields: [],
+    size: { w: 5, h: 9, ph: 10 }, minPx: { w: 260, h: 370 }, defaults: {}, fields: [CAMERA_FIELD],
     Render: () => <Fill><ImageSettings /></Fill> },
   { type: "camera.home", label: "Home", group: "camera", icon: HomeIcon, description: "A single Home button.",
-    size: { w: 2, h: 3, pw: 2, ph: 3 }, minPx: { w: 80, h: 60 }, defaults: {}, fields: [], Render: () => <HomeWidget /> },
+    size: { w: 2, h: 3, pw: 2, ph: 3 }, minPx: { w: 80, h: 60 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <HomeWidget /> },
   { type: "camera.stop", label: "Stop camera", group: "camera", icon: Square, description: "A big red stop.",
-    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 120, h: 60 }, defaults: {}, fields: [], Render: () => <StopWidget /> },
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 120, h: 60 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <StopWidget /> },
   { type: "camera.zoom", label: "Zoom", group: "camera", icon: ZoomIn, description: "Tele and wide.",
-    size: { w: 2, h: 5, pw: 1, ph: 5 }, minPx: { w: 70, h: 120 }, defaults: {}, fields: [], Render: () => <ZoomWidget /> },
+    size: { w: 2, h: 5, pw: 1, ph: 5 }, minPx: { w: 70, h: 120 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <ZoomWidget /> },
   { type: "camera.speed", label: "Speed", group: "camera", icon: Gauge, description: "Speed slider and Fine.",
-    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 180, h: 110 }, defaults: {}, fields: [], Render: () => <SpeedWidget /> },
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 180, h: 110 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <SpeedWidget /> },
 
   { type: "switcher.program", hidden: true, label: "Program", group: "switcher", icon: Tv, description: "What the congregation sees.",
     size: { w: 7, h: 8, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="program" s={s} /> },

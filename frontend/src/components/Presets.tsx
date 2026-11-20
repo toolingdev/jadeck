@@ -2,16 +2,19 @@ import { useState } from "react";
 import { ChevronUp, ChevronDown, Trash2, Save, Plus, Pencil, Check } from "lucide-react";
 import { api, type Preset } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
+import { useCam, useCamTitle, withCam } from "@/lib/camera";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { Button, Card, CardBody, CardHeader, Dialog, Empty, Input } from "@/components/ui";
 
-export function usePresets() {
-  return usePoll<Preset[]>("/api/presets", 15000);
+export function usePresets(cam = "") {
+  return usePoll<Preset[]>(withCam("/api/presets", cam), 15000);
 }
 
 export function PresetGrid({ compact, editable = true }: { compact?: boolean; editable?: boolean }) {
-  const { data, reload, setData } = usePresets();
+  const cam = useCam();
+  const camTitle = useCamTitle();
+  const { data, reload, setData } = usePresets(cam);
   const { log } = useLog();
   const [edit, setEdit] = useState(false);
   const [active, setActive] = useState<number | null>(null);
@@ -24,7 +27,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
   const recall = async (p: Preset) => {
     setActive(p.id);
     try {
-      await api(`/api/presets/${p.id}/recall`, "POST");
+      await api(withCam(`/api/presets/${p.id}/recall`, cam), "POST");
       log("Camera", `Preset “${p.name}”`);
     } catch (e) {
       log("Camera", `Preset “${p.name}” failed — ${(e as Error).message}`, false);
@@ -36,7 +39,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
     const next = [...list];
     [next[i], next[j]] = [next[j], next[i]];
     setData(next);
-    await api("/api/presets/reorder", "POST", { ids: next.map((p) => p.id) }).catch((e) => log("Presets", (e as Error).message, false));
+    await api(withCam("/api/presets/reorder", cam), "POST", { ids: next.map((p) => p.id) }).catch((e) => log("Presets", (e as Error).message, false));
     reload();
   };
   const doConfirm = async () => {
@@ -45,10 +48,10 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
     setConfirm(null);
     try {
       if (what === "store") {
-        await api(`/api/presets/${p.id}/store`, "POST");
+        await api(withCam(`/api/presets/${p.id}/store`, cam), "POST");
         log("Presets", `Saved the current shot to “${p.name}”`);
       } else {
-        await api(`/api/presets/${p.id}`, "DELETE");
+        await api(withCam(`/api/presets/${p.id}`, cam), "DELETE");
         log("Presets", `Deleted “${p.name}”`);
       }
     } catch (e) {
@@ -61,10 +64,10 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
     if (!n) return;
     try {
       if (rename) {
-        await api(`/api/presets/${rename.id}`, "PATCH", { name: n });
+        await api(withCam(`/api/presets/${rename.id}`, cam), "PATCH", { name: n });
       } else {
         const p = await api<Preset>("/api/presets", "POST", { name: n });
-        await api(`/api/presets/${p.id}/store`, "POST");
+        await api(withCam(`/api/presets/${p.id}/store`, cam), "POST");
         log("Presets", `Added “${n}” at the current shot`);
       }
     } catch (e) {
@@ -77,7 +80,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
 
   return (
     <Card>
-      <CardHeader title="Presets" meta={`${list.length} saved`}>
+      <CardHeader title={camTitle ? `Presets · ${camTitle}` : "Presets"} meta={`${list.length} saved`}>
         {editable && (
           <Button size="sm" variant={edit ? "accent" : "ghost"} onClick={() => setEdit(!edit)}>
             {edit ? <><Check size={14} /> Done</> : <><Pencil size={14} /> Edit</>}

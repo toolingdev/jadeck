@@ -3,6 +3,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, Home, Square, Plus, Minus } from "lucide-react";
 import { setDrive, stopDrive, getSpeed } from "@/lib/control";
 import { api } from "@/lib/api";
+import { useCam, withCam } from "@/lib/camera";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { Button, Slider, Switch } from "@/components/ui";
@@ -12,16 +13,17 @@ type Vec = { pan?: number; tilt?: number; zoom?: number };
 /** Press-and-hold: drive on press, one stop on release (never repeated jogs). */
 export function HoldButton({ vec, children, className, label }: { vec: Vec; children: ReactNode; className?: string; label: string }) {
   const [held, setHeld] = useState(false);
+  const cam = useCam();
   const start = (e: React.PointerEvent) => {
     e.preventDefault();
     capture(e);
     setHeld(true);
-    setDrive({ pan: vec.pan ?? 0, tilt: vec.tilt ?? 0, zoom: vec.zoom ?? 0 });
+    setDrive({ pan: vec.pan ?? 0, tilt: vec.tilt ?? 0, zoom: vec.zoom ?? 0 }, cam);
   };
   const end = () => {
     if (!held) return;
     setHeld(false);
-    stopDrive();
+    stopDrive(cam);
   };
   return (
     <button
@@ -53,9 +55,10 @@ const pad: { vec: Vec; icon: ReactNode; label: string }[] = [
 
 export function useCamAction() {
   const { log } = useLog();
+  const cam = useCam();
   return async (label: string, path: string, body?: unknown) => {
     try {
-      await api(path, "POST", body);
+      await api(withCam(path, cam), "POST", body);
       log("Camera", label);
       return true;
     } catch (e) {
@@ -100,6 +103,7 @@ export function Joystick({ speed }: { speed: number }) {
   const [knob, setKnob] = useState({ x: 0, y: 0, active: false });
   const [dir, setDir] = useState({ pan: 0, tilt: 0, speed: 0 });
   const held = useRef(false); // immediate, unlike state: moves right after the press count
+  const cam = useCam();
   const apply = (e: React.PointerEvent) => {
     const r = zone.current!.getBoundingClientRect();
     const rad = r.width / 2;
@@ -116,21 +120,21 @@ export function Joystick({ speed }: { speed: number }) {
     const dead = 0.12;
     if (mag < dead) {
       setDir({ pan: 0, tilt: 0, speed: 0 });
-      return setDrive({ pan: 0, tilt: 0, speed });
+      return setDrive({ pan: 0, tilt: 0, speed }, cam);
     }
     const ang = Math.atan2(-dy, dx); // up = +
     const pan = Math.abs(Math.cos(ang)) > 0.38 ? Math.sign(Math.cos(ang)) : 0;
     const tilt = Math.abs(Math.sin(ang)) > 0.38 ? Math.sign(Math.sin(ang)) : 0;
     const scaled = Math.max(5, Math.round(speed * ((mag - dead) / (1 - dead))));
     setDir({ pan, tilt, speed: scaled });
-    setDrive({ pan, tilt, speed: scaled });
+    setDrive({ pan, tilt, speed: scaled }, cam);
   };
   const end = () => {
     held.current = false;
     setKnob({ x: 0, y: 0, active: false });
     setDir({ pan: 0, tilt: 0, speed: 0 });
-    stopDrive();
-    setDrive({ speed });
+    stopDrive(cam);
+    setDrive({ speed }, cam);
   };
   const moving = dir.pan !== 0 || dir.tilt !== 0;
   const lit = (p: number, t: number) => moving && ((p !== 0 && dir.pan === p) || (t !== 0 && dir.tilt === t));
@@ -202,13 +206,14 @@ export function Joystick({ speed }: { speed: number }) {
 
 export function ZoomStop({ vertical = true, home = false }: { vertical?: boolean; home?: boolean }) {
   const act = useCamAction();
+  const cam = useCam();
   const h = home ? "h-14" : "h-16";
   return (
     <div className={cn("flex gap-2", vertical ? "flex-col" : "flex-row")}>
       <HoldButton vec={{ zoom: 1 }} label="Zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><Plus size={20} />TELE</HoldButton>
       {home && <HoldButton vec={{ zoom: -1 }} label="Zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><Minus size={20} />WIDE</HoldButton>}
       <button
-        type="button" aria-label="Stop" onClick={() => { stopDrive(); act("Stop", "/api/ptz/stop"); }}
+        type="button" aria-label="Stop" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }}
         className={cn(h, "flex w-16 items-center justify-center rounded-2xl border border-pgm/50 bg-pgm/15 text-bad active:scale-[0.97]")}
       >
         <Square size={20} fill="currentColor" />
@@ -235,6 +240,7 @@ export function SpeedControl({ speed, onChange, fine, onFine, label = "Speed" }:
   speed: number; onChange: (v: number) => void; fine: boolean; onFine: (v: boolean) => void; label?: string;
 }) {
   const eff = fine ? Math.min(FINE_SPEED, speed) : speed;
+  const cam = useCam();
   return (
     <div>
       <div className="mb-1 flex items-center gap-2 text-xs">
@@ -242,11 +248,11 @@ export function SpeedControl({ speed, onChange, fine, onFine, label = "Speed" }:
         <span className={cn("font-mono tabular", fine ? "text-accent" : "text-fg")}>{fine ? `${eff} · fine` : speed}</span>
         <label className="ml-auto flex cursor-pointer items-center gap-2">
           <span className={cn("font-semibold", fine ? "text-fg" : "text-muted")}>Fine</span>
-          <Switch checked={fine} onChange={(v) => { onFine(v); setDrive({ speed: v ? Math.min(FINE_SPEED, speed) : speed }); }} label="Fine movement" />
+          <Switch checked={fine} onChange={(v) => { onFine(v); setDrive({ speed: v ? Math.min(FINE_SPEED, speed) : speed }, cam); }} label="Fine movement" />
         </label>
       </div>
       <Slider value={eff} min={5} max={fine ? FINE_SPEED : 100}
-        onChange={(v) => { if (!fine) onChange(v); setDrive({ speed: v }); }} label="Movement speed" />
+        onChange={(v) => { if (!fine) onChange(v); setDrive({ speed: v }, cam); }} label="Movement speed" />
       <div className="flex justify-between text-[10px] uppercase tracking-[0.1em] text-dim"><span>Precise</span><span>{fine ? "Fine max" : "Fast"}</span></div>
     </div>
   );
@@ -255,13 +261,15 @@ export function SpeedControl({ speed, onChange, fine, onFine, label = "Speed" }:
 /** Focus: auto / manual, hold near/far, one-push. */
 export function FocusControl({ auto }: { auto: boolean | null }) {
   const act = useCamAction();
+  const cam = useCam();
+  const focus = withCam("/api/focus", cam);
   const hold = (action: "near" | "far") => ({
     onPointerDown: (e: React.PointerEvent) => {
       capture(e);
-      api("/api/focus", "POST", { action }).catch(() => {});
+      api(focus, "POST", { action }).catch(() => {});
     },
-    onPointerUp: () => api("/api/focus", "POST", { action: "stop" }).catch(() => {}),
-    onPointerCancel: () => api("/api/focus", "POST", { action: "stop" }).catch(() => {}),
+    onPointerUp: () => api(focus, "POST", { action: "stop" }).catch(() => {}),
+    onPointerCancel: () => api(focus, "POST", { action: "stop" }).catch(() => {}),
   });
   return (
     <div className="grid grid-cols-4 gap-2">

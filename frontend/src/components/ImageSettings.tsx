@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Pipette } from "lucide-react";
 import { api, type FieldSpec } from "@/lib/api";
 import { useLog } from "@/lib/log";
+import { useCam, useCamTitle, withCam } from "@/lib/camera";
 import { Button, Card, CardBody, CardHeader, Segmented, Select, Slider, Switch, Empty } from "@/components/ui";
 
 const groups = [
@@ -20,11 +21,13 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [group, setGroup] = useState("image");
   const { log } = useLog();
+  const cam = useCam();
+  const camTitle = useCamTitle();
 
   const load = async () => {
     try {
       const [s, v] = await Promise.all([
-        api<FieldSpec[]>("/api/camera/image/fields"),
+        api<FieldSpec[]>(withCam("/api/camera/image/fields", cam)),
         api<Record<string, number | string | boolean>>("/api/camera/image"),
       ]);
       setSpecs(s);
@@ -36,7 +39,7 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
   };
   useEffect(() => {
     load();
-  }, []);
+  }, [cam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const present = useMemo(() => specs.filter((s) => vals && s.name in vals), [specs, vals]);
   const shownGroups = groups.filter((g) => g.id === "wb" || present.some((s) => s.group === g.id));
@@ -54,7 +57,7 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
 
   return (
     <Card>
-      <CardHeader title="Picture" meta="advanced">
+      <CardHeader title={camTitle ? `Picture · ${camTitle}` : "Picture"} meta="advanced">
         <Button size="sm" variant="ghost" onClick={load}>Refresh</Button>
       </CardHeader>
       <CardBody className="space-y-4">

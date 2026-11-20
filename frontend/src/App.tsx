@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, ChevronUp, Check, Star, X } from "lucide-react";
+import { LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, ChevronUp, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { setCamera, useCamera } from "@/lib/camera";
-import { useCameras } from "@/components/CameraSetup";
 import { SetupPage } from "@/pages/SetupPage";
 import { cn } from "@/lib/cn";
-import { useControl } from "@/lib/control";
 import { useLog } from "@/lib/log";
 import { Dot } from "@/components/ui";
 import { UpdateBanner } from "@/components/UpdateBanner";
@@ -29,55 +26,10 @@ function current(): Route {
   return "/";
 }
 
-/** Header camera name; a switcher when there is more than one. */
-function CameraSwitcher({ fallback, sub, ok }: { fallback: string; sub: string; ok?: boolean }) {
-  const { data: cams } = useCameras();
-  const cam = useCamera();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const list = cams ?? [];
-  const cur = list.find((c) => c.id === cam) ?? list.find((c) => c.main);
-  useEffect(() => {
-    if (cams && cam && !cams.some((c) => c.id === cam)) setCamera(""); // removed: back to the main camera
-  }, [cams, cam]);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    window.addEventListener("pointerdown", close);
-    return () => window.removeEventListener("pointerdown", close);
-  }, [open]);
-  const many = list.length > 1;
-  return (
-    <div ref={ref} className="relative min-w-0">
-      <button disabled={!many} onClick={() => setOpen((o) => !o)}
-        className={cn("flex min-w-0 items-center gap-1 rounded-lg text-left leading-tight", many && "-mx-1.5 px-1.5 py-0.5 hover:bg-raise")}>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1 truncate text-sm font-semibold">{cur?.name ?? fallback}{many && <ChevronDown size={14} className="text-muted" />}</div>
-          <div className={cn("truncate text-[11px] text-dim", ok && "max-sm:hidden")}>{sub}</div>
-        </div>
-      </button>
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-56 rounded-xl border border-line bg-panel p-1 shadow-2xl">
-          {list.map((c) => (
-            <button key={c.id} onClick={() => { setCamera(c.main ? "" : c.id); setOpen(false); }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-raise">
-              <Dot on={!!c.status?.connected} />
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              {c.main && <Star size={12} className="text-accent" />}
-              {cur?.id === c.id && <Check size={14} className="text-accent" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function App() {
   const [route, setRoute] = useState<Route>(current);
-  const { status, online, noCamera } = useControl();
+  const online = useOnline();
   const { toast } = useLog();
-  const cam = useCamera();
 
   // First run: the setup wizard opens by itself.
   useEffect(() => {
@@ -105,11 +57,10 @@ export function App() {
   const locked = useLocked() && route === "/";
   useWakeLock(locked);
 
-  const camName = status?.device?.devname || "Camera";
   if (locked) {
     return (
       <div className="flex min-h-full flex-col">
-        <main key={cam} className="w-full flex-1 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <main className="w-full flex-1 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <Boundary name="Dashboard" full><DashboardPage locked /></Boundary>
         </main>
         <ExitCorner />
@@ -118,38 +69,38 @@ export function App() {
   }
   return (
     <div className="flex min-h-full flex-col">
-      <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 max-sm:h-11 sm:px-5 short:h-11">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Dot on={online && status?.connected} />
-            <CameraSwitcher fallback={camName} ok={online && !!status?.connected}
-              sub={noCamera ? "no camera set up yet" : !online ? (status === null ? "connecting…" : "controller offline — retrying") : status?.connected ? (status.device?.versioninfo || "connected") : "camera not connected — retrying"} />
+      {/* Tablets and laptops: a slim header with the tabs. Phones have no
+          header (the bottom tab); a red bar only when the controller is gone. */}
+      <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur max-sm:hidden supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex h-12 max-w-[1600px] items-center gap-3 px-5 short:h-11">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <Dot on={online} />
+            <span className="text-sm font-bold tracking-tight">jadeck</span>
+            {!online && <span className="text-xs text-bad">controller not answering — retrying</span>}
           </div>
-          <nav className="mx-auto flex rounded-xl border border-line bg-panel p-0.5 max-sm:hidden">
+          <nav className="flex rounded-xl border border-line bg-panel p-0.5">
             {routes.map((r) => (
               <button
                 key={r.path} onClick={() => go(r.path)}
-                className={cn("flex h-9 items-center gap-2 rounded-[10px] px-3.5 text-sm font-medium transition",
+                className={cn("flex h-8 items-center gap-2 rounded-[10px] px-3.5 text-sm font-medium transition",
                   route === r.path ? "bg-raise text-fg" : "text-muted hover:text-fg")}
               >
                 <r.icon size={16} /> {r.label}
               </button>
             ))}
           </nav>
-          <div className="ml-auto hidden items-center gap-3 font-mono text-[11px] text-muted tabular md:flex short:hidden">
-            <span>PAN <b className="inline-block w-[6ch] text-right text-fg">{status?.pan ?? "—"}</b></span>
-            <span>TILT <b className="inline-block w-[6ch] text-right text-fg">{status?.tilt ?? "—"}</b></span>
-            <span>ZOOM <b className="inline-block w-[6ch] text-right text-fg">{status?.zoom ?? "—"}</b></span>
-            <span className={cn("inline-block w-[8ch] rounded px-1.5 py-0.5 text-center", status?.driving ? "bg-accent/20 text-accent" : "bg-raise")}>
-              {status?.driving ? "MOVING" : "STOPPED"}
-            </span>
-          </div>
+          <div className="flex-1" />
         </div>
       </header>
+      {!online && (
+        <div className="sticky top-0 z-40 bg-pgm px-3 pb-1.5 pt-[max(0.375rem,env(safe-area-inset-top))] text-center text-xs font-semibold text-white sm:hidden">
+          Controller not answering — retrying
+        </div>
+      )}
 
       <UpdateBanner />
 
-      <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-20 pt-2 sm:px-5 sm:pb-8 sm:pt-3 short:pt-1.5 short:pb-4">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-20 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5 sm:pb-8 sm:pt-3 short:pt-1.5 short:pb-4">
         {route === "/" && <Boundary name="Dashboard" full><DashboardPage /></Boundary>}
         {route === "/settings" && <Boundary name="Settings" full><SettingsPage /></Boundary>}
         {route === "/setup" && <SetupPage onFinish={() => go("/")} />}
@@ -254,4 +205,17 @@ function PhoneNav({ route, go }: { route: string; go: (p: Route) => void }) {
       </nav>
     </div>
   );
+}
+
+/** Is the controller answering? (A quick check every few seconds.) */
+function useOnline() {
+  const [ok, setOk] = useState(true);
+  useEffect(() => {
+    let gone = false;
+    const check = () => fetch("/api/setup", { cache: "no-store" }).then((r) => !gone && setOk(r.ok)).catch(() => !gone && setOk(false));
+    check();
+    const t = setInterval(check, 5000);
+    return () => { gone = true; clearInterval(t); };
+  }, []);
+  return ok;
 }

@@ -1,41 +1,27 @@
-import { useSyncExternalStore } from "react";
+import { createContext, useContext } from "react";
+import { useShared } from "./hooks";
 
-// Which camera this screen drives. Each phone/tablet remembers its own
-// pick; "" means the main camera. Every API call and the control socket
-// carry it, so pages don't have to.
+// Which camera a widget drives. There is no screen-wide "current camera":
+// each camera widget has its own Camera setting and provides it here, and
+// everything inside it (moves, presets, picture) talks to that camera.
+// "" means the main camera.
 
-const KEY = "ptz.camera";
-let selected = "";
-try {
-  selected = localStorage.getItem(KEY) ?? "";
-} catch {
-  /* private mode */
-}
-const subs = new Set<() => void>();
+export const CameraContext = createContext("");
 
-export function getCamera() {
-  return selected;
+export function useCam(): string {
+  return useContext(CameraContext);
 }
 
-export function setCamera(id: string) {
-  if (id === selected) return;
-  selected = id;
-  try {
-    localStorage.setItem(KEY, id);
-  } catch {
-    /* private mode */
-  }
-  subs.forEach((f) => f());
+/** Adds ?cam= to an API path ("" = the main camera: nothing added). */
+export function withCam(path: string, cam: string): string {
+  return cam ? `${path}${path.includes("?") ? "&" : "?"}cam=${encodeURIComponent(cam)}` : path;
 }
 
-export function onCameraChange(f: () => void) {
-  subs.add(f);
-  return () => subs.delete(f);
-}
-
-export function useCamera(): string {
-  return useSyncExternalStore((l) => {
-    subs.add(l);
-    return () => subs.delete(l);
-  }, getCamera);
+/** The name of this widget's camera, for its title — only when there is
+ *  more than one camera to tell apart. */
+export function useCamTitle(): string {
+  const cam = useCam();
+  const { data } = useShared<{ id: string; name: string; main?: boolean }[]>("/api/cameras", 10000);
+  if (!data || data.length < 2) return "";
+  return (data.find((c) => c.id === cam) ?? data.find((c) => c.main))?.name ?? "";
 }

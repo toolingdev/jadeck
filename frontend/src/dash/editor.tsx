@@ -3,6 +3,8 @@ import { Search, X, Copy, Trash2, Loader2, CloudOff } from "lucide-react";
 import type { DevicesInfo, Preset, Macro, MixerStatus, PresentationStatus, CameraInfo, SwitcherStatus } from "@/lib/api";
 import { useChannels, stageApi } from "@/lib/stage";
 import { useShared } from "@/lib/hooks";
+import { CameraContext } from "@/lib/camera";
+import { useControl } from "@/lib/control";
 import { cn } from "@/lib/cn";
 import { Button, Input, Select, Switch } from "@/components/ui";
 import { WIDGETS, WIDGET, GROUPS, UnknownWidget, type WidgetDef, type Field, type Settings } from "@/dash/widgets";
@@ -80,7 +82,10 @@ export function WidgetView({ w, editing, onNeed }: { w: Widget; editing: boolean
   return (
     <div ref={ref} className={cn("h-full overflow-hidden rounded-[var(--radius-card)]", editing && "pointer-events-none select-none")}>
       <WidgetConn.Provider value={typeof w.settings.connection === "string" ? w.settings.connection : ""}>
-        <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
+        <CameraContext.Provider value={typeof w.settings.camera === "string" ? w.settings.camera : ""}>
+          {def.group === "camera" && def.fields.some((f) => f.type === "camera") && <HoldControl cam={typeof w.settings.camera === "string" ? w.settings.camera : ""} />}
+          <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
+        </CameraContext.Provider>
       </WidgetConn.Provider>
     </div>
   );
@@ -144,7 +149,7 @@ export function Inspector({ w, onChange, onRemove, onDuplicate, onClose, pos }: 
   const def = WIDGET[w.type];
   const s = w.settings;
   return (
-    <aside className="fixed inset-x-0 bottom-0 z-40 max-h-[60dvh] overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-2xl md:inset-x-auto md:bottom-auto md:right-4 md:top-[124px] md:w-72 md:max-h-[calc(100dvh-140px)] md:rounded-2xl 2xl:sticky 2xl:top-[68px] 2xl:right-auto 2xl:w-64 2xl:shrink-0 2xl:shadow-none">
+    <aside className="fixed inset-x-0 bottom-0 z-[60] max-h-[60dvh] overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-2xl md:inset-x-auto md:bottom-auto md:right-4 md:top-[124px] md:w-72 md:max-h-[calc(100dvh-140px)] md:rounded-2xl 2xl:sticky 2xl:top-[68px] 2xl:right-auto 2xl:w-64 2xl:shrink-0 2xl:shadow-none">
       <div className="mb-1 flex items-center gap-2">
         <span className="text-sm font-semibold">{def?.label ?? w.type}</span>
         <Button size="icon" variant="ghost" className="ml-auto h-8 w-8" onClick={onClose} aria-label="Close"><X size={15} /></Button>
@@ -335,7 +340,7 @@ function Choice({ label, help, value, options, onChange, add }: {
 
 function CameraField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
   const cams = useShared<CameraInfo[]>("/api/cameras", 0).data ?? [];
-  const options = [{ value: "", label: "Follow the header" }, ...cams.map((c) => ({ value: c.id, label: c.name }))];
+  const options = cams.map((c) => ({ value: c.main ? "" : c.id, label: c.name + (c.main ? " (main)" : "") }));
   return <Choice label={f.label} help={f.help} value={value} options={options} onChange={onChange} add="Add a camera (Settings → Cameras)" />;
 }
 
@@ -384,8 +389,13 @@ function ConnectionField({ f, value, onChange }: { f: Field; value: string; onCh
 function FeedField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
   const { data } = useShared<{ feeds: { id: string; name: string; source: string }[] }>("/api/feeds", 0);
   const feeds = data?.feeds ?? [];
-  const options = [{ value: "cam:", label: "Header's camera" },
-    ...feeds.map((x) => ({ value: x.id, label: x.name }))];
+  const options = feeds.map((x) => ({ value: x.id, label: x.name }));
   if (value && value !== "cam:" && !feeds.some((x) => x.id === value)) options.push({ value, label: "(removed feed)" });
   return <Choice label={f.label} help={f.help} value={value} options={options} onChange={onChange} add="Add a camera or feed (Settings)" />;
+}
+
+/** Keeps a camera widget's control link open while it's on screen. */
+function HoldControl({ cam }: { cam: string }) {
+  useControl(cam);
+  return null;
 }

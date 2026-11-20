@@ -3,7 +3,6 @@ import { Check, Send, Eraser, Pause, Play, Square as StopIcon, Plus, WifiOff } f
 import { api, type CameraInfo, type SwitcherStatus, type StreamConfig } from "@/lib/api";
 import { useShared } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
-import { setCamera, useCamera } from "@/lib/camera";
 import { cn } from "@/lib/cn";
 import { StreamView } from "@/components/StreamView";
 import { useAutoSD } from "./videoCount";
@@ -426,19 +425,17 @@ export function StageTimer({ s, editing }: { s: Settings; editing: boolean }) {
 export function useTally(cameraId: string, input: number) {
   const { data: sw } = useShared<SwitcherStatus>("/api/switcher/status", 1000);
   const { data: cams } = useShared<CameraInfo[]>("/api/cameras", 10000);
-  const header = useCamera();
   return useMemo(() => {
     if (!sw?.connected) return { sw, state: null as null | "pgm" | "pvw" | "off", input: null as number | null };
     let n = input || null;
     if (!n) {
-      const id = cameraId || header;
-      const cam = cams?.find((c) => c.id === id) ?? cams?.find((c) => c.main);
+      const cam = cams?.find((c) => c.id === cameraId) ?? cams?.find((c) => c.main);
       const name = cam?.name.toLowerCase().replace(/\s*\(simulated\)/, "").trim();
       if (name) n = sw.inputs.find((i) => i.title.toLowerCase().includes(name) || name.includes(i.title.toLowerCase()))?.number ?? null;
     }
     const state = n == null ? null : n === sw.active ? "pgm" : n === sw.preview ? "pvw" : "off";
     return { sw, state, input: n };
-  }, [sw, cams, cameraId, header, input]);
+  }, [sw, cams, cameraId, input]);
 }
 
 export function StageLive({ s }: { s: Settings }) {
@@ -471,29 +468,21 @@ export function StageLive({ s }: { s: Settings }) {
 
 // ----------------------------------------------------- camera live view
 
-export function LiveCamPinned({ s, editing }: { s: Settings; editing: boolean }) {
+export function LiveCamPinned({ s }: { s: Settings; editing: boolean }) {
   const pin = str(s.camera);
-  const header = useCamera();
   const cfg = useShared<StreamConfig>(pin ? `/api/config?cam=${encodeURIComponent(pin)}` : "/api/config", 0).data;
   const { data: cams } = useShared<CameraInfo[]>("/api/cameras", 10000);
   const quality = str(s.quality, "hd");
   const sd = useAutoSD(quality);
   const { state } = useTally(pin, Number(s.input) || 0);
   const tally = bool(s.tally, false) ? state : null;
-  const cam = cams?.find((c) => c.id === (pin || header)) ?? cams?.find((c) => c.main);
-  const title = str(s.title) || (pin ? cam?.name : undefined);
-  const tapToControl = bool(s.tapToControl, true) && pin && pin !== header && !(cam?.main && header === "");
+  const cam = cams?.find((c) => c.id === pin) ?? cams?.find((c) => c.main);
+  const title = str(s.title) || cam?.name;
   return (
     <div className={cn("relative h-full rounded-[var(--radius-card)]", tally === "pgm" && "ring-[3px] ring-pgm", tally === "pvw" && "ring-[3px] ring-pvw")}>
       <StreamView key={`${pin}-${sd ? "sd" : "hd"}`} aspect="h-full"
         title={(title || quality === "auto") && <span className="flex items-center gap-1.5">{tally === "pgm" && <b className="text-pgm">● LIVE</b>}{tally === "pvw" && <b className="text-pvw">● NEXT</b>}{title}{quality === "auto" && <span className="text-dim">{title ? " · " : ""}{sd ? "SD" : "HD"} auto</span>}</span>}
         whep={cfg ? (sd ? cfg.whepSd : cfg.whep) : undefined} hls={cfg ? (sd ? cfg.hlsSd : cfg.hls) : undefined} snapshot={cfg?.snapshot} />
-      {tapToControl && !editing && (
-        <button type="button" onClick={() => setCamera(cam?.main ? "" : pin)}
-          className="absolute bottom-2 left-2 z-10 rounded-lg border border-line bg-bg/80 px-2 py-1 text-[11px] font-semibold text-muted backdrop-blur hover:text-fg">
-          Control this camera
-        </button>
-      )}
     </div>
   );
 }

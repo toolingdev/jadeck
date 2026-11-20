@@ -2,6 +2,7 @@ import { capture } from "@/lib/capture";
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useCam, withCam } from "@/lib/camera";
 import { useLog } from "@/lib/log";
 import { Button } from "@/components/ui";
 
@@ -19,6 +20,7 @@ function contentRect(box: DOMRect, media: Media) {
  * to fine-tune, confirm. The camera aims there, balances, returns. */
 export function WbPickOverlay({ media, onClose }: { media: Media; onClose: () => void }) {
   const layer = useRef<HTMLDivElement>(null);
+  const cam = useCam();
   const loupe = useRef<HTMLCanvasElement>(null);
   const [pt, setPt] = useState<{ x: number; y: number } | null>(null); // normalized 0..1
   const [drag, setDrag] = useState(false);
@@ -61,7 +63,7 @@ export function WbPickOverlay({ media, onClose }: { media: Media; onClose: () =>
     setBusy(true);
     setMsg("Balancing — the camera aims at the point and comes back (about 5 s)…");
     try {
-      await api("/api/camera/wb-pick", "POST", pt);
+      await api(withCam("/api/camera/wb-pick", cam), "POST", pt);
       log("Picture", "White balance picked and camera returned");
       onClose();
     } catch (e) {

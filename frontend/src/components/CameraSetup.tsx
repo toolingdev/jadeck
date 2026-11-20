@@ -98,7 +98,7 @@ export function CamerasCard() {
           </div>
         ))}
         {list && list.length > 1 && (
-          <p className="pt-1 text-xs text-dim">The Camera page and camera widgets show a camera switcher. Presets belong to their camera. Macros and agents use the main camera.</p>
+          <p className="pt-1 text-xs text-dim">Each camera widget picks one of these cameras in its own settings. Presets belong to their camera. Macros and agents use the main camera.</p>
         )}
       </CardBody>
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)} wide
