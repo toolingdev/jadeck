@@ -11,7 +11,7 @@ const Name = "ptz-controller"
 func Config(args []string) *service.Config {
 	return &service.Config{
 		Name:        Name,
-		DisplayName: "PTZ Controller",
+		DisplayName: "jadeck",
 		Description: "Web controller for PTZ cameras, switchers, slides and mixers.",
 		Arguments:   args,
 		Option: service.KeyValue{

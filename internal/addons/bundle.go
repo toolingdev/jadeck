@@ -4,7 +4,7 @@ import (
 	"crypto/ed25519"
 	"io/fs"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon/pack"
+	"github.com/toolingdev/jadeck/sdk/addon/pack"
 )
 
 // InstallBundled installs the add-ons this release ships with, when one

@@ -48,7 +48,7 @@ func (s *Source) get(ctx context.Context, url, accept string, limit int64) ([]by
 		return nil, err
 	}
 	req.Header.Set("Accept", accept)
-	req.Header.Set("User-Agent", "ptz-controller-updater")
+	req.Header.Set("User-Agent", "jadeck-updater")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	if s.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+s.Token)

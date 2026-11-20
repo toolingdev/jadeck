@@ -1,6 +1,6 @@
 // Package pack reads and writes .ptzaddon files, the way add-ons are
 // shipped. Add-on projects build them with the ptz-addon tool
-// (go run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon build);
+// (go run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon build);
 // the controller reads them when installing or updating an add-on.
 package pack
 
@@ -22,7 +22,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // A .ptzaddon file is a zip:
@@ -41,7 +41,7 @@ import (
 func Platform() string { return runtime.GOOS + "-" + runtime.GOARCH }
 
 // ErrUnverified: the package isn't signed by the release key.
-var ErrUnverified = errors.New("this add-on is not signed by the PTZ Controller release key")
+var ErrUnverified = errors.New("this add-on is not signed by the jadeck release key")
 
 // Package is a read and checked .ptzaddon.
 type Package struct {

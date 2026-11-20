@@ -152,7 +152,7 @@ function Detail({ r, onChanged }: { r: AddonRow; onChanged: () => void }) {
         <div>
           <h4 className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-dim">It can</h4>
           <p className="text-sm">{m.reaches || "The gear you add as connections"}.</p>
-          <p className="text-[11px] text-dim">That's what it says it does. Verified add-ons are checked by the PTZ Controller team.</p>
+          <p className="text-[11px] text-dim">That's what it says it does. Verified add-ons are checked by the jadeck team.</p>
         </div>
         <div>
           <h4 className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-dim">In use</h4>
@@ -242,7 +242,7 @@ function Developer({ onDone }: { onDone: () => void }) {
         <span className="mr-auto">Developer</span>
         <Button size="sm" variant="ghost" onClick={() => file.current?.click()}><Upload size={14} /> Install from file</Button>
         <Button size="sm" variant="ghost" onClick={() => setOpen(true)}><FolderOpen size={14} /> Load a folder</Button>
-        <a className="underline-offset-2 hover:text-fg hover:underline" href="https://github.com/toolingdev/ptz-controller/blob/main/ADDONS.md" target="_blank" rel="noreferrer">SDK</a>
+        <a className="underline-offset-2 hover:text-fg hover:underline" href="https://github.com/toolingdev/jadeck/blob/main/ADDONS.md" target="_blank" rel="noreferrer">SDK</a>
       </div>
       <input ref={file} type="file" accept=".ptzaddon" hidden onChange={async (e) => {
         const f = e.target.files?.[0];
@@ -252,7 +252,7 @@ function Developer({ onDone }: { onDone: () => void }) {
       <Dialog open={open} onOpenChange={setOpen} title="Load an add-on folder (dev mode)"
         description="A project folder on this controller's computer with addon.json (from ptz-addon build) and the command that runs it. Agents can do this too over MCP.">
         <div className="space-y-3">
-          <Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/ptz-addon-myproduct" />
+          <Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/jadeck-addon-myproduct" />
           <Input value={cmd} onChange={(e) => setCmd(e.target.value)} placeholder="go run ." />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>

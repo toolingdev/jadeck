@@ -4,7 +4,7 @@
 //
 // Nothing here knows any product. vMix, the Behringer WING, Proclaim...
 // are add-ons, separate projects that speak the add-on protocol
-// (github.com/toolingdev/ptz-controller/sdk/addon).
+// (github.com/toolingdev/jadeck/sdk/addon).
 package devices
 
 import (
@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // ------------------------------------------------------------ interfaces

@@ -449,7 +449,7 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 		return err
 	}
 	srv.OpenControllers() // now the AI add-on can be told this controller's address
-	log.Info("PTZ controller up", "version", Version, "port", port, "mode", mode,
+	log.Info("jadeck up", "version", Version, "port", port, "mode", mode,
 		"cameras", len(set.Cameras), "mock", cfg.Mock, "data", cfg.DataDir, "setupDone", set.SetupDone)
 
 	select {

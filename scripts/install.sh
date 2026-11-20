@@ -1,5 +1,5 @@
 #!/bin/sh
-# PTZ controller installer for macOS and Linux.
+# jadeck installer for macOS and Linux.
 #
 #   curl -fsSL https://github.com/__REPO__/releases/latest/download/install.sh | sh
 #
@@ -57,7 +57,7 @@ $sudo "$dir/ptz" service start
 
 url="http://localhost:8080/setup"
 echo
-echo "PTZ controller $("$dir/ptz" version) is running."
+echo "jadeck $("$dir/ptz" version) is running."
 echo "Finish setup at: $url"
 if [ "$os" = darwin ]; then open "$url" 2>/dev/null || true
 elif [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then xdg-open "$url" >/dev/null 2>&1 || true

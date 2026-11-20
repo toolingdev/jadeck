@@ -27,7 +27,7 @@ adds. The previews there are the real widgets, drawn with sample data.
   for a newer signed release. Update installs it next to the old one,
   checks that it starts, then swaps it in. Only that add-on restarts.
   Roll back restores the previous version.
-- **Verified:** packages signed with the PTZ Controller release key show
+- **Verified:** packages signed with the jadeck release key show
   ✓. Anything else installs only after you confirm, with a warning. An
   add-on runs as a normal program on this computer, so install only what
   you trust. Its "It can" line is what it *says* it does; the controller
@@ -44,18 +44,18 @@ install works offline:
 
 | Add-on | What it adds | Project |
 |---|---|---|
-| vMix | Switcher: inputs, preview, cut, fade, tally, live/recording | [ptz-addon-vmix](https://github.com/toolingdev/ptz-addon-vmix) |
-| Behringer WING | Mixer: channel mutes, read back (X32/M32 experimental) | [ptz-addon-behringer-wing](https://github.com/toolingdev/ptz-addon-behringer-wing) |
-| Proclaim | Slides over Proclaim's network control (no MIDI): prev/next, blank, go to a service item; On air and Service items widgets | [ptz-addon-proclaim](https://github.com/toolingdev/ptz-addon-proclaim) |
-| MIDI notes | Generic slides: one MIDI note per action | [ptz-addon-midi](https://github.com/toolingdev/ptz-addon-midi) |
-| HTTP API | Generic slides: one web request per action | [ptz-addon-http-api](https://github.com/toolingdev/ptz-addon-http-api) |
-| Simulated devices | A practice switcher, slides and mixer | [ptz-addon-simulated](https://github.com/toolingdev/ptz-addon-simulated) |
+| vMix | Switcher: inputs, preview, cut, fade, tally, live/recording | [jadeck-addon-vmix](https://github.com/toolingdev/jadeck-addon-vmix) |
+| Behringer WING | Mixer: channel mutes, read back (X32/M32 experimental) | [jadeck-addon-behringer-wing](https://github.com/toolingdev/jadeck-addon-behringer-wing) |
+| Proclaim | Slides over Proclaim's network control (no MIDI): prev/next, blank, go to a service item; On air and Service items widgets | [jadeck-addon-proclaim](https://github.com/toolingdev/jadeck-addon-proclaim) |
+| MIDI notes | Generic slides: one MIDI note per action | [jadeck-addon-midi](https://github.com/toolingdev/jadeck-addon-midi) |
+| HTTP API | Generic slides: one web request per action | [jadeck-addon-http-api](https://github.com/toolingdev/jadeck-addon-http-api) |
+| Simulated devices | A practice switcher, slides and mixer | [jadeck-addon-simulated](https://github.com/toolingdev/jadeck-addon-simulated) |
 
 More are under **Browse**, for example:
 
 | Add-on | What it adds | Project |
 |---|---|---|
-| AI controller | An Assistant widget: tell the booth what to do in plain words ("in 5 minutes cut to camera 2") with your own AI service and key | [ptz-addon-ai-controller](https://github.com/toolingdev/ptz-addon-ai-controller) |
+| AI controller | An Assistant widget: tell the booth what to do in plain words ("in 5 minutes cut to camera 2") with your own AI service and key | [jadeck-addon-ai-controller](https://github.com/toolingdev/jadeck-addon-ai-controller) |
 
 ## The AI controller
 
@@ -98,14 +98,14 @@ PCs are two connections.
 ## Writing an add-on
 
 An add-on is a small Go program built with the SDK
-(`github.com/toolingdev/ptz-controller/sdk/addon`):
+(`github.com/toolingdev/jadeck/sdk/addon`):
 
 ```bash
-go run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon@latest new acme --name "Acme Switcher" --module github.com/you/ptz-addon-acme
+go run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon@latest new acme --name "Acme Switcher" --module github.com/you/jadeck-addon-acme
 cd acme
 go mod tidy
 go test ./...
-go run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon build
+go run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon build
 ```
 
 `build` produces:

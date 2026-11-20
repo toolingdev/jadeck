@@ -1,4 +1,4 @@
-# PTZ Controller
+# jadeck
 
 A web controller for venue AV: PTZ cameras, video switcher, slides and
 sound board, from any phone, tablet or PC on the venue network. It's one
@@ -28,13 +28,13 @@ Everything is set up in the browser, with no config files.
 **Windows**: PowerShell **as Administrator**:
 
 ```powershell
-irm https://github.com/toolingdev/ptz-controller/releases/latest/download/install.ps1 | iex
+irm https://github.com/toolingdev/jadeck/releases/latest/download/install.ps1 | iex
 ```
 
 **macOS / Linux**: Terminal:
 
 ```bash
-curl -fsSL https://github.com/toolingdev/ptz-controller/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/toolingdev/jadeck/releases/latest/download/install.sh | sh
 ```
 
 The setup wizard opens in the browser. See [SETUP.md](SETUP.md).

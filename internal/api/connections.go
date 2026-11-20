@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 	"ptz/internal/devices"
 )
 

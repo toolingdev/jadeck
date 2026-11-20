@@ -26,7 +26,7 @@ go run ./cmd/ptzsign keygen "$TMP/release.key" >/dev/null
 
 ITEM="$(op item create --category=password --title="$TITLE" \
   "password=$(cat "$TMP/release.key")" \
-  "notes[text]=ed25519 seed for signing PTZ Controller and add-on releases (GitHub secret PTZ_SIGNING_KEY on the toolingdev repos)." \
+  "notes[text]=ed25519 seed for signing jadeck and add-on releases (GitHub secret PTZ_SIGNING_KEY on the toolingdev repos)." \
   --format json)"
 REF="$(printf %s "$ITEM" | python3 -c 'import json,sys; i=json.load(sys.stdin); print("op://%s/%s/password" % (i["vault"]["id"], i["id"]))')"
 echo "Saved in 1Password as \"$TITLE\"."

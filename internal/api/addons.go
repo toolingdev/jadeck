@@ -15,7 +15,7 @@ import (
 	"ptz/internal/devices"
 	"ptz/internal/update"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon/pack"
+	"github.com/toolingdev/jadeck/sdk/addon/pack"
 )
 
 // Settings → Add-ons: what's installed, what each adds (with previews),
@@ -179,7 +179,7 @@ func (s *Server) installAddon(w http.ResponseWriter, r *http.Request) {
 	allow := r.URL.Query().Get("allowUnverified") == "1"
 	if !p.Verified && !allow {
 		writeJSON(w, 409, map[string]any{"unverified": true, "manifest": p.Manifest,
-			"detail": "This add-on is not signed by the PTZ Controller release key. Install it only if you trust where it came from."})
+			"detail": "This add-on is not signed by the jadeck release key. Install it only if you trust where it came from."})
 		return
 	}
 	if err := s.Addons.Install(p, allow); err != nil {
@@ -316,7 +316,7 @@ type catalogEntry struct {
 func (s *Server) catalogURL() string {
 	repo := s.Settings.Get().System.UpdateRepo
 	if repo == "" {
-		repo = "toolingdev/ptz-controller"
+		repo = "toolingdev/jadeck"
 	}
 	return "https://raw.githubusercontent.com/" + repo + "/main/addons/catalog.json"
 }
@@ -411,7 +411,7 @@ func (s *Server) catalogRoutes(mux *http.ServeMux) {
 		allow := r.URL.Query().Get("allowUnverified") == "1"
 		if !p.Verified && !allow {
 			writeJSON(w, 409, map[string]any{"unverified": true, "manifest": p.Manifest,
-				"detail": "This add-on is not signed by the PTZ Controller release key. Install it only if you trust " + e.Publisher + "."})
+				"detail": "This add-on is not signed by the jadeck release key. Install it only if you trust " + e.Publisher + "."})
 			return
 		}
 		if err := s.Addons.Install(p, allow); err != nil {

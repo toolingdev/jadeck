@@ -199,7 +199,7 @@ type macroSaveIn struct {
 // ------------------------------------------------------------ server
 
 func (s *Server) mcpServer(k *auth.Key, ip string) *mcp.Server {
-	srv := mcp.NewServer(&mcp.Implementation{Name: "ptz-controller", Title: "PTZ Controller", Version: s.Version},
+	srv := mcp.NewServer(&mcp.Implementation{Name: "jadeck", Title: "jadeck", Version: s.Version},
 		&mcp.ServerOptions{Instructions: "Controls a venue AV booth: a PTZ camera, a video switcher, slides and an audio mixer. " +
 			"Every change happens live in the room. Prefer reading status first; camera motion is bounded per call. " +
 			"Mixer changes are verified by read-back from the console."})

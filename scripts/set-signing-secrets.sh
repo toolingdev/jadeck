@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 REF="${1:-}"
 [ -n "$REF" ] || { echo "usage: $0 \"op://<vault>/<item>/<field>\""; exit 1; }
 OWNER=toolingdev
-REPOS="ptz-controller ptz-addon-ai-controller ptz-addon-behringer-wing ptz-addon-http-api ptz-addon-midi ptz-addon-proclaim ptz-addon-simulated ptz-addon-vmix"
+REPOS="jadeck jadeck-addon-ai-controller jadeck-addon-behringer-wing jadeck-addon-http-api jadeck-addon-midi jadeck-addon-proclaim jadeck-addon-simulated jadeck-addon-vmix"
 
 [ "$(gh api user -q .login)" = "$OWNER" ] || { echo "gh is not signed in as $OWNER (run: gh auth switch -h github.com -u $OWNER)"; exit 1; }
 
@@ -23,7 +23,7 @@ for r in $REPOS; do
   printf %s "$KEY" | gh secret set PTZ_SIGNING_KEY --repo "$OWNER/$r"
 done
 unset KEY
-gh variable set PTZ_UPDATE_PUBKEY --repo "$OWNER/ptz-controller" --body "$PUB"
+gh variable set PTZ_UPDATE_PUBKEY --repo "$OWNER/jadeck" --body "$PUB"
 
 echo
 echo "Done. Public key (safe to share): $PUB"

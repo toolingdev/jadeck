@@ -12,7 +12,7 @@ import (
 	"ptz/internal/devices"
 	"ptz/internal/devices/fake"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // gearSlides is a slides connection with its own state and actions, like

@@ -15,8 +15,8 @@ import (
 
 	"ptz/internal/devices"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
-	"github.com/toolingdev/ptz-controller/sdk/addon/pack"
+	"github.com/toolingdev/jadeck/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon/pack"
 )
 
 // buildCounter builds testdata/counter at a version into dir/bin/<platform>/.

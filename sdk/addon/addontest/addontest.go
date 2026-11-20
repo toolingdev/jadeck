@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // Harness plays the controller side.

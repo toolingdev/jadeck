@@ -18,10 +18,10 @@ var files = map[string]string{
 
 go 1.24
 
-require github.com/toolingdev/ptz-controller/sdk/addon {{.SDK}}
+require github.com/toolingdev/jadeck/sdk/addon {{.SDK}}
 `,
 	".gitignore": "bin/\ndist/\naddon.json\n",
-	"main.go": `// {{.Name}}: a PTZ controller add-on.
+	"main.go": `// {{.Name}}: a jadeck add-on.
 package main
 
 import (
@@ -29,7 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // Version is set by the release build (-ldflags "-X main.Version=1.2.3").
@@ -98,7 +98,7 @@ func (c *conn) Do(ctx context.Context, action string) (map[string]any, error) {
 import (
 	"testing"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon/addontest"
+	"github.com/toolingdev/jadeck/sdk/addon/addontest"
 )
 
 func TestAddon(t *testing.T) {
@@ -111,7 +111,7 @@ func TestAddon(t *testing.T) {
 	}
 }
 `,
-	"README.md": "# {{.Name}} — PTZ controller add-on\n\nBuild every platform and the `.ptzaddon` package:\n\n```bash\ngo run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon build\n```\n\nTry it on a controller: Settings → Add-ons → Developer → Load a folder (this folder),\nor install `dist/{{.ID}}.ptzaddon` with Install from file.\n\nRelease: push a tag `v1.2.3`; the workflow builds, signs (secret `PTZ_SIGNING_KEY`)\nand attaches `{{.ID}}.ptzaddon` to the GitHub release.\n",
+	"README.md": "# {{.Name}} — jadeck add-on\n\nBuild every platform and the `.ptzaddon` package:\n\n```bash\ngo run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon build\n```\n\nTry it on a controller: Settings → Add-ons → Developer → Load a folder (this folder),\nor install `dist/{{.ID}}.ptzaddon` with Install from file.\n\nRelease: push a tag `v1.2.3`; the workflow builds, signs (secret `PTZ_SIGNING_KEY`)\nand attaches `{{.ID}}.ptzaddon` to the GitHub release.\n",
 	".github/workflows/release.yml": `name: release
 on:
   push:
@@ -146,7 +146,7 @@ jobs:
         run: |
           v="${GITHUB_REF_NAME#v}"
           sed -i "s/^var Version = .*/var Version = \"$v\"/" main.go
-          go run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon build
+          go run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon build
       - name: Publish
         env:
           GH_TOKEN: ${{"{{"}} github.token {{"}}"}}
@@ -160,7 +160,7 @@ func cmdNew(args []string) {
 	fs := flag.NewFlagSet("new", flag.ExitOnError)
 	name := fs.String("name", "", "display name (≤ 40 characters)")
 	dir := fs.String("dir", "", "folder (default ./<id>)")
-	module := fs.String("module", "", "Go module path (default github.com/you/ptz-addon-<id>)")
+	module := fs.String("module", "", "Go module path (default github.com/you/jadeck-addon-<id>)")
 	pub := fs.String("publisher", "", "publisher name")
 	// flags may come after the id
 	var id string
@@ -203,5 +203,5 @@ func cmdNew(args []string) {
 		}
 		f.Close()
 	}
-	fmt.Printf("created %s — next: cd %s && go mod tidy && go test ./... && go run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon build\n", *dir, *dir)
+	fmt.Printf("created %s — next: cd %s && go mod tidy && go test ./... && go run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon build\n", *dir, *dir)
 }

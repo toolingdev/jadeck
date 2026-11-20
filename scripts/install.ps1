@@ -1,4 +1,4 @@
-# PTZ controller installer for Windows.
+# jadeck installer for Windows.
 #
 # Run in PowerShell as Administrator:
 #   irm https://github.com/__REPO__/releases/latest/download/install.ps1 | iex
@@ -57,9 +57,9 @@ try {
     # Phones on the venue network reach the app and its live video.
     # Private networks only; nothing opens on public Wi-Fi.
     $rules = @(
-        @{ Name = 'PTZ Controller (web)';        Proto = 'TCP'; Ports = '8080' },
-        @{ Name = 'PTZ Controller (video)';      Proto = 'TCP'; Ports = '8888,8889' },
-        @{ Name = 'PTZ Controller (video UDP)';  Proto = 'UDP'; Ports = '8189,8890' }
+        @{ Name = 'jadeck (web)';        Proto = 'TCP'; Ports = '8080' },
+        @{ Name = 'jadeck (video)';      Proto = 'TCP'; Ports = '8888,8889' },
+        @{ Name = 'jadeck (video UDP)';  Proto = 'UDP'; Ports = '8189,8890' }
     )
     foreach ($r in $rules) {
         if (-not (Get-NetFirewallRule -DisplayName $r.Name -ErrorAction SilentlyContinue)) {
@@ -70,7 +70,7 @@ try {
 
     $ver = & $exe version
     Write-Host ''
-    Write-Host "PTZ controller $ver is running."
+    Write-Host "jadeck $ver is running."
     Write-Host 'Finish setup at: http://localhost:8080/setup'
     Start-Process 'http://localhost:8080/setup'
 }

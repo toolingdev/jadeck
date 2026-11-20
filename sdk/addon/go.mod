@@ -1,3 +1,3 @@
-module github.com/toolingdev/ptz-controller/sdk/addon
+module github.com/toolingdev/jadeck/sdk/addon
 
 go 1.27.4

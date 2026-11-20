@@ -1,6 +1,6 @@
 {
-  "name": "PTZ Control",
-  "short_name": "PTZ",
+  "name": "jadeck",
+  "short_name": "jadeck",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

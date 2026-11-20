@@ -30,7 +30,7 @@ export function SetupPage({ onFinish }: { onFinish: () => void }) {
         <CardBody className="space-y-4 pt-5">
           {step === 0 && (
             <div className="space-y-3">
-              <h1 className="text-2xl font-bold">Set up the PTZ controller</h1>
+              <h1 className="text-2xl font-bold">Set up jadeck</h1>
               <p className="text-sm text-muted">A few minutes: find your camera, tell it about your video switcher, slides and sound board (all optional), pick a dashboard. Every answer can be changed later in Settings, nothing needs a file or a terminal.</p>
               <ul className="space-y-1 text-sm text-muted">
                 <li>• Have the camera powered on and on the same network as this PC.</li>

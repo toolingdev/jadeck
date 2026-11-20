@@ -9,13 +9,13 @@ open a terminal after the one install command.
 "Run as administrator"), then run:
 
 ```powershell
-irm https://github.com/toolingdev/ptz-controller/releases/latest/download/install.ps1 | iex
+irm https://github.com/toolingdev/jadeck/releases/latest/download/install.ps1 | iex
 ```
 
 **macOS or Linux**: open Terminal, then run:
 
 ```bash
-curl -fsSL https://github.com/toolingdev/ptz-controller/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/toolingdev/jadeck/releases/latest/download/install.sh | sh
 ```
 
 The release build points the installers at the repository it was built

@@ -1,19 +1,19 @@
 {
-  "about": "Add-ons listed under Settings → Add-ons → Browse. Each entry points at a GitHub repository whose releases carry <id>.ptzaddon. Add yours with a pull request; only packages signed with the PTZ Controller release key show as verified.",
+  "about": "Add-ons listed under Settings → Add-ons → Browse. Each entry points at a GitHub repository whose releases carry <id>.ptzaddon. Add yours with a pull request; only packages signed with jadeck release key show as verified.",
   "addons": [
-    {"id": "ai-controller", "name": "AI controller", "repo": "toolingdev/ptz-addon-ai-controller", "publisher": "PTZ Controller",
+    {"id": "ai-controller", "name": "AI controller", "repo": "toolingdev/jadeck-addon-ai-controller", "publisher": "jadeck",
      "description": "Talk to the booth: “cut to camera 2 in 5 minutes”. Your AI service, your key.", "category": "Assistant"},
-    {"id": "proclaim", "name": "Proclaim", "repo": "toolingdev/ptz-addon-proclaim", "publisher": "PTZ Controller",
+    {"id": "proclaim", "name": "Proclaim", "repo": "toolingdev/jadeck-addon-proclaim", "publisher": "jadeck",
      "description": "Next / previous, go to a service item, blank, and see what's on air.", "category": "Slides"},
-    {"id": "vmix", "name": "vMix", "repo": "toolingdev/ptz-addon-vmix", "publisher": "PTZ Controller",
+    {"id": "vmix", "name": "vMix", "repo": "toolingdev/jadeck-addon-vmix", "publisher": "jadeck",
      "description": "Cut, fade, preview, tally and live status from vMix.", "category": "Video switcher"},
-    {"id": "behringer-wing", "name": "Behringer WING", "repo": "toolingdev/ptz-addon-behringer-wing", "publisher": "PTZ Controller",
+    {"id": "behringer-wing", "name": "Behringer WING", "repo": "toolingdev/jadeck-addon-behringer-wing", "publisher": "jadeck",
      "description": "Mute and unmute WING channels, every change read back. X32/M32 experimental.", "category": "Audio mixer"},
-    {"id": "midi", "name": "MIDI notes", "repo": "toolingdev/ptz-addon-midi", "publisher": "PTZ Controller",
+    {"id": "midi", "name": "MIDI notes", "repo": "toolingdev/jadeck-addon-midi", "publisher": "jadeck",
      "description": "Sends a MIDI note per slide action, for software that listens for MIDI.", "category": "Generic"},
-    {"id": "http-api", "name": "HTTP API", "repo": "toolingdev/ptz-addon-http-api", "publisher": "PTZ Controller",
+    {"id": "http-api", "name": "HTTP API", "repo": "toolingdev/jadeck-addon-http-api", "publisher": "jadeck",
      "description": "Each slide action is one web request you set up (ProPresenter and others).", "category": "Generic"},
-    {"id": "simulated", "name": "Simulated devices", "repo": "toolingdev/ptz-addon-simulated", "publisher": "PTZ Controller",
+    {"id": "simulated", "name": "Simulated devices", "repo": "toolingdev/jadeck-addon-simulated", "publisher": "jadeck",
      "description": "A practice switcher, slides and mixer that touch no real gear.", "category": "Generic"}
   ]
 }

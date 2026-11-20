@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
-	"github.com/toolingdev/ptz-controller/sdk/addon/addontest"
+	"github.com/toolingdev/jadeck/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon/addontest"
 )
 
 type slides struct{ sent []string }

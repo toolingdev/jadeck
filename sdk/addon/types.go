@@ -1,4 +1,4 @@
-// Package addon is the PTZ controller add-on SDK.
+// Package addon is jadeck add-on SDK.
 //
 // An add-on teaches the controller one product (vMix, a mixing console,
 // slide software...). It runs as its own process and talks to the

@@ -1,4 +1,4 @@
-// Command ptz-addon builds and checks PTZ controller add-ons.
+// Command ptz-addon builds and checks jadeck add-ons.
 //
 //	ptz-addon new <id> [--name "Display name"] [--dir path]   start a new add-on project
 //	ptz-addon check [dir]                                     validate the manifest
@@ -11,7 +11,7 @@
 //
 // Run it without installing:
 //
-//	go run github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon build
+//	go run github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon build
 package main
 
 import (
@@ -27,8 +27,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
-	"github.com/toolingdev/ptz-controller/sdk/addon/pack"
+	"github.com/toolingdev/jadeck/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon/pack"
 )
 
 var allPlatforms = "windows/amd64,windows/arm64,darwin/arm64,darwin/amd64,linux/amd64,linux/arm64"

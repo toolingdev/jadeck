@@ -9,7 +9,7 @@ import (
 	"ptz/internal/auth"
 	"ptz/internal/devices"
 
-	"github.com/toolingdev/ptz-controller/sdk/addon"
+	"github.com/toolingdev/jadeck/sdk/addon"
 )
 
 // Controller add-ons (e.g. the AI controller) reach the controller's API

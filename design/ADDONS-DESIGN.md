@@ -113,7 +113,7 @@ postMessage bridge and can't touch anything else.
   
   Updates are never applied automatically during service hours.
 - **Separate projects, bundled copies:** every add-on is its own project
-  and repository (ptz-addon-vmix, -behringer-wing, -proclaim, -midi,
+  and repository (jadeck-addon-vmix, -behringer-wing, -proclaim, -midi,
   -http-api, -simulated) depending only on the SDK module. A controller
   release embeds each one's latest signed package (this platform's
   program only) and installs it on first start, so a fresh install works

@@ -280,7 +280,7 @@ export function SystemCard() {
           {advanced && (
             <div className="grid gap-3 rounded-xl border border-line p-3 sm:grid-cols-2">
               <label className="block"><span className="mb-1 block text-xs text-muted">GitHub repository (owner/name)</span>
-                <Input value={f.updateRepo} onChange={(e) => set({ updateRepo: e.target.value })} placeholder="owner/ptz-controller" />
+                <Input value={f.updateRepo} onChange={(e) => set({ updateRepo: e.target.value })} placeholder="owner/jadeck" />
               </label>
               <label className="block"><span className="mb-1 block text-xs text-muted">Access token (private repository only)</span>
                 <Input type="password" value={token} onChange={(e) => { setToken(e.target.value); setClearToken(false); }} autoComplete="new-password"

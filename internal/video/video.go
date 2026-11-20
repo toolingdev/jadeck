@@ -199,7 +199,7 @@ func q(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 // Config renders the gateway config for s.
 func Config(s settings.Settings) string {
 	var b strings.Builder
-	b.WriteString("# Written by the PTZ controller from Settings → Video. Changes here are overwritten.\n")
+	b.WriteString("# Written by jadeck from Settings → Video. Changes here are overwritten.\n")
 	b.WriteString("logLevel: info\nlogDestinations: [stdout]\n")
 	fmt.Fprintf(&b, "api: yes\napiAddress: %s\n", apiAddr)
 	fmt.Fprintf(&b, "rtsp: yes\nrtspAddress: :%d\nrtspTransports: [tcp]\n", PortRTSP)

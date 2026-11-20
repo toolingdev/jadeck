@@ -4,7 +4,7 @@
 //	go run ./cmd/addons-bundle                  latest GitHub release of each add-on repo
 //	go run ./cmd/addons-bundle --local ../ptz-addons [--key KEY]   build from local projects
 //
-// Each add-on is its own project (github.com/toolingdev/ptz-addon-<id>);
+// Each add-on is its own project (github.com/toolingdev/jadeck-addon-<id>);
 // this only collects their released packages.
 package main
 
@@ -37,7 +37,7 @@ func die(f string, a ...any) {
 func main() {
 	local := flag.String("local", "", "folder holding the add-on projects (build them instead of downloading)")
 	key := flag.String("key", "", "signing key for --local builds (base64 seed or file; default $PTZ_SIGNING_KEY)")
-	owner := flag.String("owner", "toolingdev", "GitHub owner of the ptz-addon-<id> repositories")
+	owner := flag.String("owner", "toolingdev", "GitHub owner of the jadeck-addon-<id> repositories")
 	platform := flag.String("platform", runtime.GOOS+"/"+runtime.GOARCH, "keep only this goos/goarch program in each package (the signature stays valid)")
 	flag.Parse()
 	plat := strings.ReplaceAll(*platform, "/", "-")
@@ -50,7 +50,7 @@ func main() {
 		dst := filepath.Join(out, id+".ptzaddon")
 		if *local != "" {
 			dir := filepath.Join(*local, id)
-			args := []string{"run", "github.com/toolingdev/ptz-controller/sdk/addon/cmd/ptz-addon", "build"}
+			args := []string{"run", "github.com/toolingdev/jadeck/sdk/addon/cmd/ptz-addon", "build"}
 			if *key != "" {
 				args = append(args, "--key", *key)
 			}
@@ -113,7 +113,7 @@ func download(owner, id, dst, plat string) error {
 		}
 		return cl.Do(req)
 	}
-	resp, err := get(fmt.Sprintf("https://api.github.com/repos/%s/ptz-addon-%s/releases/latest", owner, id), "application/vnd.github+json")
+	resp, err := get(fmt.Sprintf("https://api.github.com/repos/%s/jadeck-addon-%s/releases/latest", owner, id), "application/vnd.github+json")
 	if err != nil {
 		return err
 	}
