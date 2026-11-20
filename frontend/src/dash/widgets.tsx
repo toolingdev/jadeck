@@ -545,7 +545,7 @@ export const WIDGETS: WidgetDef[] = [
         options: [{ value: "auto", label: "Auto (recommended)" }, { value: "hd", label: "HD — always" }, { value: "sd", label: "SD — always (lighter)" }] },
       label("title", "Title on the picture"),
       { key: "tally", label: "Tally border (red live, green next)", type: "bool", showIf: (s) => str(s.feed).startsWith("cam:"), help: "From the video switcher: the input whose name matches the camera, or pick it below." },
-      { key: "input", label: "Switcher input for tally", type: "input", showIf: (s) => str(s.feed).startsWith("cam:") && bool(s.tally) },
+      { key: "input", label: "Switcher input for tally", type: "input", showIf: (s) => str(s.feed).startsWith("cam:") && bool(s.tally), help: "Only if this one should differ from Settings → Connections → (switcher) → Cameras on this switcher." },
     ],
     Render: ({ s, editing }) => <VideoWidget s={s} editing={editing} /> },
   { type: "camera.live", hidden: true, label: "Live view", group: "camera", icon: MonitorPlay, description: "A camera's picture. Drop several and pick a camera for each to build a multiview.",

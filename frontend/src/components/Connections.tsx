@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, Loader2, Plus, Save, Search, Trash2, X, XCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, type CameraInfo, type SwitcherStatus } from "@/lib/api";
+import { useShared } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { CAP_LABEL, defaults, useAddons, useConnections, type Capability, type Connection, type ConnectionType, type Fav, type Manifest } from "@/lib/addons";
@@ -12,7 +13,7 @@ import { FieldRow, QuickChannels } from "@/components/FieldRow";
 
 const CAPS: Capability[] = ["switcher", "slides", "mixer", "assistant"];
 
-type Draft = { id?: string; addon: string; type: string; name: string; config: Record<string, unknown>; favorites: Fav[] };
+type Draft = { id?: string; addon: string; type: string; name: string; config: Record<string, unknown>; favorites: Fav[]; cameraInputs?: Record<string, number> };
 type TestResult = { ok: boolean; detail?: string; error?: string } | null;
 
 export function ConnectionsSection({ only, compact }: { only?: Capability[]; compact?: boolean }) {
@@ -27,7 +28,7 @@ export function ConnectionsSection({ only, compact }: { only?: Capability[]; com
 
   const edit = (c: Connection) => {
     setAdding(false);
-    setDraft({ id: c.id, addon: c.addon, type: c.type, name: c.name, config: { ...c.config }, favorites: c.favorites ?? [] });
+    setDraft({ id: c.id, addon: c.addon, type: c.type, name: c.name, config: { ...c.config }, favorites: c.favorites ?? [], cameraInputs: c.cameraInputs ?? {} });
   };
   const pick = (m: Manifest, t: ConnectionType) => {
     setAdding(false);
@@ -149,7 +150,7 @@ function ConnectionForm({ draft, type, conn, onChange, onDone }: {
   const [busy, setBusy] = useState<"" | "test" | "save" | "delete">("");
   const [confirm, setConfirm] = useState(false);
   const set = (k: string, v: unknown) => onChange({ ...draft, config: { ...draft.config, [k]: v } });
-  const body = { addon: draft.addon, type: draft.type, name: draft.name, config: draft.config, favorites: draft.favorites, id: draft.id };
+  const body = { addon: draft.addon, type: draft.type, name: draft.name, config: draft.config, favorites: draft.favorites, cameraInputs: draft.cameraInputs, id: draft.id };
   const run = async (what: "test" | "save" | "delete") => {
     setBusy(what);
     try {
@@ -206,6 +207,9 @@ function ConnectionForm({ draft, type, conn, onChange, onDone }: {
         </button>
       )}
       {type.capabilities.includes("mixer") && <QuickChannels favs={draft.favorites} onChange={(favorites) => onChange({ ...draft, favorites })} />}
+      {type.capabilities.includes("switcher") && (
+        <CameraInputs connId={draft.id} value={draft.cameraInputs ?? {}} onChange={(cameraInputs) => onChange({ ...draft, cameraInputs })} />
+      )}
       {conn && !conn.ready && conn.error && !test && <p className="text-xs text-bad">Now: {conn.error}</p>}
       {test && (
         <p className={cn("flex items-start gap-1.5 text-sm", test.ok ? "text-good" : "text-bad")}>
@@ -232,5 +236,50 @@ function Confirm({ open, name, onClose, onYes }: { open: boolean; name: string; 
         <Button variant="danger" onClick={onYes}><Trash2 size={15} /> Remove</Button>
       </div>
     </Dialog>
+  );
+}
+
+/** Which camera is on which input of this switcher. Tally on every
+ *  dashboard uses it; a camera left on "Match by name" pairs with the
+ *  input whose title names it. */
+function CameraInputs({ connId, value, onChange }: { connId?: string; value: Record<string, number>; onChange: (v: Record<string, number>) => void }) {
+  const cams = useShared<CameraInfo[]>("/api/cameras", 10000).data ?? [];
+  const sw = useShared<SwitcherStatus>(connId ? `/api/switcher/status?conn=${encodeURIComponent(connId)}` : null, 5000).data;
+  const inputs = sw?.inputs ?? [];
+  if (cams.length === 0) return null;
+  const set = (cam: string, v: string) => {
+    const next = { ...value };
+    if (v) next[cam] = Number(v);
+    else delete next[cam];
+    onChange(next);
+  };
+  return (
+    <div className="space-y-2 rounded-xl border border-line bg-panel-2 p-3">
+      <div>
+        <p className="text-sm font-semibold">Cameras on this switcher</p>
+        <p className="text-[11px] text-muted">Tally (red live, green next) on every dashboard uses this. “Match by name” pairs a camera with the input whose title names it.</p>
+      </div>
+      {!connId && <p className="text-[11px] text-dim">Save the connection first; its inputs show up here once it's connected.</p>}
+      {connId && (
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-center gap-x-3 gap-y-2">
+          {cams.map((c) => {
+            const cur = value[c.id] ? String(value[c.id]) : "";
+            const opts = [{ value: "", label: "Match by name" },
+              ...inputs.map((i) => ({ value: String(i.number), label: `${i.number} · ${i.title}` }))];
+            if (cur && !inputs.some((i) => String(i.number) === cur)) opts.push({ value: cur, label: `${cur} · (not on the switcher now)` });
+            return (
+              <div key={c.id} className="contents">
+                <span className="truncate text-sm">{c.name}</span>
+                <select value={cur} onChange={(e) => set(c.id, e.target.value)}
+                  className="h-9 w-full min-w-0 rounded-lg border border-line bg-bg px-2 text-sm">
+                  {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {connId && sw && !sw.connected && <p className="text-[11px] text-warn">Not connected right now — inputs appear when it is.</p>}
+    </div>
   );
 }

@@ -39,12 +39,13 @@ func (s *Server) connectionRoutes(mux *http.ServeMux) {
 }
 
 type connBody struct {
-	Addon     string             `json:"addon"`
-	Type      string             `json:"type"`
-	Name      string             `json:"name"`
-	Config    map[string]any     `json:"config"`
-	Favorites []devices.Favorite `json:"favorites"`
-	Disabled  bool               `json:"disabled"`
+	Addon        string             `json:"addon"`
+	Type         string             `json:"type"`
+	Name         string             `json:"name"`
+	Config       map[string]any     `json:"config"`
+	Favorites    []devices.Favorite `json:"favorites"`
+	CameraInputs map[string]int     `json:"cameraInputs"`
+	Disabled     bool               `json:"disabled"`
 }
 
 // secretKeys are the password fields of a connection type.
@@ -84,7 +85,7 @@ func (s *Server) connView(l *devices.Live) map[string]any {
 		caps = s.Addons.DeclaredCaps(l.Connection)
 	}
 	v := map[string]any{"id": l.ID, "addon": l.Addon, "type": l.Type, "name": l.Name, "config": s.masked(l.Connection),
-		"favorites": l.Favorites, "disabled": l.Disabled, "capabilities": caps, "ready": l.Impl != nil, "error": errText(l.Err)}
+		"favorites": l.Favorites, "cameraInputs": l.CameraInputs, "disabled": l.Disabled, "capabilities": caps, "ready": l.Impl != nil, "error": errText(l.Err)}
 	if v["favorites"] == nil {
 		v["favorites"] = []devices.Favorite{}
 	}
@@ -122,6 +123,15 @@ func (s *Server) currentFile() *devices.File {
 // toConnection validates a body against the add-on's connection type.
 func (s *Server) toConnection(b connBody, prev *devices.Connection) (devices.Connection, error) {
 	c := devices.Connection{Addon: b.Addon, Type: b.Type, Name: strings.TrimSpace(b.Name), Favorites: b.Favorites, Disabled: b.Disabled}
+	for cam, in := range b.CameraInputs {
+		if in < 1 || in > 999 {
+			return c, fmt.Errorf("input %d for a camera is outside 1-999", in)
+		}
+		if c.CameraInputs == nil {
+			c.CameraInputs = map[string]int{}
+		}
+		c.CameraInputs[cam] = in
+	}
 	if s.Addons == nil {
 		return c, errors.New("no add-on host")
 	}

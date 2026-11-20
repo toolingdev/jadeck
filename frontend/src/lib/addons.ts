@@ -32,7 +32,7 @@ export type AddonList = { addons: AddonRow[]; platform: string; checkedAt?: stri
 
 export type Fav = { label: string; channel: number };
 export type Connection = {
-  id: string; addon: string; type: string; name: string; config: Record<string, unknown>; favorites: Fav[];
+  id: string; addon: string; type: string; name: string; config: Record<string, unknown>; favorites: Fav[]; cameraInputs?: Record<string, number>;
   disabled: boolean; capabilities: Capability[]; ready: boolean; error: string; addonName?: string; typeLabel?: string;
 };
 

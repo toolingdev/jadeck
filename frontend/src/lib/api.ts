@@ -102,6 +102,7 @@ export type SwitcherStatus = {
   connected: boolean; simulated: boolean; driver: string; label: string; error?: string;
   inputs: Input[]; preview: number; active: number; streaming: boolean; recording: boolean;
   fadeToBlack: boolean; version: string; edition: string;
+  cameraInputs?: Record<string, number>; // camera id -> input (tally)
 };
 export type PresentationStatus = {
   available: boolean; simulated: boolean; driver: string; label: string; port: string; actions: string[];

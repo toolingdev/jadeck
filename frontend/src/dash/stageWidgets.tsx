@@ -428,8 +428,9 @@ export function useTally(cameraId: string, input: number) {
   return useMemo(() => {
     if (!sw?.connected) return { sw, state: null as null | "pgm" | "pvw" | "off", input: null as number | null };
     let n = input || null;
+    const cam = cams?.find((c) => c.id === cameraId) ?? cams?.find((c) => c.main);
+    if (!n && cam && sw.cameraInputs?.[cam.id]) n = sw.cameraInputs[cam.id];
     if (!n) {
-      const cam = cams?.find((c) => c.id === cameraId) ?? cams?.find((c) => c.main);
       const name = cam?.name.toLowerCase().replace(/\s*\(simulated\)/, "").trim();
       if (name) n = sw.inputs.find((i) => i.title.toLowerCase().includes(name) || name.includes(i.title.toLowerCase()))?.number ?? null;
     }

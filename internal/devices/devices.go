@@ -91,7 +91,11 @@ type Connection struct {
 	// Quick channels, for mixer connections: the channels shown on Mute
 	// buttons and the Favorites widget, with the names people know.
 	Favorites []Favorite `json:"favorites,omitempty"`
-	Disabled  bool       `json:"disabled,omitempty"`
+	// Which camera is on which input, for switcher connections: tally on
+	// every dashboard uses it (camera id -> input number). Cameras not in
+	// it are matched by name.
+	CameraInputs map[string]int `json:"cameraInputs,omitempty"`
+	Disabled     bool           `json:"disabled,omitempty"`
 }
 
 // File is devices.json. Version 1 had one switcher, one presentation and
@@ -237,6 +241,8 @@ type Set struct {
 	SwitcherErr, PresentationErr, MixerErr error
 
 	Favorites []Slot // the default mixer's quick channels
+
+	CameraInputs map[string]int // the default switcher's camera -> input table
 }
 
 // Open builds the set. A connection that fails to open is reported in
@@ -312,6 +318,7 @@ func (s *Set) pickDefaults() {
 		case "switcher":
 			s.SwitcherCfg, s.SwitcherErr = cfg(pick), pick.Err
 			s.Switcher, _ = pick.Impl.(Switcher)
+			s.CameraInputs = pick.CameraInputs
 		case "presentation":
 			s.PresentationCfg, s.PresentationErr = cfg(pick), pick.Err
 			s.Presentation, _ = pick.Impl.(Presentation)

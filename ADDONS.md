@@ -89,6 +89,10 @@ PCs are two connections.
 - The **first connection** of a kind is the default.
 - A widget can pick another in its settings. The **Connection** field
   appears when there's more than one to choose from.
+- **Cameras on a switcher:** a switcher connection has a small table of
+  which camera is on which input. Tally (red live, green next) on every
+  dashboard uses it, so renaming a camera never breaks tally. A camera
+  left on "Match by name" pairs with the input whose title names it.
 - **Passwords** are write-only: the screen never shows them back.
   Leave the field blank to keep the saved one.
 - **Migration:** a `devices.json` from before add-ons is turned into

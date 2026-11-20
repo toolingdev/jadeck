@@ -269,13 +269,29 @@ func (r *Rig) Setup(ctx context.Context, base string) error {
 		code, msg := post("/api/feeds", map[string]any{"name": "Program", "source": "push", "program": true})
 		r.cfg.Log.Info("setup: program feed", "status", code, "detail", short(msg))
 	}
-		port := func(a string) int {
+	// which camera is on which vMix input (camera n = input n)
+	camInputs := map[string]int{}
+	if req, err := http.NewRequestWithContext(ctx, "GET", base+"/api/cameras", nil); err == nil {
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			var list []struct{ ID, Name string }
+			json.NewDecoder(resp.Body).Decode(&list)
+			resp.Body.Close()
+			for i, c := range r.cams {
+				for _, l := range list {
+					if l.Name == c.name {
+						camInputs[l.ID] = i + 1
+					}
+				}
+			}
+		}
+	}
+	port := func(a string) int {
 		_, p, _ := net.SplitHostPort(a)
 		n, _ := strconv.Atoi(p)
 		return n
 	}
 	for _, c := range []map[string]any{
-		{"addon": "vmix", "type": "vmix", "name": "vMix (simulated)", "config": map[string]any{"host": host, "port": port(r.cfg.Switcher)}},
+		{"addon": "vmix", "type": "vmix", "name": "vMix (simulated)", "config": map[string]any{"host": host, "port": port(r.cfg.Switcher)}, "cameraInputs": camInputs},
 		{"addon": "proclaim", "type": "proclaim", "name": "Proclaim (simulated)", "config": map[string]any{"host": host}},
 		{"addon": "behringer-wing", "type": "osc", "name": "WING (simulated)", "config": map[string]any{"preset": "wing", "host": host, "port": port(r.cfg.Mixer)},
 			"favorites": []map[string]any{{"label": "Lead Vocal", "channel": 1}, {"label": "Lectern", "channel": 2}, {"label": "Wireless 1", "channel": 3},

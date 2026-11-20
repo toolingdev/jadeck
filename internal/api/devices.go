@@ -105,6 +105,7 @@ func (s *Server) switcherState(ctx context.Context, d *devices.Set) map[string]a
 	out["inputs"], out["preview"], out["active"] = st.Inputs, st.Preview, st.Active
 	out["streaming"], out["recording"], out["fadeToBlack"] = st.Streaming, st.Recording, st.FadeToBlack
 	out["version"], out["edition"] = st.Version, st.Edition
+	out["cameraInputs"] = d.CameraInputs // which camera is on which input (tally)
 	return out
 }
 
