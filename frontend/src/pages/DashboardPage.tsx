@@ -424,10 +424,10 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
             <>
               <button type="button" onClick={() => setDialog("picker")}
                 className="flex h-9 min-w-0 items-center gap-2 rounded-xl border border-line bg-panel px-3 text-sm font-semibold hover:border-line-strong max-sm:flex-1">
-                <KindIcon size={15} className="text-muted" />
+                <KindIcon size={15} className="shrink-0 text-muted" />
                 <span className="truncate">{shown.name}</span>
-                {isDefaultFor.includes(device) && <Star size={12} className="fill-accent text-accent" />}
-                <ChevronDown size={15} className="text-muted" />
+                {isDefaultFor.includes(device) && <Star size={12} className="shrink-0 fill-accent text-accent" />}
+                <ChevronDown size={15} className="ml-auto shrink-0 text-muted" />
               </button>
               <span className="flex items-center gap-1 text-xs text-dim max-sm:hidden short:hidden">Layout locked{view.note && ` · ${view.note}`}</span>
               <div className="ml-auto flex items-center gap-2">
