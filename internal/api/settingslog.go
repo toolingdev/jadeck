@@ -51,8 +51,8 @@ func (s *Server) LogSettingsChange(old, next settings.Settings) {
 	if old.MainID != next.MainID {
 		ch = append(ch, "main camera changed")
 	}
-	if old.Video != next.Video {
-		ch = append(ch, fmt.Sprintf("video: managed=%v program=%v confidence=%v external=%q", next.Video.Managed, next.Video.Program, next.Video.Confidence, next.Video.External))
+	if fmt.Sprint(old.Video) != fmt.Sprint(next.Video) {
+		ch = append(ch, fmt.Sprintf("video: managed=%v feeds=%d external=%q", next.Video.Managed, len(next.Video.Feeds), next.Video.External))
 	}
 	os, ns := old.System, next.System
 	if os.Port != ns.Port {

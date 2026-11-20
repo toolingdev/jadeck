@@ -72,7 +72,7 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
                 </div>
               </div>
             )}
-            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-6 gap-y-4">
               {present.filter((s) => s.group === group).map((s) => (
                 <Field key={s.name} spec={s} value={vals[s.name]} onCommit={(v) => apply(s, v)} />
               ))}

@@ -103,7 +103,7 @@ func (s *Server) diagSnapshot(r *http.Request) map[string]any {
 	}
 	ctx, cancel := short(r)
 	defer cancel()
-	sw := s.switcherState(ctx)
+	sw := s.switcherState(ctx, s.Devs())
 	out["devices"] = map[string]any{
 		"switcher":     dev(d.SwitcherCfg.Driver, d.SwitcherCfg.Label, d.Switcher != nil, d.SwitcherErr),
 		"switcherNow":  map[string]any{"connected": sw["connected"], "error": sw["error"], "program": sw["active"], "preview": sw["preview"], "streaming": sw["streaming"], "recording": sw["recording"], "version": sw["version"]},

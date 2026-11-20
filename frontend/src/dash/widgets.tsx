@@ -5,9 +5,11 @@ import {
   ChevronLeft, ChevronRight, Loader2, Activity, HeartPulse, MessageSquareText, MessagesSquare, Radio, type LucideIcon,
 } from "lucide-react";
 import { BandwidthWidget, HealthWidget } from "./metricsWidgets";
+import { ComingUp } from "./scheduleWidget";
 import { StageSend, StageShow, StageTimer, StageLive, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK } from "./stageWidgets";
 import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
-import { useShared, refreshShared, useLocal } from "@/lib/hooks";
+import { useShared, refreshShared, useLocal, useWidgetConn } from "@/lib/hooks";
+import { withConn } from "@/lib/addons";
 import { useLog } from "@/lib/log";
 import { setDrive, stopDrive } from "@/lib/control";
 import { cn } from "@/lib/cn";
@@ -21,20 +23,23 @@ import { Macros } from "@/components/Macros";
 
 // ----------------------------------------------------------------- types
 
-export type Group = "stage" | "camera" | "switcher" | "slides" | "audio" | "macros" | "metrics" | "other";
+export type Group = "stage" | "camera" | "switcher" | "slides" | "audio" | "addons" | "macros" | "metrics" | "other";
 export const GROUPS: { id: Group; label: string; needs?: "switcher" | "presentation" | "mixer" }[] = [
   { id: "stage", label: "Stage" },
   { id: "camera", label: "Camera" },
   { id: "switcher", label: "Switcher", needs: "switcher" },
   { id: "slides", label: "Slides", needs: "presentation" },
   { id: "audio", label: "Audio", needs: "mixer" },
+  { id: "addons", label: "Add-ons" },
   { id: "macros", label: "Macros" },
   { id: "metrics", label: "Metrics" },
   { id: "other", label: "Other" },
 ];
 
 export type Field = {
-  key: string; label: string; type: "select" | "bool" | "text" | "number" | "source" | "list" | "channel" | "channels" | "camera" | "input";
+  key: string; label: string; type: "select" | "bool" | "text" | "number" | "source" | "list" | "channel" | "channels" | "camera" | "input" | "connection" | "feed";
+  /** connection fields: which connections to offer */
+  cap?: "switcher" | "slides" | "mixer"; addon?: string;
   options?: { value: string; label: string }[]; source?: "presets" | "macros" | "favorites" | "slideActions";
   help?: string; showIf?: (s: Settings) => boolean;
 };
@@ -42,8 +47,12 @@ export type Settings = Record<string, unknown>;
 export type WidgetDef = {
   type: string; label: string; group: Group; icon: LucideIcon; description: string;
   size: { w: number; h: number; pw?: number; ph?: number }; // tablet/desktop + phone
-  min?: { w: number; h: number };
+  /** Smallest box (px) the content fits in without anything overlapping.
+   *  Measured: shrink the widget until something spills out. */
+  minPx: { w: number; h: number } | ((s: Settings) => { w: number; h: number });
   defaults: Settings; fields: Field[];
+  /** Kept so saved dashboards still render, but not offered in the library. */
+  hidden?: boolean;
   Render: (p: { s: Settings; editing: boolean }) => ReactNode;
 };
 
@@ -95,11 +104,14 @@ function MoveWidget({ s }: { s: Settings }) {
       <Segmented value={mode} onChange={setSaved} options={[{ value: "buttons", label: "Buttons" }, { value: "joystick", label: "Joystick" }]} />
     )}>
       <div className="flex h-full flex-col gap-3">
-        <div className="flex min-h-0 flex-1 items-center justify-center gap-3">
+        {/* A size container: the pad / stick is a square that fits the
+            box's height as well as its width, so it never spills. */}
+        <div className="flex min-h-0 flex-1 items-center justify-center gap-3 [container-type:size]">
           {mode === "buttons" ? (
-            <DirPad home={home} className="max-w-[min(300px,100%)]" />
+            <DirPad home={home} className={zoom ? "w-[min(300px,100cqh,100cqw-76px)]" : "w-[min(300px,100cqh,100cqw)]"} />
           ) : (
-            <div className="flex w-full max-w-[280px] flex-col items-center gap-2">
+            <div className={cn("flex flex-col items-center gap-2",
+              zoom ? "w-[min(280px,100cqh,100cqw-76px)]" : home ? "w-[min(280px,100cqh-52px,100cqw)]" : "w-[min(280px,100cqh,100cqw)]")}>
               <Joystick speed={top} />
               {home && !zoom && (
                 <Button className="w-full" onClick={() => act("Home", "/api/ptz/home")}><HomeIcon size={16} /> Home</Button>
@@ -205,25 +217,36 @@ function Feed({ kind }: { kind: "program" | "confidence" | "camera"; s: Settings
   return <StreamView title="Confidence" whep={cfg?.confidenceWhep} hls={cfg?.confidenceHls} aspect="h-full" noSignalText="The confidence feed isn't reaching the gateway yet." />;
 }
 
-function useSwitcher() {
-  return useShared<SwitcherStatus>("/api/switcher/status", 2000);
+function VideoWidget({ s, editing }: { s: Settings; editing: boolean }) {
+  const cfg = useCfg();
+  const feed = str(s.feed);
+  if (!feed) return <Unset what="Pick a feed in this widget's settings." />;
+  if (feed.startsWith("cam:")) return <LiveCamPinned s={{ ...s, camera: feed.slice(4) }} editing={editing} />;
+  const f = cfg?.feeds?.find((x) => x.id === feed);
+  if (cfg && !f) return <Unset what="That feed was removed — pick another in this widget's settings." />;
+  return <StreamView title={str(s.title) || f?.name || ""} whep={f?.whep} hls={f?.hls} aspect="h-full"
+    noSignalText={f?.source === "push" ? `Nothing is sending ${f?.name} yet (Settings → Video feeds shows how).` : `${f?.name ?? "This feed"} isn't answering.`} />;
 }
 
-function switchAct(log: ReturnType<typeof useLog>["log"]) {
+function useSwitcher() {
+  return useShared<SwitcherStatus>(withConn("/api/switcher/status", useWidgetConn()), 2000);
+}
+
+function switchAct(log: ReturnType<typeof useLog>["log"], conn: string) {
   return async (label: string, path: string, body?: unknown) => {
-    try { await api(path, "POST", body); log("Switcher", label); }
+    try { await api(withConn(path, conn), "POST", body); log("Switcher", label); }
     catch (e) { log("Switcher", `${label} failed — ${(e as Error).message}`, false); }
-    refreshShared("/api/switcher/status");
+    refreshShared(withConn("/api/switcher/status", conn));
   };
 }
 
 function Inputs() {
   const { data: st } = useSwitcher();
-  const run = switchAct(useLog().log);
+  const run = switchAct(useLog().log, useWidgetConn());
   if (!st?.connected) return <Unset what={st?.error || "Switcher not answering."} />;
   return (
     <Frame title={st.label || "Inputs"}>
-      <div className="grid h-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 overflow-auto">
+      <div className="grid h-full auto-rows-[minmax(56px,1fr)] grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 overflow-auto">
         {st.inputs.map((i) => {
           const pgm = i.number === st.active, pvw = i.number === st.preview;
           return (
@@ -242,7 +265,7 @@ function Inputs() {
 
 function CutFade({ s }: { s: Settings }) {
   const { data: st } = useSwitcher();
-  const run = switchAct(useLog().log);
+  const run = switchAct(useLog().log, useWidgetConn());
   const ms = Number(s.fadeMs) || 1000;
   return (
     <Frame>
@@ -257,19 +280,19 @@ function CutFade({ s }: { s: Settings }) {
 // ---------------------------------------------------------------- slides
 
 function useSlides() {
-  return useShared<PresentationStatus>("/api/presentation/status", 5000);
+  return useShared<PresentationStatus>(withConn("/api/presentation/status", useWidgetConn()), 5000);
 }
 
-function slideAct(log: ReturnType<typeof useLog>["log"], name: string) {
+function slideAct(log: ReturnType<typeof useLog>["log"], name: string, conn: string) {
   return async (action: string, label: string) => {
-    try { await api(`/api/presentation/${action}`, "POST"); log(name, label); }
+    try { await api(withConn(`/api/presentation/${action}`, conn), "POST"); log(name, label); }
     catch (e) { log(name, `${label} failed — ${(e as Error).message}`, false); }
   };
 }
 
 function PrevNext() {
   const { data: st } = useSlides();
-  const act = slideAct(useLog().log, st?.label || "Slides");
+  const act = slideAct(useLog().log, st?.label || "Slides", useWidgetConn());
   return (
     <Frame>
       <div className="grid h-full grid-cols-[1fr_2fr] gap-2">
@@ -282,7 +305,7 @@ function PrevNext() {
 
 function SlideButton({ s }: { s: Settings }) {
   const { data: st } = useSlides();
-  const act = slideAct(useLog().log, st?.label || "Slides");
+  const act = slideAct(useLog().log, st?.label || "Slides", useWidgetConn());
   const action = str(s.action);
   if (!action) return <Unset what="Pick a slide action in this widget's settings." />;
   const label = str(s.label) || { black: "Black screen", logo: "Logo", clear: "Clear text", next: "Next", prev: "Prev" }[action] || action;
@@ -292,7 +315,8 @@ function SlideButton({ s }: { s: Settings }) {
 // ----------------------------------------------------------------- audio
 
 function MuteButton({ s }: { s: Settings }) {
-  const { data: st } = useShared<MixerStatus>("/api/mixer/status", 3000);
+  const conn = useWidgetConn();
+  const { data: st } = useShared<MixerStatus>(withConn("/api/mixer/status", conn), 3000);
   const { log } = useLog();
   const [ask, setAsk] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -304,13 +328,13 @@ function MuteButton({ s }: { s: Settings }) {
   const toggle = async (muted: boolean) => {
     setBusy(true);
     try {
-      const r = await api<{ muted: boolean }>("/api/mixer/mute", "POST", { slot, muted });
+      const r = await api<{ muted: boolean }>(withConn("/api/mixer/mute", conn), "POST", { slot, muted });
       log("Audio", `${label} ${r.muted ? "muted" : "live"} (read back)`);
     } catch (e) {
       log("Audio", `${label} — ${(e as Error).message}`, false);
     } finally {
       setBusy(false);
-      refreshShared("/api/mixer/status");
+      refreshShared(withConn("/api/mixer/status", conn));
     }
   };
   const press = () => (ch.muted && bool(s.askUnmute) ? setAsk(true) : toggle(!ch.muted));
@@ -440,7 +464,7 @@ function LogWidget() {
   return (
     <Frame title="What just happened">
       {entries.length === 0 ? <p className="text-sm text-dim">Nothing yet this session.</p> : (
-        <ul className="h-full space-y-1 overflow-y-auto font-mono text-xs">
+        <ul data-feed className="h-full space-y-1 overflow-y-auto font-mono text-xs">
           {entries.map((e) => (
             <li key={e.id} className="flex gap-3">
               <span className="text-dim tabular">{e.at.toLocaleTimeString()}</span>
@@ -458,12 +482,15 @@ function LogWidget() {
 
 const label = (k: string, l: string, extra: Partial<Field> = {}): Field => ({ key: k, label: l, type: "text", ...extra });
 
+const conn = (cap: "switcher" | "slides" | "mixer"): Field => ({ key: "connection", label: "Connection", type: "connection", cap,
+  help: "Which one, when you have more than one." });
+
 const CAMERA_FIELD: Field = { key: "camera", label: "Camera", type: "camera", help: "“Follow the header” drives whichever camera is picked at the top." };
 
 export const WIDGETS: WidgetDef[] = [
   { type: "stage.send", label: "Message sender", group: "stage", icon: MessageSquareText,
     description: "Send to a channel: type a message, or tap a quick one. With the text box off it's a row of reply buttons.",
-    size: { w: 6, h: 9, pw: 4, ph: 9 }, min: { w: 2, h: 2 },
+    size: { w: 6, h: 9, pw: 4, ph: 9 }, minPx: { w: 240, h: 260 },
     defaults: { channels: ["pulpit"], textBox: true, sendOnTap: false, showSeen: true, quick: DEFAULT_QUICK, timers: [] },
     fields: [
       { key: "channels", label: "Sends to channels", type: "channels" },
@@ -476,7 +503,7 @@ export const WIDGETS: WidgetDef[] = [
     Render: ({ s, editing }) => <StageSend s={s} editing={editing} /> },
   { type: "stage.show", label: "Message display", group: "stage", icon: MessagesSquare,
     description: "Shows a channel's messages: big (latest only) for the stage, or the whole conversation for the booth.",
-    size: { w: 8, h: 8, pw: 4, ph: 8 }, min: { w: 2, h: 2 },
+    size: { w: 8, h: 8, pw: 4, ph: 8 }, minPx: { w: 200, h: 100 },
     defaults: { channel: "pulpit", style: "big", hideOwn: true, tapSeen: true, showAge: true, empty: "clock" },
     fields: [
       { key: "channel", label: "Shows channel", type: "channel" },
@@ -490,12 +517,12 @@ export const WIDGETS: WidgetDef[] = [
     Render: ({ s, editing }) => <StageShow s={s} editing={editing} /> },
   { type: "stage.timer", label: "Stage timer", group: "stage", icon: Timer,
     description: "A channel's countdown (started from a Message sender's timer buttons, a macro, or the agent). Same time on every screen.",
-    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 2, h: 1 }, defaults: { channel: "pulpit", controls: false },
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: (s) => (bool(s.controls) ? { w: 260, h: 64 } : { w: 140, h: 64 }), defaults: { channel: "pulpit", controls: false },
     fields: [{ key: "channel", label: "Channel", type: "channel" }, { key: "controls", label: "Pause / +1 / stop buttons", type: "bool", help: "For the booth; leave off on stage screens." }],
     Render: ({ s, editing }) => <StageTimer s={s} editing={editing} /> },
   { type: "stage.live", label: "Live status", group: "stage", icon: Radio,
     description: "WE ARE LIVE when vMix is streaming, and/or this camera's tally: red live, green next.",
-    size: { w: 8, h: 2, pw: 4, ph: 2 }, min: { w: 2, h: 1 }, defaults: { mode: "both", camera: "" },
+    size: { w: 8, h: 2, pw: 4, ph: 2 }, minPx: (s) => (str(s.mode, "both") === "tally" ? { w: 140, h: 40 } : { w: 300, h: 40 }), defaults: { mode: "both", camera: "" },
     fields: [
       { key: "mode", label: "Shows", type: "select", options: [{ value: "both", label: "Stream + camera tally" }, { value: "stream", label: "Stream only (we are live)" }, { value: "tally", label: "Camera tally only" }] },
       { ...CAMERA_FIELD, showIf: (s) => str(s.mode, "both") !== "stream" },
@@ -503,8 +530,21 @@ export const WIDGETS: WidgetDef[] = [
     ],
     Render: ({ s }) => <StageLive s={s} /> },
 
-  { type: "camera.live", label: "Live view", group: "camera", icon: MonitorPlay, description: "A camera's picture. Drop several and pick a camera for each to build a multiview.",
-    size: { w: 6, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: { quality: "auto", camera: "", tally: false, tapToControl: true },
+  { type: "video", label: "Video", group: "camera", icon: MonitorPlay,
+    description: "Any feed: a camera, the program, slides… Drop several to build a multiview.",
+    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { feed: "", quality: "auto", tally: false, tapToControl: true },
+    fields: [
+      { key: "feed", label: "Feed", type: "feed", help: "Cameras, plus the feeds under Settings → Video feeds." },
+      { key: "quality", label: "Quality", type: "select", showIf: (s) => str(s.feed).startsWith("cam:"), help: "Auto: HD when it's the only video on the screen, SD when there are several or on a phone.",
+        options: [{ value: "auto", label: "Auto (recommended)" }, { value: "hd", label: "HD — always" }, { value: "sd", label: "SD — always (lighter)" }] },
+      label("title", "Title on the picture"),
+      { key: "tally", label: "Tally border (red live, green next)", type: "bool", showIf: (s) => str(s.feed).startsWith("cam:"), help: "From the video switcher: the input whose name matches the camera, or pick it below." },
+      { key: "input", label: "Switcher input for tally", type: "input", showIf: (s) => str(s.feed).startsWith("cam:") && bool(s.tally) },
+      { key: "tapToControl", label: "“Control this camera” button", type: "bool", showIf: (s) => str(s.feed).startsWith("cam:") },
+    ],
+    Render: ({ s, editing }) => <VideoWidget s={s} editing={editing} /> },
+  { type: "camera.live", hidden: true, label: "Live view", group: "camera", icon: MonitorPlay, description: "A camera's picture. Drop several and pick a camera for each to build a multiview.",
+    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { quality: "auto", camera: "", tally: false, tapToControl: true },
     fields: [
       CAMERA_FIELD,
       { key: "quality", label: "Quality", type: "select", help: "Auto: HD when it's the only video on the screen, SD when there are several or on a phone.",
@@ -516,7 +556,7 @@ export const WIDGETS: WidgetDef[] = [
     ],
     Render: ({ s, editing }) => <LiveCamPinned s={s} editing={editing} /> },
   { type: "camera.move", label: "Move", group: "camera", icon: Gamepad2, description: "Arrows and/or joystick, with Home, zoom, stop and speed.",
-    size: { w: 5, h: 10, ph: 10 }, min: { w: 3, h: 6 },
+    size: { w: 5, h: 10, ph: 10 }, minPx: { w: 260, h: 390 },
     defaults: { controls: "switchable", opensIn: "buttons", home: true, zoom: true, speed: true, startFine: false },
     fields: [
       { key: "controls", label: "Controls", type: "select", options: [{ value: "switchable", label: "Switchable (arrows ⇄ joystick)" }, { value: "buttons", label: "Arrows only" }, { value: "joystick", label: "Joystick only" }] },
@@ -528,46 +568,47 @@ export const WIDGETS: WidgetDef[] = [
     ],
     Render: ({ s }) => <MoveWidget s={s} /> },
   { type: "camera.preset", label: "One preset", group: "camera", icon: Bookmark, description: "A single big preset button.",
-    size: { w: 3, h: 2, pw: 2, ph: 2 }, min: { w: 1, h: 2 }, defaults: {},
+    size: { w: 3, h: 2, pw: 2, ph: 2 }, minPx: { w: 140, h: 56 }, defaults: {},
     fields: [CAMERA_FIELD, { key: "preset", label: "Preset", type: "source", source: "presets" }, label("label", "Label (optional)")],
     Render: ({ s }) => <OnePreset s={s} /> },
   { type: "camera.presets", label: "Presets", group: "camera", icon: LayoutGrid, description: "All presets.",
-    size: { w: 6, h: 6, ph: 7 }, min: { w: 3, h: 3 }, defaults: {}, fields: [],
+    size: { w: 6, h: 6, ph: 7 }, minPx: { w: 280, h: 180 }, defaults: {}, fields: [],
     Render: () => <Fill><PresetGrid compact editable={false} /></Fill> },
   { type: "camera.picture", label: "Picture", group: "camera", icon: Sun, description: "Brightness, white balance and the other picture settings.",
-    size: { w: 5, h: 9, ph: 10 }, min: { w: 3, h: 5 }, defaults: {}, fields: [],
+    size: { w: 5, h: 9, ph: 10 }, minPx: { w: 260, h: 370 }, defaults: {}, fields: [],
     Render: () => <Fill><ImageSettings /></Fill> },
   { type: "camera.home", label: "Home", group: "camera", icon: HomeIcon, description: "A single Home button.",
-    size: { w: 2, h: 3, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: {}, fields: [], Render: () => <HomeWidget /> },
+    size: { w: 2, h: 3, pw: 2, ph: 3 }, minPx: { w: 80, h: 60 }, defaults: {}, fields: [], Render: () => <HomeWidget /> },
   { type: "camera.stop", label: "Stop camera", group: "camera", icon: Square, description: "A big red stop.",
-    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 1, h: 2 }, defaults: {}, fields: [], Render: () => <StopWidget /> },
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 120, h: 60 }, defaults: {}, fields: [], Render: () => <StopWidget /> },
   { type: "camera.zoom", label: "Zoom", group: "camera", icon: ZoomIn, description: "Tele and wide.",
-    size: { w: 2, h: 5, pw: 1, ph: 5 }, min: { w: 1, h: 3 }, defaults: {}, fields: [], Render: () => <ZoomWidget /> },
+    size: { w: 2, h: 5, pw: 1, ph: 5 }, minPx: { w: 70, h: 120 }, defaults: {}, fields: [], Render: () => <ZoomWidget /> },
   { type: "camera.speed", label: "Speed", group: "camera", icon: Gauge, description: "Speed slider and Fine.",
-    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <SpeedWidget /> },
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 180, h: 110 }, defaults: {}, fields: [], Render: () => <SpeedWidget /> },
 
-  { type: "switcher.program", label: "Program", group: "switcher", icon: Tv, description: "What the congregation sees.",
-    size: { w: 7, h: 8, ph: 5 }, min: { w: 2, h: 3 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="program" s={s} /> },
-  { type: "switcher.confidence", label: "Confidence", group: "switcher", icon: Presentation, description: "Current and next slide.",
-    size: { w: 5, h: 6, ph: 5 }, min: { w: 2, h: 3 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="confidence" s={s} /> },
+  { type: "switcher.program", hidden: true, label: "Program", group: "switcher", icon: Tv, description: "What the congregation sees.",
+    size: { w: 7, h: 8, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="program" s={s} /> },
+  { type: "switcher.confidence", hidden: true, label: "Confidence", group: "switcher", icon: Presentation, description: "Current and next slide.",
+    size: { w: 5, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="confidence" s={s} /> },
   { type: "switcher.inputs", label: "Input bank", group: "switcher", icon: LayoutGrid, description: "Tap an input to preview it.",
-    size: { w: 6, h: 4, ph: 5 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <Inputs /> },
+    size: { w: 6, h: 4, ph: 5 }, minPx: { w: 200, h: 100 }, defaults: {}, fields: [conn("switcher")], Render: () => <Inputs /> },
   { type: "switcher.cutfade", label: "Cut / Fade", group: "switcher", icon: ChevronsRight, description: "Take preview live.",
-    size: { w: 4, h: 3, ph: 3 }, min: { w: 2, h: 2 }, defaults: { fadeMs: 1000 },
-    fields: [{ key: "fadeMs", label: "Fade length (ms)", type: "number" }], Render: ({ s }) => <CutFade s={s} /> },
+    size: { w: 4, h: 3, ph: 3 }, minPx: { w: 160, h: 60 }, defaults: { fadeMs: 1000 },
+    fields: [conn("switcher"), { key: "fadeMs", label: "Fade length (ms)", type: "number" }], Render: ({ s }) => <CutFade s={s} /> },
 
   { type: "slides.prevnext", label: "Prev / Next", group: "slides", icon: Presentation, description: "Big slide buttons.",
-    size: { w: 4, h: 3, ph: 3 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <PrevNext /> },
+    size: { w: 4, h: 3, ph: 3 }, minPx: { w: 280, h: 56 }, defaults: {}, fields: [conn("slides")], Render: () => <PrevNext /> },
   { type: "slides.button", label: "Slide button", group: "slides", icon: Square, description: "One slide action (black, logo, clear…).",
-    size: { w: 2, h: 2, pw: 2, ph: 2 }, min: { w: 1, h: 2 }, defaults: {},
-    fields: [{ key: "action", label: "Action", type: "source", source: "slideActions" }, label("label", "Label (optional)")],
+    size: { w: 2, h: 2, pw: 2, ph: 2 }, minPx: { w: 90, h: 56 }, defaults: {},
+    fields: [conn("slides"), { key: "action", label: "Action", type: "source", source: "slideActions" }, label("label", "Label (optional)")],
     Render: ({ s }) => <SlideButton s={s} /> },
 
   { type: "audio.favorites", label: "Favorites", group: "audio", icon: ListMusic, description: "All favorite channels.",
-    size: { w: 8, h: 6, ph: 9 }, min: { w: 3, h: 4 }, defaults: {}, fields: [], Render: () => <Fill><Mixer /></Fill> },
+    size: { w: 8, h: 6, ph: 9 }, minPx: { w: 280, h: 160 }, defaults: {}, fields: [conn("mixer")], Render: () => <Fill><Mixer /></Fill> },
   { type: "audio.mute", label: "Mute button", group: "audio", icon: Mic, description: "One channel, big.",
-    size: { w: 2, h: 4, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: { askUnmute: false, showChannel: true },
+    size: { w: 2, h: 4, pw: 2, ph: 3 }, minPx: { w: 100, h: 92 }, defaults: { askUnmute: false, showChannel: true },
     fields: [
+      conn("mixer"),
       { key: "slot", label: "Channel", type: "source", source: "favorites" },
       label("label", "Label (optional)"),
       { key: "askUnmute", label: "Ask before unmuting", type: "bool" },
@@ -576,41 +617,49 @@ export const WIDGETS: WidgetDef[] = [
     Render: ({ s }) => <MuteButton s={s} /> },
 
   { type: "macros.button", label: "Macro button", group: "macros", icon: Play, description: "Run one macro.",
-    size: { w: 2, h: 3, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: {},
+    size: { w: 2, h: 3, pw: 2, ph: 3 }, minPx: { w: 120, h: 100 }, defaults: {},
     fields: [{ key: "macro", label: "Macro", type: "source", source: "macros" }, label("label", "Label (optional)")],
     Render: ({ s }) => <MacroButton s={s} /> },
   { type: "macros.list", label: "Macro list", group: "macros", icon: ListChecks, description: "All macros, with the builder.",
-    size: { w: 5, h: 7, ph: 8 }, min: { w: 3, h: 4 }, defaults: {}, fields: [], Render: () => <Fill><Macros /></Fill> },
+    size: { w: 5, h: 7, ph: 8 }, minPx: { w: 310, h: 184 }, defaults: {}, fields: [], Render: () => <Fill><Macros /></Fill> },
 
   { type: "metrics.bandwidth", label: "Video bandwidth", group: "metrics", icon: Activity,
     description: "Live: how much video goes to screens and comes from cameras / vMix, per feed, who's watching, and the vMix SRT link.",
-    size: { w: 6, h: 7, pw: 4, ph: 8 }, min: { w: 3, h: 3 }, defaults: { viewers: true, senders: true },
+    size: { w: 6, h: 7, pw: 4, ph: 8 }, minPx: { w: 380, h: 210 }, defaults: { viewers: true, senders: true },
     fields: [{ key: "viewers", label: "List who's watching", type: "bool" }, { key: "senders", label: "Show the vMix SRT link", type: "bool" }],
     Render: ({ s }) => <BandwidthWidget s={s} /> },
   { type: "metrics.health", label: "System health", group: "metrics", icon: HeartPulse,
     description: "Cameras, vMix, slides, mixer, stream gateway and stage screens: up or down, since when, and recent problems.",
-    size: { w: 4, h: 6, pw: 4, ph: 6 }, min: { w: 2, h: 3 }, defaults: { problems: true },
+    size: { w: 4, h: 6, pw: 4, ph: 6 }, minPx: { w: 270, h: 272 }, defaults: { problems: true },
     fields: [{ key: "problems", label: "Show recent problems", type: "bool" }],
     Render: ({ s }) => <HealthWidget s={s} /> },
 
   { type: "other.clock", label: "Clock", group: "other", icon: Clock, description: "The time, big.",
-    size: { w: 3, h: 3, pw: 2, ph: 3 }, min: { w: 1, h: 2 }, defaults: { seconds: false, date: false },
+    size: { w: 3, h: 3, pw: 2, ph: 3 }, minPx: { w: 215, h: 152 }, defaults: { seconds: false, date: false },
     fields: [{ key: "seconds", label: "Show seconds", type: "bool" }, { key: "date", label: "Show the date", type: "bool" }],
     Render: ({ s }) => <ClockWidget s={s} /> },
   { type: "other.countdown", label: "Countdown", group: "other", icon: Timer, description: "Time left until a set time.",
-    size: { w: 3, h: 3, pw: 4, ph: 3 }, min: { w: 1, h: 2 }, defaults: { target: "11:00" },
+    size: { w: 3, h: 3, pw: 4, ph: 3 }, minPx: { w: 293, h: 105 }, defaults: { target: "11:00" },
     fields: [label("target", "Count down to (HH:MM)"), label("label", "Label (optional)")],
     Render: ({ s }) => <CountdownWidget s={s} /> },
   { type: "other.text", label: "Text / note", group: "other", icon: Type, description: "A note or heading.",
-    size: { w: 4, h: 2, pw: 4, ph: 2 }, min: { w: 1, h: 1 }, defaults: { size: "md" },
+    size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 80, h: 40 }, defaults: { size: "md" },
     fields: [label("text", "Text"), { key: "size", label: "Size", type: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Huge" }] },
       { key: "align", label: "Centre it", type: "select", options: [{ value: "", label: "Left" }, { value: "center", label: "Centre" }] }],
     Render: ({ s }) => <TextWidget s={s} /> },
+  { type: "other.schedule", label: "Coming up", group: "macros", icon: Timer, description: "Scheduled actions, with Run now and Cancel.",
+    size: { w: 5, h: 4, pw: 4, ph: 4 }, minPx: { w: 260, h: 90 }, defaults: { recent: true },
+    fields: [{ key: "recent", label: "Show the last few results", type: "bool" }], Render: ({ s }) => <ComingUp s={s} /> },
   { type: "other.log", label: "Action log", group: "other", icon: ScrollText, description: "Every press, in plain words.",
-    size: { w: 6, h: 4, ph: 5 }, min: { w: 2, h: 2 }, defaults: {}, fields: [], Render: () => <LogWidget /> },
+    size: { w: 6, h: 4, ph: 5 }, minPx: { w: 200, h: 100 }, defaults: {}, fields: [], Render: () => <LogWidget /> },
 ];
 
 export const WIDGET = Object.fromEntries(WIDGETS.map((w) => [w.type, w])) as Record<string, WidgetDef>;
+
+/** Add-on widgets join the registry as their add-ons load. */
+export function registerWidgets(defs: WidgetDef[]) {
+  for (const d of defs) WIDGET[d.type] = d;
+}
 
 /** Shown for a widget type this build doesn't know (e.g. from a newer version). */
 export function UnknownWidget({ type }: { type: string }) {

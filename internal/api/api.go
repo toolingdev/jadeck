@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"ptz/internal/addons"
 	"ptz/internal/auth"
 	"ptz/internal/camera"
 	"ptz/internal/cams"
@@ -25,6 +26,7 @@ import (
 	"ptz/internal/logx"
 	"ptz/internal/macros"
 	"ptz/internal/netinfo"
+	"ptz/internal/schedule"
 	"ptz/internal/settings"
 	"ptz/internal/stage"
 	"ptz/internal/update"
@@ -48,6 +50,8 @@ type Server struct {
 	Dev         *devices.Set  // initial device set; use Devs() — it can be swapped live
 	DevFile     *devices.File // the config Dev was built from
 	DevicesPath string        // where the Settings screen saves it
+	Addons      *addons.Host  // runs add-ons; opens connections
+	grants      grants        // controller access for Controller add-ons
 	devMu       sync.RWMutex
 	MacroStore  *macros.Store
 	Macros      *macros.Engine
@@ -57,7 +61,8 @@ type Server struct {
 	Dashboards  *dashboards.Store
 	Trust       *auth.Trust
 	Stage       *stage.Store
-	Logs        *logx.Logs // diagnostics: log ring, files, level
+	Schedule    *schedule.Store // scheduled actions (Coming up)
+	Logs        *logx.Logs      // diagnostics: log ring, files, level
 
 	hub    *hub
 	mux    *http.ServeMux
@@ -105,7 +110,12 @@ func (s *Server) Handler() http.Handler {
 
 	s.setupRoutes(mux)
 	s.deviceRoutes(mux)
-	s.devConfigRoutes(mux)
+	s.connectionRoutes(mux)
+	s.feedRoutes(mux)
+	if s.Schedule != nil {
+		s.scheduleRoutes(mux)
+	}
+	s.addonRoutes(mux)
 	if s.Dashboards != nil {
 		s.dashboardRoutes(mux)
 	}

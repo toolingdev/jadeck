@@ -69,6 +69,11 @@ type Step struct {
 	DurationMs  int    `json:"durationMs,omitempty"`
 	Preset      string `json:"preset,omitempty"`
 	Ms          *int   `json:"ms,omitempty"`
+	// addon steps: an add-on's action on one of its connections
+	Addon      string         `json:"addon,omitempty"`
+	Connection string         `json:"connection,omitempty"`
+	Params     map[string]any `json:"params,omitempty"`
+	Label      string         `json:"label,omitempty"`
 }
 
 // Env is what validation needs to resolve names.
@@ -81,6 +86,8 @@ type Env struct {
 	MaxChannel int
 	// PresetExists checks a camera preset name.
 	PresetExists func(name string) bool
+	// AddonAction resolves an add-on action's label ("" + false = unknown).
+	AddonAction func(addon, action string) (label string, ok bool)
 }
 
 var allowed = map[string][]string{
@@ -89,6 +96,7 @@ var allowed = map[string][]string{
 	"slides":        {"type", "action"},
 	"camera_preset": {"type", "preset"},
 	"delay":         {"type", "ms"},
+	"addon":         {"type", "addon", "action", "connection", "params", "label"},
 }
 
 func isInt(v any) (int, bool) {
@@ -159,7 +167,7 @@ func validateStep(n int, raw any, env Env) (Step, error) {
 	}
 	fields, known := allowed[typ]
 	if !known {
-		return Step{}, verr("step %d: unknown step type %q (types: camera_preset, delay, mixer_mute, slides, switcher)", n, s["type"])
+		return Step{}, verr("step %d: unknown step type %q (types: addon, camera_preset, delay, mixer_mute, slides, switcher)", n, s["type"])
 	}
 	for k := range s {
 		found := false
@@ -260,6 +268,27 @@ func validateStep(n int, raw any, env Env) (Step, error) {
 			return Step{}, verr("step %d: no camera preset named %q", n, p)
 		}
 		out.Preset = p
+	case "addon":
+		out.Addon, _ = s["addon"].(string)
+		out.Action, _ = s["action"].(string)
+		out.Connection, _ = s["connection"].(string)
+		if out.Addon == "" || out.Action == "" {
+			return Step{}, verr("step %d: an addon step needs \"addon\" and \"action\" (e.g. proclaim, go_to_item)", n)
+		}
+		if p, present := s["params"]; present {
+			pm, ok := p.(map[string]any)
+			if !ok {
+				return Step{}, verr("step %d: \"params\" must be an object", n)
+			}
+			out.Params = pm
+		}
+		if env.AddonAction != nil {
+			label, ok := env.AddonAction(out.Addon, out.Action)
+			if !ok {
+				return Step{}, verr("step %d: the %s add-on has no action %q (or it isn't installed)", n, out.Addon, out.Action)
+			}
+			out.Label = label
+		}
 	case "delay":
 		v, ok := isInt(s["ms"])
 		if !ok {
@@ -303,6 +332,15 @@ func Describe(s Step) string {
 		return "Slides: " + s.Action
 	case "camera_preset":
 		return "Camera: recall " + s.Preset
+	case "addon":
+		l := s.Label
+		if l == "" {
+			l = s.Action
+		}
+		if v, ok := s.Params["index"]; ok {
+			l = fmt.Sprintf("%s %v", strings.TrimSuffix(l, "…"), v)
+		}
+		return s.Addon + ": " + l
 	}
 	return s.Type
 }

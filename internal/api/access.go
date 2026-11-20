@@ -35,7 +35,11 @@ func scopeFor(method, path string) string {
 	case path == "/" || path == "/dashboard" || has("/dashboard/") || path == "/settings" || has("/settings/") || path == "/setup" || has("/static/") || has("/assets/") ||
 		has("/legacy") || path == "/api/version" || path == "/sw.js" || path == "/manifest.webmanifest" || path == "/icon.svg":
 		return scopePublic
-	case has("/api/keys") || has("/api/audit") || has("/api/devices/setup") || has("/api/devices/test") || has("/api/devices/options") ||
+	case (has("/api/connections/") && (strings.HasSuffix(path, "/state") || strings.Contains(path, "/actions/"))):
+		return "addons" // add-on state and actions (a capability's own routes keep their scopes)
+	case (path == "/api/connections" || path == "/api/addons" || path == "/api/feeds") && read:
+		return scopeAny // lists for widget pickers and previews; secrets are masked
+	case has("/api/keys") || has("/api/audit") || has("/api/connections") || has("/api/addons") || has("/api/feeds") ||
 		has("/api/video") || has("/api/system") || has("/api/cameras/"):
 		return scopeTrusted
 	case path == "/api/cameras":
@@ -54,6 +58,8 @@ func scopeFor(method, path string) string {
 		return scopeAny
 	case path == "/api/stage/channels" || (has("/api/stage/channels/") && !strings.Contains(strings.TrimPrefix(path, "/api/stage/channels/"), "/")):
 		return scopeTrusted // create, rename, delete channels
+	case path == "/api/schedule" || has("/api/schedule/"):
+		return "schedule"
 	case path == "/api/stage" || has("/api/stage/"):
 		return "stage"
 	case has("/api/dashboards"):
@@ -139,6 +145,17 @@ func (s *Server) access(next http.Handler) http.Handler {
 		}
 		if need == scopeTrusted {
 			fail(w, 403, "this needs the trusted network (this PC, the LAN or Tailscale), not a key")
+			return
+		}
+		if g := s.grantFor(secret); g != nil { // a Controller add-on's connection
+			if need != scopeAny && !g.Has(need) {
+				fail(w, 403, "this add-on connection does not have the "+need+" permission")
+				return
+			}
+			if r.Method != http.MethodGet && !mcp {
+				s.Keys.Audit(g, clientIP(r), r.Method+" "+r.URL.Path, "ok")
+			}
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), keyCtx, g)))
 			return
 		}
 		k, err := s.Keys.Lookup(secret)

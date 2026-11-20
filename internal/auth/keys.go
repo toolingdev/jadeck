@@ -38,6 +38,9 @@ var Scopes = []Scope{
 	{"macros.run", "Run macros", "List and run macros."},
 	{"macros.edit", "Edit macros", "Create, change, import and delete macros."},
 	{"stage", "Stage messages", "Read and send stage messages, replies and timers."},
+	{"schedule", "Schedule actions", "See, add and cancel scheduled actions (each step still needs its own permission)."},
+	{"addons", "Add-on actions", "Read add-on state and run add-on actions (e.g. Proclaim service items)."},
+	{"addons.admin", "Manage add-ons", "List add-ons and connections, read add-on logs, load an add-on folder in dev mode, restart add-ons (for agents that build add-ons)."},
 	{"update.apply", "Apply updates", "Check for and apply signed app updates."},
 }
 

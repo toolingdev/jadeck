@@ -56,12 +56,14 @@ func newFakeGH(t *testing.T, tag string, bin []byte, tamper func(map[string][]by
 		tamper(f.assets)
 	}
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/repos/o/r/releases/latest" {
+		if r.URL.Path == "/repos/o/r/releases" {
 			rel := Release{Tag: f.tag, Body: "notes"}
 			for n := range f.assets {
 				rel.Assets = append(rel.Assets, Asset{Name: n, URL: f.srv.URL + "/dl/" + n})
 			}
-			json.NewEncoder(w).Encode(rel)
+			// An add-on release published later must never be offered as an app update.
+			addonRel := Release{Tag: "addon-proclaim-v9.9.9", Body: "add-on"}
+			json.NewEncoder(w).Encode([]Release{addonRel, rel})
 			return
 		}
 		if b, ok := f.assets[strings.TrimPrefix(r.URL.Path, "/dl/")]; ok && r.Header.Get("Accept") == "application/octet-stream" {

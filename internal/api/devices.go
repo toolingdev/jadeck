@@ -29,6 +29,23 @@ func (s *Server) deviceRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/mixer/channel-mute", s.mixerChannelMute)
 }
 
+// devsFor is the device set a request means: ?conn=<id> picks one
+// connection as "the" switcher / slides / mixer, otherwise the defaults.
+func (s *Server) devsFor(r *http.Request) *devices.Set {
+	d := s.Devs()
+	if id := r.URL.Query().Get("conn"); id != "" {
+		if v, err := d.Scoped(id); err == nil {
+			return v
+		}
+		return &devices.Set{SwitcherErr: errNoConn(id), PresentationErr: errNoConn(id), MixerErr: errNoConn(id)}
+	}
+	return d
+}
+
+func errNoConn(id string) error {
+	return errors.New("connection " + id + " no longer exists — pick another in the widget's settings")
+}
+
 func errText(err error) string {
 	if err == nil {
 		return ""
@@ -41,8 +58,17 @@ func (s *Server) devicesInfo(w http.ResponseWriter, r *http.Request) {
 	kind := func(cfg devices.DeviceConfig, live bool, err error) map[string]any {
 		return map[string]any{"driver": cfg.Driver, "label": cfg.Label, "configured": cfg.Driver != "", "ready": live, "error": errText(err)}
 	}
+	conns := []map[string]any{}
+	for _, l := range d.Conns {
+		caps := l.Caps
+		if len(caps) == 0 && s.Addons != nil {
+			caps = s.Addons.DeclaredCaps(l.Connection)
+		}
+		conns = append(conns, map[string]any{"id": l.ID, "name": l.Name, "addon": l.Addon, "type": l.Type,
+			"capabilities": caps, "ready": l.Impl != nil, "error": errText(l.Err)})
+	}
 	writeJSON(w, 200, map[string]any{
-		"drivers":      devices.Drivers(),
+		"connections":  conns,
 		"switcher":     kind(d.SwitcherCfg, d.Switcher != nil, d.SwitcherErr),
 		"presentation": kind(d.PresentationCfg, d.Presentation != nil, d.PresentationErr),
 		"mixer":        kind(d.MixerCfg, d.Mixer != nil, d.MixerErr),
@@ -56,8 +82,7 @@ func short(r *http.Request) (context.Context, context.CancelFunc) {
 
 // ---------------------------------------------------------- switcher
 
-func (s *Server) switcherState(ctx context.Context) map[string]any {
-	d := s.Devs()
+func (s *Server) switcherState(ctx context.Context, d *devices.Set) map[string]any {
 	out := map[string]any{"driver": d.SwitcherCfg.Driver, "label": d.SwitcherCfg.Label,
 		"simulated": d.SwitcherCfg.Driver == "sim", "connected": false,
 		"inputs": []any{}, "preview": 0, "active": 0, "streaming": false, "recording": false,
@@ -86,7 +111,7 @@ func (s *Server) switcherState(ctx context.Context) map[string]any {
 func (s *Server) switcherStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := short(r)
 	defer cancel()
-	writeJSON(w, 200, s.switcherState(ctx))
+	writeJSON(w, 200, s.switcherState(ctx, s.devsFor(r)))
 }
 
 func (s *Server) switcherAct(w http.ResponseWriter, r *http.Request, do func(context.Context, devices.Switcher) error) {
@@ -100,7 +125,7 @@ func (s *Server) switcherAct(w http.ResponseWriter, r *http.Request, do func(con
 		fail(w, 502, err.Error())
 		return
 	}
-	writeJSON(w, 200, s.switcherState(ctx))
+	writeJSON(w, 200, s.switcherState(ctx, s.devsFor(r)))
 }
 
 func (s *Server) switcherPreview(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +163,7 @@ func (s *Server) switcherFade(w http.ResponseWriter, r *http.Request) {
 // ------------------------------------------------------ presentation
 
 func (s *Server) presentationStatus(w http.ResponseWriter, r *http.Request) {
-	d := s.Devs()
+	d := s.devsFor(r)
 	out := map[string]any{"driver": d.PresentationCfg.Driver, "label": d.PresentationCfg.Label,
 		"simulated": d.PresentationCfg.Driver == "sim", "available": false, "actions": []string{}}
 	if d.Presentation == nil {
@@ -164,13 +189,14 @@ func (s *Server) presentationDo(w http.ResponseWriter, r *http.Request) {
 		s.presentationStatus(w, r)
 		return
 	}
-	if s.Devs().Presentation == nil {
+	d := s.devsFor(r)
+	if d.Presentation == nil {
 		fail(w, 503, "presentation not set up")
 		return
 	}
 	ctx, cancel := short(r)
 	defer cancel()
-	det, err := s.Devs().Presentation.Do(ctx, action)
+	det, err := d.Presentation.Do(ctx, action)
 	if errors.Is(err, devices.ErrUnknownAction) {
 		fail(w, 400, err.Error())
 		return
@@ -189,7 +215,7 @@ func (s *Server) presentationDo(w http.ResponseWriter, r *http.Request) {
 // ------------------------------------------------------------- mixer
 
 func (s *Server) mixerStatus(w http.ResponseWriter, r *http.Request) {
-	d := s.Devs()
+	d := s.devsFor(r)
 	ctx, cancel := short(r)
 	defer cancel()
 	chans := func(read bool) []map[string]any {
@@ -238,7 +264,7 @@ func (s *Server) mixerMute(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := short(r)
 	defer cancel()
-	sl, back, err := s.Devs().MuteSlot(ctx, b.Slot, b.Muted)
+	sl, back, err := s.devsFor(r).MuteSlot(ctx, b.Slot, b.Muted)
 	switch {
 	case errors.Is(err, devices.ErrUnassigned):
 		fail(w, 409, err.Error())
@@ -265,7 +291,7 @@ func (s *Server) mixerChannelMute(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := short(r)
 	defer cancel()
-	back, err := s.Devs().MuteChannel(ctx, b.Channel, *b.Muted)
+	back, err := s.devsFor(r).MuteChannel(ctx, b.Channel, *b.Muted)
 	switch {
 	case errors.Is(err, devices.ErrNotConfigured):
 		fail(w, 503, err.Error())

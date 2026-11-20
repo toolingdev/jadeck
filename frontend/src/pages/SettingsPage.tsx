@@ -1,29 +1,78 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyRound, Plus, Copy, Check, Ban, Trash2, SlidersHorizontal } from "lucide-react";
 import { api, type ApiKey, type AuditEntry, type Scope } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
-import { DeviceSetup } from "@/components/DeviceSetup";
+import { ConnectionsSection } from "@/components/Connections";
+import { AddonsSection } from "@/components/Addons";
+import { cn } from "@/lib/cn";
 import { DashboardSettings } from "@/components/DashboardSettings";
 import { StageSettings } from "@/components/StageSettings";
 import { CamerasCard } from "@/components/CameraSetup";
-import { SystemCard, VideoCard } from "@/components/SystemSetup";
+import { SystemCard } from "@/components/SystemSetup";
+import { VideoFeedsSection } from "@/components/VideoFeeds";
 import { useLog } from "@/lib/log";
 import { Badge, Button, Card, CardBody, CardHeader, Dialog, Empty, Input, Switch } from "@/components/ui";
 
+const SECTIONS = [
+  { id: "cameras", label: "Cameras" },
+  { id: "connections", label: "Connections" },
+  { id: "feeds", label: "Video feeds" },
+  { id: "dashboards", label: "Dashboards" },
+  { id: "stage", label: "Stage channels" },
+  { id: "addons", label: "Add-ons" },
+  { id: "access", label: "Access & API keys" },
+  { id: "system", label: "System" },
+] as const;
+type Section = (typeof SECTIONS)[number]["id"];
+
+function sectionFromPath(): Section {
+  const id = location.pathname.split("/")[2] as Section;
+  return SECTIONS.some((s) => s.id === id) ? id : "cameras";
+}
+
 export function SettingsPage() {
+  const [sec, setSec] = useState<Section>(sectionFromPath);
+  useEffect(() => {
+    const on = () => setSec(sectionFromPath());
+    window.addEventListener("popstate", on);
+    return () => window.removeEventListener("popstate", on);
+  }, []);
+  const go = (id: Section) => {
+    history.pushState(null, "", `/settings/${id}`);
+    setSec(id);
+    window.scrollTo(0, 0);
+  };
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-2 [&>*]:min-w-0">
-      <div className="lg:col-span-2"><CamerasCard /></div>
-      <div className="lg:col-span-2"><DeviceSetup /></div>
-      <VideoCard />
-      <SystemCard />
-      <div className="lg:col-span-2"><DashboardSettings /></div>
-      <div className="lg:col-span-2"><StageSettings /></div>
-      <div className="lg:col-span-2"><Keys /></div>
-      <Connect />
-      <Audit />
-      <div className="lg:col-span-2 flex justify-center pt-2">
-        <a href="/setup" className="text-xs text-muted underline-offset-2 hover:text-fg hover:underline">Run the setup wizard again</a>
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <nav aria-label="Settings" className="flex gap-1 overflow-x-auto rounded-2xl border border-line bg-panel p-1.5 lg:sticky lg:top-[68px] lg:w-56 lg:shrink-0 lg:flex-col lg:p-2">
+        <span className="hidden px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-dim lg:block">Settings</span>
+        {SECTIONS.map((s) => (
+          <button key={s.id} type="button" onClick={() => go(s.id)}
+            className={cn("shrink-0 whitespace-nowrap rounded-lg px-2.5 py-2 text-left text-sm transition", sec === s.id ? "bg-raise font-semibold text-fg" : "text-muted hover:text-fg")}>
+            {s.label}
+          </button>
+        ))}
+      </nav>
+      <div className="min-w-0 flex-1 [&>*]:min-w-0">
+        {sec === "cameras" && <CamerasCard />}
+        {sec === "connections" && <ConnectionsSection />}
+        {sec === "feeds" && <VideoFeedsSection />}
+        {sec === "dashboards" && <DashboardSettings />}
+        {sec === "stage" && <StageSettings />}
+        {sec === "addons" && <AddonsSection />}
+        {sec === "access" && (
+          <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0">
+            <div className="lg:col-span-2"><Keys /></div>
+            <Connect />
+            <Audit />
+          </div>
+        )}
+        {sec === "system" && (
+          <div className="space-y-3">
+            <SystemCard />
+            <a href="/setup" className="block text-center text-xs text-muted underline-offset-2 hover:text-fg hover:underline">Run the setup wizard again</a>
+          </div>
+        )}
       </div>
     </div>
   );

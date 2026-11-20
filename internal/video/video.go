@@ -206,7 +206,10 @@ func Config(s settings.Settings) string {
 	b.WriteString("rtmp: no\nmoq: no\n")
 	fmt.Fprintf(&b, "webrtc: yes\nwebrtcAddress: :%d\nwebrtcAllowOrigins: ['*']\nwebrtcICEServers2: []\n", PortWebRTC)
 	fmt.Fprintf(&b, "hls: yes\nhlsAddress: :%d\nhlsAllowOrigins: ['*']\nhlsVariant: lowLatency\n", PortHLS)
-	srt := s.Video.Program || s.Video.Confidence
+	srt := false
+	for _, f := range s.Video.Feeds {
+		srt = srt || f.Source == "push" || strings.HasPrefix(f.URL, "srt://")
+	}
 	if srt {
 		fmt.Fprintf(&b, "srt: yes\nsrtAddress: :%d\n", PortSRT)
 	} else {
@@ -221,11 +224,19 @@ func Config(s settings.Settings) string {
 			fmt.Fprintf(&b, "  %s:\n    source: %s\n    rtspTransport: tcp\n    sourceOnDemand: yes\n", p.name, q(c.RTSP(p.path)))
 		}
 	}
-	if s.Video.Program {
-		b.WriteString("  program:\n    source: publisher\n")
-	}
-	if s.Video.Confidence {
-		b.WriteString("  confidence:\n    source: publisher\n")
+	for _, f := range s.Video.Feeds {
+		switch f.Source {
+		case "push":
+			fmt.Fprintf(&b, "  %s:\n    source: publisher\n", f.ID)
+		case "pull":
+			if f.URL == "" {
+				continue
+			}
+			fmt.Fprintf(&b, "  %s:\n    source: %s\n    sourceOnDemand: yes\n", f.ID, q(f.URL))
+			if strings.HasPrefix(f.URL, "rtsp") {
+				b.WriteString("    rtspTransport: tcp\n")
+			}
+		}
 	}
 	return b.String()
 }

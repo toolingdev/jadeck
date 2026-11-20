@@ -1,32 +1,29 @@
-# Devices and drivers
+# Connections
 
-The controller ships generic. Everything venue-specific lives in a
-`devices.json`, not in code. It picks one driver per device kind:
+The gear the controller talks to lives under **Settings → Connections**.
+There can be any number of each kind, and each connection comes from an
+add-on (see [ADDONS.md](ADDONS.md)):
 
-| Kind | Interface | Drivers included |
+| Kind | What it does | Add-ons |
 |---|---|---|
-| Switcher | preview / cut / fade, state | `vmix`, `sim` |
-| Presentation | named actions (next, prev, black, …) | `midi` (Proclaim, anything MIDI-learnable), `http` (ProPresenter-style REST), `sim` |
-| Mixer | per-channel mute with read-back | `osc` with presets `wing`, `x32` (or custom addresses), `sim` |
+| Video switcher | preview / cut / fade, state, tally, live | vMix, Simulated |
+| Slides | next, prev, blank, logo, clear (plus the add-on's own actions) | Proclaim (network), MIDI notes, HTTP API, Simulated |
+| Audio mixer | per-channel mute with read-back, quick channels | Behringer WING (X32/M32 experimental), Simulated |
 
-Camera: PTZOptics VISCA over TCP (the camera layer is its own package;
-more camera protocols are a planned driver kind).
+Camera: PTZOptics VISCA over TCP, built into the controller.
 
-## Setting devices up
+**Setting up.** Add a connection, fill in its form, press **Test**, then
+**Save**. Changes go live at once, with no restart. Only the trusted
+network (this PC, the LAN, Tailscale) can change connections; API keys
+can't.
 
-Use **Settings → Devices** in the app: pick a driver per device, fill in
-the form, press **Test**, then **Save & apply**. Changes go live at once,
-no restart. Only the trusted network (this PC, the LAN, Tailscale) can
-change them; API keys can't.
+**Where it's saved.** The app saves connections in
+`<data dir>/devices.json` (version 2) and owns that file. A version-1 file
+(one switcher, one slides, one mixer) is migrated on start, and a backup
+is kept. `ptz --mock` starts with the Simulated add-on's three
+connections.
 
-The app saves the result to `<data dir>/devices.json` (or `PTZ_DEVICES`).
-Nobody needs to edit that file. `ptz --mock` starts with simulated
-devices until something is saved.
-
-Examples: `examples/devices.example.json` (vMix + Proclaim over MIDI +
-WING) and `examples/devices.example.json` (vMix + ProPresenter + X32).
-
-## Driver notes
+## Notes per add-on
 
 - **midi**: Windows uses winmm and Linux uses ALSA raw MIDI
   (`/dev/snd/midiC*D*`). macOS isn't supported yet. On Windows, install

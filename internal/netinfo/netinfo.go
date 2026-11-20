@@ -55,10 +55,10 @@ func Addrs() []Addr {
 type Responder struct {
 	Log *slog.Logger
 
-	mu     sync.Mutex
-	name   string
-	srv    *mdns.Conn
-	err    string
+	mu   sync.Mutex
+	name string
+	srv  *mdns.Conn
+	err  string
 }
 
 // Set (re)starts the responder for name; "" turns it off.

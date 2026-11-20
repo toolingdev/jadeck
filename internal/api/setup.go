@@ -228,7 +228,13 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		}
 		b.External = strings.TrimSpace(b.External)
 		_, err := s.Settings.Update(func(st *settings.Settings) error {
+			feeds := st.Video.Feeds // edited under Settings → Video feeds
 			st.Video = b.Video
+			st.Video.Feeds = feeds
+			if b.Program || b.Confidence { // older clients' switches
+				st.Video.Feeds = nil
+				st.Video.MigrateFeeds()
+			}
 			for i := range st.Cameras {
 				if v, ok := b.Cameras[st.Cameras[i].ID]; ok {
 					st.Cameras[i].Video = v
@@ -399,7 +405,7 @@ func portURL(host string, port int) string {
 }
 
 // streamURLs is /api/config for one camera.
-func (s *Server) streamURLs(r *http.Request, u *cams.Unit) map[string]string {
+func (s *Server) streamURLs(r *http.Request, u *cams.Unit) map[string]any {
 	host := r.Host
 	if h, _, err := net.SplitHostPort(r.Host); err == nil {
 		host = h
@@ -415,7 +421,7 @@ func (s *Server) streamURLs(r *http.Request, u *cams.Unit) map[string]string {
 		host = "[" + host + "]"
 	}
 	url := func(port int, path string) string { return fmt.Sprintf("http://%s:%d/%s", host, port, path) }
-	out := map[string]string{"snapshot": "/api/snapshot", "camera": ""}
+	out := map[string]any{"snapshot": "/api/snapshot", "camera": ""}
 	if u != nil {
 		out["camera"] = u.Cfg.ID
 		out["snapshot"] = "/api/snapshot?cam=" + u.Cfg.ID
@@ -434,13 +440,21 @@ func (s *Server) streamURLs(r *http.Request, u *cams.Unit) map[string]string {
 		}
 	}
 	external := !set.Video.Managed && set.Video.External != ""
-	if set.Video.Managed && s.Video != nil && s.Video.Status().State != "running" {
-		set.Video.Program, set.Video.Confidence = false, false // nothing to play yet
+	running := external || !set.Video.Managed || s.Video == nil || s.Video.Status().State == "running"
+	feeds := []map[string]string{}
+	for _, f := range set.Video.Feeds {
+		fd := map[string]string{"id": f.ID, "name": f.Name, "source": f.Source}
+		if running {
+			fd["whep"], fd["hls"] = url(video.PortWebRTC, f.ID+"/whep"), url(video.PortHLS, f.ID+"/index.m3u8")
+		}
+		feeds = append(feeds, fd)
 	}
-	if set.Video.Program || external {
+	out["feeds"] = feeds
+	// The Program / Confidence widgets read these (feeds "program" / "confidence").
+	if _, ok := set.Video.Feed("program"); (ok && running) || external {
 		out["programWhep"], out["programHls"] = url(video.PortWebRTC, "program/whep"), url(video.PortHLS, "program/index.m3u8")
 	}
-	if set.Video.Confidence || external {
+	if _, ok := set.Video.Feed("confidence"); (ok && running) || external {
 		out["confidenceWhep"], out["confidenceHls"] = url(video.PortWebRTC, "confidence/whep"), url(video.PortHLS, "confidence/index.m3u8")
 	}
 	return out

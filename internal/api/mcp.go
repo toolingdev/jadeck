@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -410,6 +411,91 @@ func (s *Server) mcpServer(k *auth.Key, ip string) *mcp.Server {
 				return s.call(ctx, "POST", "/api/stage/channels/"+id+"/timer", map[string]any{"op": in.Op, "label": in.Label, "seconds": in.Seconds})
 			})
 	}
+	// add-ons: every add-on action is a tool (<addon>_<action>)
+	a(scopeAny, "connections_list", "Connections", "The gear this controller talks to (id, name, add-on, what it can do, connected or not).", true, get("/api/devices"))
+	addTool(&tools, s, k, ip, "addons", "addon_state", "Add-on state", "What a connection's add-on reports (e.g. Proclaim: on air, service items, current slide).", true,
+		func(ctx context.Context, in addonStateIn) (*mcp.CallToolResult, error) {
+			return s.call(ctx, "GET", "/api/connections/"+url.PathEscape(in.Connection)+"/state", nil)
+		})
+	if s.Addons != nil {
+		for _, info := range s.Addons.List() {
+			if !info.Enabled || info.Manifest.Controller {
+				continue // a Controller add-on (the AI) is never a tool for agents, nor for itself
+			}
+			m := info.Manifest
+			for _, act := range m.Actions {
+				addonID, actionID := m.ID, act.ID
+				name := strings.ReplaceAll(addonID, "-", "_") + "_" + actionID
+				desc := m.Name + ": " + act.Label
+				if act.Description != "" {
+					desc += " — " + act.Description
+				}
+				if len(act.Params) > 0 {
+					var ps []string
+					for _, p := range act.Params {
+						ps = append(ps, p.Key+" ("+p.Label+")")
+					}
+					desc += ". params: " + strings.Join(ps, ", ")
+				}
+				addTool(&tools, s, k, ip, "addons", name, m.Name+" — "+act.Label, desc, false,
+					func(ctx context.Context, in addonActionIn) (*mcp.CallToolResult, error) {
+						id, err := s.addonConnection(addonID, in.Connection)
+						if err != nil {
+							return nil, err
+						}
+						return s.call(ctx, "POST", "/api/connections/"+url.PathEscape(id)+"/actions/"+actionID, in.Params)
+					})
+			}
+		}
+	}
+	// scheduled actions
+	a("schedule", "schedule_list", "Coming up", "Scheduled actions: what runs when, and recent results.", true, get("/api/schedule"))
+	addTool(&tools, s, k, ip, "schedule", "schedule_add", "Schedule an action",
+		"Run steps (same format as macro steps: switcher cut/fade/preview, slides, camera_preset, mixer_mute, addon, delay) or a saved macro later. "+
+			"Give in_seconds (e.g. 300 for \"in 5 minutes\") or at (RFC 3339). It shows on screens under Coming up, where people can cancel it.", false,
+		func(ctx context.Context, in scheduleIn) (*mcp.CallToolResult, error) {
+			b := scheduleBody{InSeconds: in.InSeconds, Label: in.Label, Macro: in.Macro, Steps: in.Steps, By: "agent"}
+			if in.At != "" {
+				t, err := time.Parse(time.RFC3339, in.At)
+				if err != nil {
+					return nil, fmt.Errorf("at must be RFC 3339, e.g. 2026-11-21T10:35:00-08:00")
+				}
+				b.At = &t
+			}
+			j, err := s.buildJob(b, k)
+			if err != nil {
+				return nil, err
+			}
+			j.By = keyLabel(k)
+			if in.By != "" {
+				j.By = in.By + " (key " + k.Name + ")"
+			}
+			j, err = s.Schedule.Add(j)
+			if err != nil {
+				return nil, err
+			}
+			return jsonResult(mustJSON(j)), nil
+		})
+	addTool(&tools, s, k, ip, "schedule", "schedule_cancel", "Cancel a scheduled action", "Cancel one by id (see schedule_list).", false,
+		func(ctx context.Context, in addonIDIn) (*mcp.CallToolResult, error) {
+			return s.call(ctx, "DELETE", "/api/schedule/"+url.PathEscape(in.ID), nil)
+		})
+
+	// add-on development (agents that build add-ons)
+	a("addons.admin", "addon_list", "List add-ons", "Installed add-ons with what each adds, version, verified, on/off, running.", true, get("/api/addons"))
+	addTool(&tools, s, k, ip, "addons.admin", "addon_logs", "Add-on log", "Recent log lines of one add-on (its stderr and its log messages).", true,
+		func(ctx context.Context, in addonIDIn) (*mcp.CallToolResult, error) {
+			return s.call(ctx, "GET", "/api/addons/"+url.PathEscape(in.ID)+"/log", nil)
+		})
+	addTool(&tools, s, k, ip, "addons.admin", "addon_dev_load", "Load add-on folder", "Run an add-on from a project folder on this computer in dev mode (addon.json + a command, default `go run .`).", false,
+		func(ctx context.Context, in addonDevIn) (*mcp.CallToolResult, error) {
+			return s.call(ctx, "POST", "/api/addons/dev", map[string]any{"path": in.Path, "command": in.Command})
+		})
+	addTool(&tools, s, k, ip, "addons.admin", "addon_restart", "Restart add-on", "Restart an add-on's process (after changing a dev add-on); its connections reopen.", false,
+		func(ctx context.Context, in addonIDIn) (*mcp.CallToolResult, error) {
+			return s.call(ctx, "POST", "/api/addons/"+url.PathEscape(in.ID)+"/restart", nil)
+		})
+
 	// updates
 	a("update.apply", "update_check", "Check for update", "Check GitHub for a newer signed release.", false, post("/api/update/check"))
 	a("update.apply", "update_apply", "Apply update", "Install the verified staged update (restarts the controller; rolls back automatically on failure).", false, post("/api/update/apply"))
@@ -423,6 +509,46 @@ func (s *Server) mcpServer(k *auth.Key, ip string) *mcp.Server {
 		}
 	}
 	return srv
+}
+
+type scheduleIn struct {
+	InSeconds int    `json:"in_seconds,omitempty" jsonschema:"seconds from now, e.g. 300"`
+	At        string `json:"at,omitempty" jsonschema:"or an exact time, RFC 3339"`
+	Label     string `json:"label,omitempty" jsonschema:"what people see, e.g. Cut to camera 2"`
+	Macro     string `json:"macro,omitempty" jsonschema:"a saved macro's name (instead of steps)"`
+	Steps     []any  `json:"steps,omitempty" jsonschema:"macro-style steps, e.g. [{\"type\":\"switcher\",\"action\":\"preview\",\"input\":2},{\"type\":\"switcher\",\"action\":\"cut\"}]"`
+	By        string `json:"by,omitempty" jsonschema:"who asked, shown on screens (e.g. Assistant)"`
+}
+
+type addonStateIn struct {
+	Connection string `json:"connection" jsonschema:"connection id (see connections_list)"`
+}
+
+type addonActionIn struct {
+	Connection string         `json:"connection,omitempty" jsonschema:"connection id; default: the add-on's first connection"`
+	Params     map[string]any `json:"params,omitempty" jsonschema:"the action's parameters, e.g. {\"index\": 3}"`
+}
+
+type addonIDIn struct {
+	ID string `json:"id" jsonschema:"add-on id, e.g. proclaim"`
+}
+
+type addonDevIn struct {
+	Path    string   `json:"path" jsonschema:"absolute path of the add-on project folder"`
+	Command []string `json:"command,omitempty" jsonschema:"how to run it, default [\"go\", \"run\", \".\"]"`
+}
+
+// addonConnection picks the connection for an add-on action.
+func (s *Server) addonConnection(addonID, id string) (string, error) {
+	for _, l := range s.Devs().Conns {
+		if l.Addon == addonID && (id == "" || l.ID == id || strings.EqualFold(l.Name, id)) {
+			return l.ID, nil
+		}
+	}
+	if id != "" {
+		return "", fmt.Errorf("no %s connection %q (see connections_list)", addonID, id)
+	}
+	return "", fmt.Errorf("no %s connection yet — add one under Settings → Connections", addonID)
 }
 
 type stageSendIn struct {

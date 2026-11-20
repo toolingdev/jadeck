@@ -17,15 +17,17 @@ import (
 
 	"github.com/coder/websocket"
 
+	"ptz/internal/addons"
 	"ptz/internal/auth"
 	"ptz/internal/camera"
 	"ptz/internal/cams"
 	"ptz/internal/dashboards"
 	"ptz/internal/devices"
-	"ptz/internal/devices/sim"
+	"ptz/internal/devices/fake"
 	"ptz/internal/logx"
 	"ptz/internal/macros"
 	"ptz/internal/mockcam"
+	"ptz/internal/schedule"
 	"ptz/internal/settings"
 	"ptz/internal/stage"
 	"ptz/internal/update"
@@ -37,7 +39,7 @@ type env struct {
 	url   string
 	mock  *mockcam.Mock
 	cam   *camera.Service
-	mixer *sim.Mixer
+	mixer *fake.Mixer
 	dev   *devices.Set
 	srv   *Server
 	h     http.Handler
@@ -76,8 +78,8 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { ms.Close() })
-	simMixer := sim.NewMixer(48)
-	dev := &devices.Set{Switcher: sim.NewSwitcher(), Presentation: sim.NewPresentation(nil), Mixer: simMixer,
+	simMixer := fake.NewMixer(48)
+	dev := &devices.Set{Switcher: fake.NewSwitcher(), Presentation: fake.NewPresentation(nil), Mixer: simMixer,
 		SwitcherCfg: devices.DeviceConfig{Driver: "sim"}, PresentationCfg: devices.DeviceConfig{Driver: "sim"},
 		MixerCfg: devices.DeviceConfig{Driver: "sim"}}
 	one, eight := 1, 8
@@ -102,9 +104,16 @@ func setup(t *testing.T) *env {
 	logs.AttachDir(filepath.Join(dataDir, "logs"))
 	t.Cleanup(func() { logs.Close() })
 	quiet = logs.Logger()
-	srv := &Server{Logs: logs, Stage: stg, Cams: reg, Settings: setStore, Video: gw, Mock: true, Web: web.Dist, Legacy: web.Legacy, Log: quiet, Version: "test", Keys: keys, Trust: trust, Dashboards: dash,
+	host := addons.NewInProcess(quiet, testAddon())
+	srv := &Server{Addons: host, Logs: logs, Stage: stg, Cams: reg, Settings: setStore, Video: gw, Mock: true, Web: web.Dist, Legacy: web.Legacy, Log: quiet, Version: "test", Keys: keys, Trust: trust, Dashboards: dash,
 		Dev: dev, MacroStore: ms, Updates: um, Restart: Restarter{Mode: "exec"}}
 	srv.Macros = macros.NewEngine(ms, srv.MacroActions())
+	sched, err := schedule.Open(filepath.Join(dataDir, "schedule.json"), srv.ScheduleRunner(), quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Schedule = sched
+	go sched.Run(ctx)
 	h := srv.Handler()
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)

@@ -1,8 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+
+/** Sample data for previews (Settings → Add-ons): a widget rendered
+ *  inside it reads these instead of the live API, keyed by path without
+ *  the query string, and makes no requests. */
+export const SampleData = createContext<Record<string, unknown> | null>(null);
+
+function useSample(path: string | null): { hit: boolean; data: unknown } {
+  const sample = useContext(SampleData);
+  const key = path?.split("?")[0];
+  if (sample && key && key in sample) return { hit: true, data: sample[key] };
+  return { hit: false, data: null };
+}
+
+/** The connection a widget uses ("" = the default one of its kind). */
+export const WidgetConn = createContext<string>("");
+export const useWidgetConn = () => useContext(WidgetConn);
 
 /** Poll a GET endpoint. Returns data, error, and a reload function. */
 export function usePoll<T>(path: string | null, ms = 3000) {
+  const sample = useSample(path);
+  if (sample.hit) path = null;
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -20,6 +38,7 @@ export function usePoll<T>(path: string | null, ms = 3000) {
     if (ms > 0) timer.current = window.setInterval(() => !document.hidden && load(), ms);
     return () => clearInterval(timer.current);
   }, [load, ms]);
+  if (sample.hit) return { data: sample.data as T, error: null, reload: load, setData };
   return { data, error, reload: load, setData };
 }
 
@@ -73,6 +92,8 @@ export function refreshShared(path: string) {
 }
 
 export function useShared<T>(path: string | null, ms = 3000): { data: T | null; error: string | null; reload: () => void } {
+  const sample = useSample(path);
+  if (sample.hit) path = null;
   const [, force] = useState(0);
   useEffect(() => {
     if (!path) return;
@@ -97,6 +118,7 @@ export function useShared<T>(path: string | null, ms = 3000): { data: T | null; 
       }
     };
   }, [path, ms]);
+  if (sample.hit) return { data: sample.data as T, error: null, reload: () => {} };
   const e = path ? shared.get(path) : undefined;
   return { data: (e?.data as T) ?? null, error: e?.error ?? null, reload: () => path && pollOnce(path) };
 }

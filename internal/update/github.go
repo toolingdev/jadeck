@@ -73,45 +73,49 @@ func (s *Source) get(ctx context.Context, url, accept string, limit int64) ([]by
 
 // Latest returns the newest published release: non-prerelease, or
 // on the beta channel the newest of either kind.
-func (s *Source) Latest(ctx context.Context) (*Release, error) {
+// Releases lists recent releases (newest first, as GitHub returns them).
+func (s *Source) Releases(ctx context.Context) ([]Release, error) {
 	api := s.API
 	if api == "" {
 		api = "https://api.github.com"
 	}
-	if s.Beta {
-		b, err := s.get(ctx, fmt.Sprintf("%s/repos/%s/releases?per_page=20", strings.TrimRight(api, "/"), s.Repo),
-			"application/vnd.github+json", 16<<20)
-		if err != nil {
-			return nil, err
-		}
-		var list []Release
-		if err := json.Unmarshal(b, &list); err != nil {
-			return nil, fmt.Errorf("unreadable release list: %w", err)
-		}
-		var best *Release
-		for i := range list {
-			if list[i].Draft {
-				continue
-			}
-			if best == nil || Newer(list[i].Tag, best.Tag) {
-				best = &list[i]
-			}
-		}
-		if best == nil {
-			return nil, fmt.Errorf("no releases in %s", s.Repo)
-		}
-		return best, nil
-	}
-	b, err := s.get(ctx, fmt.Sprintf("%s/repos/%s/releases/latest", strings.TrimRight(api, "/"), s.Repo),
-		"application/vnd.github+json", 4<<20)
+	b, err := s.get(ctx, fmt.Sprintf("%s/repos/%s/releases?per_page=50", strings.TrimRight(api, "/"), s.Repo),
+		"application/vnd.github+json", 32<<20)
 	if err != nil {
 		return nil, err
 	}
-	var r Release
-	if err := json.Unmarshal(b, &r); err != nil {
-		return nil, fmt.Errorf("unreadable release JSON: %w", err)
+	var list []Release
+	if err := json.Unmarshal(b, &list); err != nil {
+		return nil, fmt.Errorf("unreadable release list: %w", err)
 	}
-	return &r, nil
+	return list, nil
+}
+
+// IsAddonRelease: add-ons are released from the same repository with
+// tags like addon-proclaim-v1.1.0; app updates skip them.
+func IsAddonRelease(tag string) bool { return strings.HasPrefix(tag, "addon-") }
+
+// Latest is the newest app release (pre-releases only on the beta
+// channel; add-on releases never).
+func (s *Source) Latest(ctx context.Context) (*Release, error) {
+	list, err := s.Releases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var best *Release
+	for i := range list {
+		r := &list[i]
+		if r.Draft || IsAddonRelease(r.Tag) || (r.Pre && !s.Beta) {
+			continue
+		}
+		if best == nil || Newer(r.Tag, best.Tag) {
+			best = r
+		}
+	}
+	if best == nil {
+		return nil, fmt.Errorf("no releases in %s", s.Repo)
+	}
+	return best, nil
 }
 
 // Download fetches one asset's bytes.

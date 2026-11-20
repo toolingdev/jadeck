@@ -252,7 +252,7 @@ func TestMCP(t *testing.T) {
 func TestDashboardRoutes(t *testing.T) {
 	e := setup(t)
 	_, _, l := e.do(t, "GET", "/api/dashboards", nil)
-	if len(l) != 3 || l[0].(map[string]any)["kind"] != "tablet" {
+	if len(l) != 5 || l[0].(map[string]any)["kind"] != "tablet" {
 		t.Fatalf("seed: %v", l)
 	}
 	booth := l[0].(map[string]any)

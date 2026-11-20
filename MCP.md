@@ -34,6 +34,10 @@ every keyed change lands in the audit log.
 | slides | presentation actions |
 | mixer | channel mutes (verified by read-back) |
 | macros.run / macros.edit | run, or create / change / delete macros |
+| stage | stage messages, replies, timers |
+| schedule | see, add and cancel scheduled actions (each step still needs its own permission) |
+| addons | add-on state and add-on actions |
+| addons.admin | add-on list, logs, dev mode, restart (for agents that build add-ons) |
 | update.apply | check for and apply signed updates |
 
 ## Connect an agent
@@ -59,5 +63,14 @@ preset_recall · image_settings_set · white_balance_pick · preset_save ·
 preset_rename · preset_delete · switcher_status · switcher_preview ·
 switcher_cut · switcher_fade · slides_status · slides_action ·
 mixer_status · mixer_mute · macros_list · macro_run · macro_save ·
-macro_delete · stage_status · stage_send · stage_timer · update_check ·
-update_apply · update_status · devices_info
+macro_delete · stage_status · stage_send · stage_timer · schedule_list ·
+schedule_add · schedule_cancel · addon_state · `<addon>_<action>` (one per
+add-on action) · addon_list · addon_logs · addon_dev_load · addon_restart ·
+update_check · update_apply · update_status · devices_info
+
+`schedule_add` takes `in_seconds` or `at` (RFC 3339) plus macro-style steps
+or a macro name; the job shows on screens under Coming up.
+
+Want this without an MCP client? The **AI controller** add-on (Settings →
+Add-ons → Browse) puts a chat box on a dashboard, using your own AI
+service and key. See [ADDONS.md](ADDONS.md).

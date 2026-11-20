@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, Plus, Pencil, Trash2, Upload, ChevronUp, ChevronDown, X, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { api, type Macro, type Step, type RunReport, type MixerStatus, type Preset } from "@/lib/api";
+import type { AddonList } from "@/lib/addons";
 import { usePoll } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { Button, Card, CardBody, CardHeader, Dialog, Empty, Input, Select, Switch } from "@/components/ui";
@@ -12,6 +13,7 @@ export function describe(s: Step): string {
     case "switcher": return s.action === "preview" ? `Switcher: preview ${s.input}` : s.action === "fade" ? `Switcher: fade ${s.durationMs ?? 1000} ms` : "Switcher: cut";
     case "slides": return `Slides: ${s.action}`;
     case "camera_preset": return `Camera: ${s.preset}`;
+    case "addon": return `${s.addon}: ${s.label || s.action}${s.params?.index ? ` ${s.params.index}` : ""}`;
   }
 }
 
@@ -95,6 +97,7 @@ const newStep = (type: Step["type"]): Step => {
     case "switcher": return { type, action: "cut" };
     case "slides": return { type, action: "next" };
     case "camera_preset": return { type, preset: "" };
+    case "addon": return { type, addon: "", action: "" };
   }
 };
 
@@ -106,6 +109,9 @@ function MacroEditor({ macro, onClose }: { macro: Macro | null; onClose: () => v
   const mixer = usePoll<MixerStatus>("/api/mixer/status", 0).data;
   const presets = usePoll<Preset[]>("/api/presets", 0).data ?? [];
   const favs = (mixer?.channels ?? []).filter((c) => c.channel != null);
+  const addonList = usePoll<AddonList>("/api/addons", 0).data;
+  const addonActs = (addonList?.addons ?? []).filter((a) => a.info.enabled).flatMap((a) => (a.info.manifest.actions ?? []).filter((x) => x.macroStep)
+    .map((x) => ({ value: `${a.info.manifest.id}|${x.id}`, label: `${a.info.manifest.name}: ${x.label}`, short: x.label, params: x.params })));
 
   const upd = (i: number, p: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...p } : x)));
   const mv = (i: number, d: number) => setSteps((s) => {
@@ -124,6 +130,7 @@ function MacroEditor({ macro, onClose }: { macro: Macro | null; onClose: () => v
       if (s.type === "switcher") { o.action = s.action; if (s.action === "preview") o.input = s.input; if (s.action === "fade") o.durationMs = s.durationMs ?? 1000; }
       if (s.type === "slides") o.action = s.action;
       if (s.type === "camera_preset") o.preset = s.preset;
+      if (s.type === "addon") { o.addon = s.addon; o.action = s.action; if (s.connection) o.connection = s.connection; if (s.params && Object.keys(s.params).length) o.params = s.params; }
       return o;
     });
     try {
@@ -167,15 +174,25 @@ function MacroEditor({ macro, onClose }: { macro: Macro | null; onClose: () => v
                   {s.action === "fade" && <Input type="number" min={0} max={10000} value={s.durationMs ?? 1000} onChange={(e) => upd(i, { durationMs: Number(e.target.value) })} />}
                 </>}
                 {s.type === "slides" && <Select value={s.action ?? "next"} onChange={(v) => upd(i, { action: v })} options={["next", "prev", "black", "logo", "clear"].map((a) => ({ value: a, label: a }))} />}
+                {s.type === "addon" && (
+                  <>
+                    <Select value={s.addon && s.action ? `${s.addon}|${s.action}` : ""} onChange={(v) => { const [a, act] = v.split("|"); upd(i, { addon: a, action: act, label: addonActs.find((x) => x.value === v)?.short, params: {} }); }}
+                      options={[{ value: "", label: "Choose an add-on action…" }, ...addonActs.map((x) => ({ value: x.value, label: x.label }))]} />
+                    {addonActs.find((x) => x.value === `${s.addon}|${s.action}`)?.params?.map((p) => (
+                      <Input key={p.key} type={p.type === "number" ? "number" : "text"} placeholder={p.label} value={String(s.params?.[p.key] ?? "")}
+                        onChange={(e) => upd(i, { params: { ...s.params, [p.key]: p.type === "number" ? Number(e.target.value) : e.target.value } })} />
+                    ))}
+                  </>
+                )}
                 {s.type === "camera_preset" && <Select value={s.preset ?? ""} onChange={(v) => upd(i, { preset: v })} options={[{ value: "", label: "Choose preset…" }, ...presets.map((p) => ({ value: p.name, label: p.name }))]} />}
               </div>
             </li>
           ))}
         </ol>
         <div className="flex flex-wrap gap-2">
-          {(["mixer_mute", "delay", "switcher", "slides", "camera_preset"] as const).map((t) => (
+          {(["mixer_mute", "delay", "switcher", "slides", "camera_preset", ...(addonActs.length ? ["addon"] as const : [])] as const).map((t) => (
             <Button key={t} size="sm" variant="outline" onClick={() => setSteps([...steps, newStep(t)])}>
-              <Plus size={13} /> {{ mixer_mute: "Mute", delay: "Wait", switcher: "Switcher", slides: "Slides", camera_preset: "Camera preset" }[t]}
+              <Plus size={13} /> {{ mixer_mute: "Mute", delay: "Wait", switcher: "Switcher", slides: "Slides", camera_preset: "Camera preset", addon: "Add-on action" }[t]}
             </Button>
           ))}
         </div>

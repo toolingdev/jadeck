@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"flag"
 	"fmt"
@@ -38,6 +39,7 @@ import (
 	"ptz/internal/macros"
 	"ptz/internal/mockcam"
 	"ptz/internal/netinfo"
+	"ptz/internal/schedule"
 	"ptz/internal/settings"
 	"ptz/internal/stage"
 	"ptz/internal/svc"
@@ -45,12 +47,9 @@ import (
 	"ptz/internal/video"
 	"ptz/web"
 
-	// Device drivers: add a blank import to ship another one.
-	_ "ptz/internal/devices/httppres"
-	_ "ptz/internal/devices/midi"
-	_ "ptz/internal/devices/osc"
-	_ "ptz/internal/devices/sim"
-	_ "ptz/internal/devices/vmix"
+	// Add-ons (vMix, Behringer WING, Proclaim, ...) are separate projects;
+	// release builds bundle their signed packages (-tags addonbundle).
+	"ptz/internal/addons"
 )
 
 // Stamped at build time:
@@ -177,13 +176,15 @@ func (p *program) Stop(service.Service) error {
 // mockDevices is the simulated rig for --mock: every device kind,
 // generic favorite labels.
 func mockDevices() *devices.File {
-	sim := func() *devices.DeviceConfig {
-		return &devices.DeviceConfig{Driver: "sim", Label: "Simulated", Raw: []byte(`{"driver":"sim"}`)}
-	}
-	return &devices.File{Switcher: sim(), Presentation: sim(), Mixer: sim(),
-		Favorites: []devices.Favorite{{Label: "Main", Channel: 1}, {Label: "Lectern", Channel: 2}, {Label: "Wireless 1", Channel: 3}, {Label: "Wireless 2", Channel: 4},
-			{Label: "Vocals 1", Channel: 7}, {Label: "Vocals 2", Channel: 8}, {Label: "Guitar", Channel: 10}, {Label: "Audience", Channel: 6}}}
+	return &devices.File{Version: 2, Connections: []devices.Connection{
+		{ID: "sim-switcher", Addon: "simulated", Type: "sim-switcher", Name: "Simulated switcher"},
+		{ID: "sim-slides", Addon: "simulated", Type: "sim-slides", Name: "Simulated slides"},
+		{ID: "sim-mixer", Addon: "simulated", Type: "sim-mixer", Name: "Simulated mixer", Favorites: mockFavorites},
+	}}
 }
+
+var mockFavorites = []devices.Favorite{{Label: "Main", Channel: 1}, {Label: "Lectern", Channel: 2}, {Label: "Wireless 1", Channel: 3}, {Label: "Wireless 2", Channel: 4},
+	{Label: "Vocals 1", Channel: 7}, {Label: "Vocals 2", Channel: 8}, {Label: "Guitar", Channel: 10}, {Label: "Audience", Channel: 6}}
 
 // seedSettings is the first-run settings: an existing env file (the
 // Python build's, or ptz.env) carries over, everything else defaults.
@@ -324,22 +325,40 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 
 	// Devices come from the Settings screen (saved by the app as
 	// devices.json). Mock mode starts simulated until something is saved.
+	host := addons.New(filepath.Join(cfg.DataDir, "addons"), log)
+	defer host.Close()
+	// The release key also signs add-on packages (bundled and updates).
+	var addonKey ed25519.PublicKey
+	if k := firstNonEmpty(cfg.UpdatePubKey, UpdatePublicKey); k != "" {
+		addonKey, _ = update.ParsePublicKey(k)
+	}
+	host.PubKey = addonKey
+	host.InstallBundled(addonKey)
 	var devFile *devices.File
 	if df, err := devices.LoadFile(cfg.DevicesPath); err == nil {
 		devFile = df
+		if raw, _ := os.ReadFile(cfg.DevicesPath); !strings.Contains(string(raw), `"connections"`) {
+			// First start after the add-on update: keep the old file, save the new shape.
+			os.WriteFile(cfg.DevicesPath+".v1.bak", raw, 0o644)
+			if err := api.WriteDevices(cfg.DevicesPath, df); err == nil {
+				log.Info("devices moved to connections (add-ons)", "connections", len(df.Connections), "backup", cfg.DevicesPath+".v1.bak")
+			}
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		log.Error("saved device settings unreadable — starting with none", "path", cfg.DevicesPath, "err", err)
 	} else if cfg.Mock {
 		devFile = mockDevices()
 	} else {
-		devFile = &devices.File{}
-		log.Info("no devices set up yet — use Settings → Devices", "path", cfg.DevicesPath)
+		devFile = &devices.File{Version: 2}
+		log.Info("no connections set up yet — use Settings → Connections", "path", cfg.DevicesPath)
 	}
-	dev := devices.Open(devFile)
+	dev := devices.Open(devFile, host.Open)
 	defer dev.Close()
-	for kind, err := range map[string]error{"switcher": dev.SwitcherErr, "presentation": dev.PresentationErr, "mixer": dev.MixerErr} {
-		if err != nil {
-			log.Warn("device not started", "kind", kind, "err", err)
+	for _, l := range dev.Conns {
+		if l.Err != nil {
+			log.Warn("connection not started", "connection", l.Name, "addon", l.Addon, "err", l.Err)
+		} else {
+			log.Info("connection open", "connection", l.Name, "addon", l.Addon, "can", strings.Join(l.Caps, ","))
 		}
 	}
 
@@ -394,9 +413,16 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 	srv := &api.Server{Logs: logs, Stage: stg, Keys: keys, Trust: trust, Dashboards: dash, Cams: reg, Settings: setStore, Video: gw, Mock: cfg.Mock,
 		Names: names, BindHost: cfg.BindHost, PortLocked: portLocked, Port: hs.Port,
 		Web: web.Dist, Legacy: web.Legacy, Log: log, Version: Version,
-		Dev: dev, DevFile: devFile, DevicesPath: cfg.DevicesPath, MacroStore: ms, Updates: um,
+		Dev: dev, DevFile: devFile, DevicesPath: cfg.DevicesPath, Addons: host, MacroStore: ms, Updates: um,
 		Restart: api.Restarter{Mode: mode, ExecArgs: execArgs, ServiceArg: []string{"run"}, Exit: exit}}
 	srv.Macros = macros.NewEngine(ms, srv.MacroActions())
+	host.Grant = srv.GrantAddon
+	sched, err := schedule.Open(filepath.Join(cfg.DataDir, "schedule.json"), srv.ScheduleRunner(), log)
+	if err != nil {
+		return fmt.Errorf("scheduled actions: %w", err)
+	}
+	srv.Schedule = sched
+	go sched.Run(ctx)
 	hs.handler = srv.Handler() // sets reg.OnStatus before any camera starts
 
 	reg.Apply(set)
@@ -410,6 +436,8 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 		if !portLocked && next.System.Port != old.System.Port {
 			if err := hs.listen(next.System.Port); err != nil {
 				log.Error("could not move to the new port", "port", next.System.Port, "err", err)
+			} else {
+				srv.OpenControllers()
 			}
 		}
 	})
@@ -420,6 +448,7 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 	if err := hs.listen(port); err != nil {
 		return err
 	}
+	srv.OpenControllers() // now the AI add-on can be told this controller's address
 	log.Info("PTZ controller up", "version", Version, "port", port, "mode", mode,
 		"cameras", len(set.Cameras), "mock", cfg.Mock, "data", cfg.DataDir, "setupDone", set.SetupDone)
 

@@ -86,7 +86,7 @@ function FitText({ text, className, max = 160 }: { text: string; className?: str
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={box} className={cn("absolute inset-0", over ? "overflow-y-auto overscroll-contain" : "overflow-hidden")}
+      <div ref={box} data-feed className={cn("absolute inset-0", over ? "overflow-y-auto overscroll-contain" : "overflow-hidden")}
         onScroll={(e) => {
           const el = e.currentTarget;
           setAtEnd(el.scrollTop + el.clientHeight >= el.scrollHeight - 4);
@@ -185,13 +185,16 @@ function BigClock() {
 
 function Conversation({ ch, me, offset, online }: { ch?: ChannelState; me: string; offset: number; online: boolean }) {
   useNow(30000);
-  const end = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const msgs = ch?.messages ?? [];
   const lastIn = [...msgs].reverse().find((m) => m.from !== me);
   const [fresh, setFresh] = useState<string | null>(null);
   const prev = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
+    // Scroll only this widget's list, never the page (scrollIntoView
+    // would drag the whole dashboard down to this widget).
+    const el = list.current;
+    if (el) el.scrollTop = el.scrollHeight;
     const id = lastIn?.id ?? null;
     if (prev.current !== undefined && id && id !== prev.current) {
       setFresh(id);
@@ -209,10 +212,9 @@ function Conversation({ ch, me, offset, online }: { ch?: ChannelState; me: strin
         <span className="truncate text-[12px] font-semibold">{ch?.name ?? "…"} · conversation</span>
         <span className="ml-auto text-[11px] text-dim">{online ? `${ch?.screens.length ?? 0} online` : <span className="text-bad">offline</span>}</span>
       </div>
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
+      <div ref={list} data-feed className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
         {msgs.length === 0 && <p className="pt-4 text-center text-xs text-dim">No messages today.</p>}
         {msgs.map((m) => <Bubble key={m.id} m={m} mine={m.from === me} fresh={m.id === fresh} color={ch?.color} />)}
-        <div ref={end} />
       </div>
     </Box>
   );

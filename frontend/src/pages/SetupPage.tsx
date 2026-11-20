@@ -4,7 +4,7 @@ import { api, type SystemInfo } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
 import { cn } from "@/lib/cn";
 import { CameraForm, useCameras } from "@/components/CameraSetup";
-import { DeviceSetup } from "@/components/DeviceSetup";
+import { ConnectionsSection } from "@/components/Connections";
 import { DashboardSettings } from "@/components/DashboardSettings";
 import { Button, Card, CardBody, Dot } from "@/components/ui";
 
@@ -75,14 +75,14 @@ export function SetupPage({ onFinish }: { onFinish: () => void }) {
             <div className="space-y-3">
               <h2 className="text-xl font-bold">Video switcher and slides</h2>
               <p className="text-sm text-muted">vMix, Proclaim, and others. Skip if you don't have them. Remember Save & apply.</p>
-              <DeviceSetup only={["switcher", "presentation"]} title="Switcher & slides" />
+              <ConnectionsSection only={["switcher", "slides"]} compact />
             </div>
           )}
           {step === 3 && (
             <div className="space-y-3">
               <h2 className="text-xl font-bold">Sound board</h2>
               <p className="text-sm text-muted">Mute and unmute channels from a phone (Behringer WING and others). Skip if you don't need it.</p>
-              <DeviceSetup only={["mixer"]} title="Audio mixer" />
+              <ConnectionsSection only={["mixer"]} compact />
             </div>
           )}
           {step === 4 && (

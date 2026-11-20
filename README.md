@@ -8,9 +8,11 @@ program per computer, with no cloud and no accounts.
   joystick, presets, focus, picture settings, and white balance set by
   tapping a point in the picture. Several cameras, each with its own presets.
 - **Live video:** WebRTC under a second of delay, through the built-in
-  MediaMTX gateway. Also the vMix program output and slides confidence.
-- **Devices:** vMix, Proclaim (MIDI), Behringer WING (OSC), and others
-  through drivers.
+  MediaMTX gateway. Any feed: cameras, plus whatever vMix, OBS or an
+  encoder sends (SRT) or an address the controller pulls (RTSP / SRT).
+- **Add-ons:** vMix, Behringer WING, Proclaim (network control), MIDI,
+  HTTP and more as separate add-ons that update on their own; anyone can
+  write one with the SDK. See [ADDONS.md](ADDONS.md).
 - **Dashboards:** drag-and-drop layouts for phones, tablets and desktops.
 - **Stage screens:** the booth sends "5 minutes" to the pulpit iPad, the
   speaker taps "👍 Got it". Live / next tally, the stream and a shared

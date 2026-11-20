@@ -11,6 +11,7 @@ import { Badge, Button, Dialog, Input, Select } from "@/components/ui";
 import { WIDGET, type WidgetDef, type Settings } from "@/dash/widgets";
 import { WidgetView, Library, Inspector, SaveBadge } from "@/dash/editor";
 import { useTouchDrag } from "@/dash/touchDrag";
+import { useAddonWidgets } from "@/dash/addonWidgets";
 import { setLocked } from "@/lib/kiosk";
 import { VideoCount, VIDEO_TYPES } from "@/dash/videoCount";
 import { COLS, ROW_H, SCREENS, SCREEN_LABEL, screenFor, newId, bottomOf, stacked, type Dashboard, type Defaults, type Screen } from "@/dash/types";
@@ -21,12 +22,24 @@ const CANVAS_MAX: Record<Screen, string> = { phone: "max-w-[420px]", tablet: "ma
 export const KIND_ICON = { phone: Smartphone, tablet: Tablet, desktop: Monitor };
 const KIND_TONE: Record<Screen, "accent" | "info" | "good"> = { phone: "accent", tablet: "info", desktop: "good" };
 
-function sizeFor(def: WidgetDef, kind: Screen) {
+/** Smallest cell count that still holds a widget's content at this
+ *  column width: minimums are pixels, so they hold on any screen. */
+function minFor(def: WidgetDef | undefined, cols: number, colW: number, s?: Settings) {
+  const m = !def ? { w: 120, h: 80 } : typeof def.minPx === "function" ? def.minPx({ ...def.defaults, ...s }) : def.minPx;
+  const w = colW > 0 ? Math.ceil((m.w + MARGIN[0]) / (colW + MARGIN[0])) : 1;
+  const h = Math.ceil((m.h + MARGIN[1]) / (ROW_H + MARGIN[1]));
+  return { w: Math.max(1, Math.min(cols, w)), h: Math.max(1, h) };
+}
+
+function sizeFor(def: WidgetDef, kind: Screen, colW = 0) {
   const cols = COLS[kind];
   const w = kind === "phone" ? (def.size.pw ?? cols) : def.size.w;
   const h = kind === "phone" ? (def.size.ph ?? def.size.h) : def.size.h;
-  return { w: Math.min(cols, w), h };
+  const m = minFor(def, cols, colW);
+  return { w: Math.min(cols, Math.max(w, m.w)), h: Math.max(h, m.h) };
 }
+
+const colWidth = (width: number, cols: number, pad: number) => (width - pad * 2 - MARGIN[0] * (cols - 1)) / cols;
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 const plain = (d: Dashboard) => JSON.stringify({ ...d, layout: d.layout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })), updatedAt: "" });
@@ -62,6 +75,7 @@ function useDeviceScreen() {
 }
 
 export function DashboardPage({ locked = false }: { locked?: boolean }) {
+  useAddonWidgets(); // add-on widgets join the registry before widgets render
   const { log } = useLog();
   const device = useDeviceScreen();
   const [list, setList] = useState<Dashboard[] | null>(null);
@@ -112,6 +126,17 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     if (kind !== "phone" && device === "phone") return { cols: 4, layout: stacked(shown.layout, 4), max: "max-w-none", note: "stacked for this phone" };
     return { cols: COLS[kind], layout: shown.layout, max: "max-w-none", note: "" };
   }, [shown, editing, kind, device]);
+  const colW = colWidth(width, view.cols, editing ? PAD : 0);
+  // Measured height each widget needs to show all its contents.
+  const [need, setNeed] = useState<Record<string, number>>({});
+  const onNeed = useCallback((id: string, px: number | null) => setNeed((n) => {
+    if (px === null) {
+      if (!(id in n)) return n;
+      const { [id]: _, ...rest } = n;
+      return rest;
+    }
+    return n[id] === px ? n : { ...n, [id]: px };
+  }), []);
 
   // Settings → Dashboards → Edit lands here with a flag.
   useEffect(() => {
@@ -235,7 +260,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     const next = clone(draft);
     const id = newId(def.type);
     next.widgets.push({ id, type: def.type, settings: clone(def.defaults) });
-    next.layout.push({ i: id, ...(at ?? { x: 0, y: bottomOf(next.layout) }), ...sizeFor(def, next.kind) });
+    next.layout.push({ i: id, ...(at ?? { x: 0, y: bottomOf(next.layout) }), ...sizeFor(def, next.kind, colW) });
     commit(next);
     setSelected(id);
   };
@@ -286,7 +311,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom + 40) return null;
     const cols = COLS[draft.kind];
     const colW = (r.width - PAD * 2 - MARGIN[0] * (cols - 1)) / cols;
-    const sz = sizeFor(def, draft.kind);
+    const sz = sizeFor(def, draft.kind, colW);
     const gx = Math.round((cx - r.left - PAD - (sz.w * (colW + MARGIN[0])) / 2) / (colW + MARGIN[0]));
     const gy = Math.round((cy - r.top - PAD - (sz.h * (ROW_H + MARGIN[1])) / 2) / (ROW_H + MARGIN[1]));
     return { x: Math.max(0, Math.min(cols - sz.w, gx)), y: Math.max(0, gy), ...sz, colW };
@@ -324,8 +349,16 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   const gridLayout = useMemo(() => view.layout.map((it) => {
     const w = shown?.widgets.find((x) => x.id === it.i);
     const def = w && WIDGET[w.type];
-    return { ...it, w: Math.min(it.w, view.cols), minW: Math.min(def?.min?.w ?? 1, view.cols), minH: def?.min?.h ?? 1 };
-  }), [view, shown]);
+    // Never smaller than the content needs: grow a too-small saved cell
+    // (an old layout, or a big dashboard on a narrower screen) and stop
+    // the resize handle at the minimum.
+    const m = minFor(def, view.cols, colW, w?.settings);
+    // …and never shorter than what shows everything in it: 8 presets or
+    // 20, the box grows to fit them rather than growing a scrollbar.
+    const fit = need[it.i] ? Math.ceil((need[it.i] + MARGIN[1]) / (ROW_H + MARGIN[1])) : 0;
+    const minH = Math.max(m.h, fit);
+    return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.max(it.h, minH), minW: m.w, minH };
+  }), [view, shown, colW, need]);
 
   if (!list) return <p className="p-6 text-sm text-muted">Loading dashboards…</p>;
   if (!shown) return <p className="p-6 text-sm text-muted">No dashboards.</p>;
@@ -405,8 +438,8 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                 gridConfig={{ cols: view.cols, rowHeight: ROW_H, margin: MARGIN, containerPadding: editing ? [PAD, PAD] : [0, 0] }}
                 dragConfig={{ enabled: editing, threshold: 4, cancel: ".no-drag" }}
                 resizeConfig={{ enabled: editing, handles: ["se"] }}
-                dropConfig={{ enabled: editing, defaultItem: dragDef ? sizeFor(dragDef, kind) : { w: 3, h: 3 } }}
-                droppingItem={{ i: "__drop__", x: 0, y: 0, ...(dragDef ? sizeFor(dragDef, kind) : { w: 3, h: 3 }) }}
+                dropConfig={{ enabled: editing, defaultItem: dragDef ? sizeFor(dragDef, kind, colW) : { w: 3, h: 3 } }}
+                droppingItem={{ i: "__drop__", x: 0, y: 0, ...(dragDef ? sizeFor(dragDef, kind, colW) : { w: 3, h: 3 }) }}
                 onLayoutChange={editing ? onLayout : undefined}
                 onDragStop={() => (gesture.current = true)}
                 onResizeStop={() => (gesture.current = true)}
@@ -418,7 +451,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
               >
                 {shown.widgets.map((w) => (
                   <div key={w.id} className={cn("relative", editing && "cursor-grab active:cursor-grabbing")}>
-                    <WidgetView w={w} editing={editing} />
+                    <WidgetView w={w} editing={editing} onNeed={onNeed} />
                     {editing && (
                       <div className={cn("absolute inset-0 z-10 rounded-[var(--radius-card)] transition", selected === w.id ? "ring-2 ring-accent" : "hover:ring-1 hover:ring-line-strong")}
                         onClick={() => setSelected(w.id)} aria-label={`Select ${WIDGET[w.type]?.label ?? w.type}`} />

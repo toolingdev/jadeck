@@ -1,6 +1,7 @@
+import { withConn } from "@/lib/addons";
 import { ChevronLeft, ChevronRight, Square, Image as ImageIcon, Eraser, Mic, MicOff } from "lucide-react";
 import { api, type SwitcherStatus, type PresentationStatus, type MixerStatus } from "@/lib/api";
-import { usePoll } from "@/lib/hooks";
+import { usePoll, useWidgetConn } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { Badge, Button, Card, CardBody, CardHeader, Dot, Empty } from "@/components/ui";
@@ -22,7 +23,8 @@ function useAct() {
 // ------------------------------------------------------------- switcher
 
 export function Switcher() {
-  const { data: st, setData } = usePoll<SwitcherStatus>("/api/switcher/status", 2000);
+  const conn = useWidgetConn();
+  const { data: st, setData } = usePoll<SwitcherStatus>(withConn("/api/switcher/status", conn), 2000);
   const act = useAct();
   const name = st?.label || "Switcher";
   const run = async (label: string, path: string, body?: unknown) => {
@@ -39,11 +41,11 @@ export function Switcher() {
       <CardBody className="space-y-3">
         {!st?.connected ? <Empty>{st?.error || "Switcher not answering."}</Empty> : (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2">
               {st.inputs.map((i) => {
                 const pgm = i.number === st.active, pvw = i.number === st.preview;
                 return (
-                  <button key={i.key || i.number} onClick={() => run(`Preview input ${i.number}`, "/api/switcher/preview", { input: i.number })}
+                  <button key={i.key || i.number} onClick={() => run(`Preview input ${i.number}`, withConn("/api/switcher/preview", conn), { input: i.number })}
                     className={cn("flex h-16 flex-col items-start justify-center rounded-xl border-2 px-3 text-left transition active:scale-[0.98]",
                       pgm ? "border-pgm bg-pgm/15" : pvw ? "border-pvw bg-pvw/12" : "border-line bg-panel-2 hover:border-line-strong")}>
                     <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
@@ -55,8 +57,8 @@ export function Switcher() {
               })}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button size="xl" variant="pgm" onClick={() => run(`CUT — input ${st.preview} to program`, "/api/switcher/cut")}>CUT</Button>
-              <Button size="xl" onClick={() => run(`FADE — input ${st.preview} to program`, "/api/switcher/fade", { durationMs: 1000 })}>FADE 1s</Button>
+              <Button size="xl" variant="pgm" onClick={() => run(`CUT — input ${st.preview} to program`, withConn("/api/switcher/cut", conn))}>CUT</Button>
+              <Button size="xl" onClick={() => run(`FADE — input ${st.preview} to program`, withConn("/api/switcher/fade", conn), { durationMs: 1000 })}>FADE 1s</Button>
             </div>
           </>
         )}
@@ -74,7 +76,8 @@ const slideIcons: Record<string, React.ReactNode> = {
 const slideLabels: Record<string, string> = { prev: "Prev", next: "Next", black: "Black", logo: "Logo", clear: "Clear text" };
 
 export function Slides() {
-  const { data: st } = usePoll<PresentationStatus>("/api/presentation/status", 5000);
+  const conn = useWidgetConn();
+  const { data: st } = usePoll<PresentationStatus>(withConn("/api/presentation/status", conn), 5000);
   const act = useAct();
   const name = st?.label || "Slides";
   const actions = st?.actions ?? [];
@@ -89,14 +92,14 @@ export function Slides() {
             <div className="grid grid-cols-[1fr_2fr] gap-2">
               {main.map((a) => (
                 <Button key={a} size="xl" variant={a === "next" ? "accent" : "default"} disabled={!st.available}
-                  onClick={() => act(name, slideLabels[a] ?? a, `/api/presentation/${a}`)}>
+                  onClick={() => act(name, slideLabels[a] ?? a, withConn(`/api/presentation/${a}`, conn))}>
                   {a === "prev" && slideIcons.prev}{slideLabels[a]}{a === "next" && slideIcons.next}
                 </Button>
               ))}
             </div>
             <div className="grid grid-cols-3 gap-2">
               {rest.map((a) => (
-                <Button key={a} size="lg" disabled={!st.available} onClick={() => act(name, slideLabels[a] ?? a, `/api/presentation/${a}`)}>
+                <Button key={a} size="lg" disabled={!st.available} onClick={() => act(name, slideLabels[a] ?? a, withConn(`/api/presentation/${a}`, conn))}>
                   {slideIcons[a]}{slideLabels[a] ?? a}
                 </Button>
               ))}
@@ -112,7 +115,8 @@ export function Slides() {
 // ---------------------------------------------------------------- mixer
 
 export function Mixer() {
-  const { data: st, reload } = usePoll<MixerStatus>("/api/mixer/status", 3000);
+  const conn = useWidgetConn();
+  const { data: st, reload } = usePoll<MixerStatus>(withConn("/api/mixer/status", conn), 3000);
   const act = useAct();
   const name = st?.label || "Audio";
   return (
@@ -121,11 +125,11 @@ export function Mixer() {
       <CardBody>
         {!st?.configured && <p className="mb-2 text-xs text-muted">{st?.error ?? "Mixer not set up."}</p>}
         {st?.configured && !st.connected && <p className="mb-2 text-xs text-bad">{st.error}</p>}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2">
           {(st?.channels ?? []).map((c) => (
             <button key={c.slot}
               disabled={c.channel == null || !st?.connected}
-              onClick={async () => { await act(name, `${c.label} ${c.muted ? "unmuted" : "muted"} (read back)`, "/api/mixer/mute", { slot: c.slot }); reload(); }}
+              onClick={async () => { await act(name, `${c.label} ${c.muted ? "unmuted" : "muted"} (read back)`, withConn("/api/mixer/mute", conn), { slot: c.slot }); reload(); }}
               className={cn("flex h-[76px] flex-col justify-between rounded-xl border-2 p-2.5 text-left transition active:scale-[0.98] disabled:opacity-40",
                 c.muted ? "border-pgm/70 bg-pgm/15" : "border-line bg-panel-2 hover:border-line-strong")}>
               <span className="flex w-full items-center gap-1.5">

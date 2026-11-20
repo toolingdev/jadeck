@@ -87,7 +87,7 @@ code-complete but not yet exercised against a real MediaMTX + camera.
 
 ## Install — office PC deployment (Nov 7, 2026, post-flash)
 
-Deployed to the venue office PC (booth-pc) at the owner's
+Deployed to the venue office PC at the owner's
 direction, after the flash verified SOC v6.3.45:
 
 - Layout `C:\PTZControl\`: `runtime\` (CPython 3.15.2 embeddable +

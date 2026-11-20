@@ -56,8 +56,9 @@ To run it again, use the link at the bottom of Settings.
 | Section | What it holds |
 |---|---|
 | Cameras | Any number of cameras: add by IP or from the network scan, test, edit, remove, and pick the main camera. Presets belong to their camera. Macros and agents use the main camera. |
-| Devices | Video switcher, slides and mixer (see DEVICES.md). |
-| Live video | The built-in stream gateway (MediaMTX): live video on/off per camera, plus the vMix program output and slides confidence feeds over SRT. |
+| Connections | Video switchers, slides and mixers, any number of each, through add-ons (see DEVICES.md). |
+| Video feeds | Pictures dashboards can show: each camera, plus feeds sent here by SRT (vMix Program, Slides…) or pulled from an address; the stream gateway (MediaMTX) settings. |
+| Add-ons | What's installed, what each adds, updates, install from a file (see ADDONS.md). |
 | System | Port and network name (`ptz.local`), who can use it without a key, and updates (channel, automatic install, release source). |
 | Dashboards, API keys, Audit | As before. |
 
@@ -82,10 +83,10 @@ copy is checked against a pinned SHA-256 when the release is built (see
 THIRD_PARTY_NOTICES.md).
 
 Development builds (and Windows on ARM, which has no MediaMTX build) don't
-include it. There, **Settings → Live video → Download & start** fetches the
+include it. There, **Settings → Video feeds → Download & start** fetches the
 same pinned version.
 
-Already running your own MediaMTX? Go to **Live video → Advanced** and
+Already running your own MediaMTX? Go to **Video feeds → Stream gateway → Advanced** and
 switch off the built-in gateway. Then type the IP of the PC that runs it.
 
 Video ports: 8889 (WebRTC), 8888 (HLS), UDP 8189 (WebRTC media), UDP 8890
@@ -118,8 +119,10 @@ is Wi-Fi and the viewing device, so the app keeps it down by itself:
 
 ### Sending the program (or any vMix output) by SRT
 
-Turn on **Settings → Live video → Program output**. The card shows the
-address, e.g. `srt://192.168.1.20:8890?streamid=publish:program`. In vMix:
+Add a feed under **Settings → Video feeds → Add feed → Sent to this
+controller**, named e.g. Program. It shows the address, e.g.
+`srt://192.168.1.20:8890?streamid=publish:program`. (Proclaim only sends
+NDI: add its NDI as a vMix input and send a vMix output here the same way.) In vMix:
 **Settings → Outputs / NDI / SRT → Output 1 (Program) → ⚙ → SRT**, type
 **Caller**, paste the address's host and port, and set the stream ID to
 `publish:program`. A modest setting is plenty for phones: 1280×720,

@@ -18,6 +18,7 @@ type Actions struct {
 	SwitcherFade    func(ctx context.Context, ms int) error
 	Slides          func(ctx context.Context, action string) error
 	CameraPreset    func(ctx context.Context, name string) error
+	AddonAction     func(ctx context.Context, s Step) (string, error)
 }
 
 type StepResult struct {
@@ -81,6 +82,12 @@ func (e *Engine) Run(ctx context.Context, id int64) (*Report, error) {
 	if m == nil {
 		return nil, fmt.Errorf("%w: no macro with id %d", ErrNotFound, id)
 	}
+	return e.RunSteps(ctx, id, m.Name, m.Steps)
+}
+
+// RunSteps runs a list of steps the same way (scheduled actions use it
+// with id 0: nothing is recorded on a saved macro).
+func (e *Engine) RunSteps(ctx context.Context, id int64, name string, steps []Step) (*Report, error) {
 	e.mu.Lock()
 	if e.running {
 		e.mu.Unlock()
@@ -88,7 +95,7 @@ func (e *Engine) Run(ctx context.Context, id int64) (*Report, error) {
 	}
 	e.running = true
 	started := now()
-	e.current = map[string]any{"macroId": id, "name": m.Name, "step": 0, "totalSteps": len(m.Steps), "startedAt": started}
+	e.current = map[string]any{"macroId": id, "name": name, "step": 0, "totalSteps": len(steps), "startedAt": started}
 	e.mu.Unlock()
 	defer func() {
 		e.mu.Lock()
@@ -98,8 +105,8 @@ func (e *Engine) Run(ctx context.Context, id int64) (*Report, error) {
 
 	runCtx, cancel := context.WithTimeout(ctx, e.RunDeadline)
 	defer cancel()
-	rep := &Report{MacroID: id, Name: m.Name, StartedAt: started, Steps: []StepResult{}}
-	for i, st := range m.Steps {
+	rep := &Report{MacroID: id, Name: name, StartedAt: started, Steps: []StepResult{}}
+	for i, st := range steps {
 		e.mu.Lock()
 		e.current["step"] = i + 1
 		e.mu.Unlock()
@@ -123,7 +130,9 @@ func (e *Engine) Run(ctx context.Context, id int64) (*Report, error) {
 	}
 	rep.OK = rep.FailedStep == nil
 	rep.FinishedAt = now()
-	e.Store.RecordRun(id, rep)
+	if id != 0 {
+		e.Store.RecordRun(id, rep)
+	}
 	return rep, nil
 }
 
@@ -204,6 +213,11 @@ func (e *Engine) device(ctx context.Context, s Step) (string, error) {
 			return "", fmt.Errorf("camera %w", errMissing)
 		}
 		return "recalled " + s.Preset, d.CameraPreset(ctx, s.Preset)
+	case "addon":
+		if d.AddonAction == nil {
+			return "", fmt.Errorf("add-ons %w", errMissing)
+		}
+		return d.AddonAction(ctx, s)
 	}
 	return "", fmt.Errorf("cannot run step type %q", s.Type)
 }

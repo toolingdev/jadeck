@@ -40,7 +40,7 @@ export function DashboardSettings() {
       localStorage.setItem("ptz.dashboard", JSON.stringify(d.id));
       localStorage.setItem("ptz.dashboard.editNow", String(d.id));
     } catch { /* ignore */ }
-    history.pushState(null, "", "/dashboard");
+    history.pushState(null, "", "/");
     dispatchEvent(new PopStateEvent("popstate"));
   };
   const remove = async () => {

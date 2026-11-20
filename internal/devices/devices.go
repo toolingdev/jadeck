@@ -1,11 +1,10 @@
-// Package devices is the integration layer: generic interfaces for the
-// gear around the camera, a driver registry, and the devices.json that
-// says which drivers this install uses.
+// Package devices is the controller's view of the gear around the
+// camera: connections (saved in devices.json), each opened through an
+// add-on, and the capability interfaces they implement.
 //
-// Nothing here is venue-specific. Proclaim, the Behringer WING and vMix
-// are just drivers (or driver configs). To support other gear, add a
-// driver package that calls RegisterSwitcher / RegisterPresentation /
-// RegisterMixer from init(), and blank-import it in cmd/ptz.
+// Nothing here knows any product. vMix, the Behringer WING, Proclaim...
+// are add-ons, separate projects that speak the add-on protocol
+// (github.com/toolingdev/ptz-controller/sdk/addon).
 package devices
 
 import (
@@ -14,137 +13,31 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/toolingdev/ptz-controller/sdk/addon"
 )
 
 // ------------------------------------------------------------ interfaces
-
-// Input is one switcher source.
-type Input struct {
-	Number int    `json:"number"`
-	Key    string `json:"key"`
-	Title  string `json:"title"`
-	Type   string `json:"type"`
-	State  string `json:"state"`
-}
-
-// SwitcherState is what a switcher reports. Fields a driver can't know
-// stay zero.
-type SwitcherState struct {
-	Version     string  `json:"version"`
-	Edition     string  `json:"edition"`
-	Inputs      []Input `json:"inputs"`
-	Preview     int     `json:"preview"`
-	Active      int     `json:"active"`
-	Streaming   bool    `json:"streaming"`
-	Recording   bool    `json:"recording"`
-	FadeToBlack bool    `json:"fadeToBlack"`
-}
-
-// Switcher is a video switcher (vMix, OBS, ATEM, ...).
-type Switcher interface {
-	State(ctx context.Context) (SwitcherState, error)
-	Preview(ctx context.Context, input int) error
-	Cut(ctx context.Context) error
-	Fade(ctx context.Context, durationMs int) error
-}
-
-// PresentationInfo describes how a presentation driver delivers
-// actions (shown in the UI so operators know what's wired).
-type PresentationInfo struct {
-	Available bool           `json:"available"`
-	Target    string         `json:"port"` // MIDI port, URL, ... ("port" for UI compatibility)
-	Details   map[string]any `json:"details,omitempty"`
-}
-
-// Presentation is slide software (Proclaim, ProPresenter, ...).
-// Actions are driver-config defined; the standard set is
-// prev, next, black, logo, clear.
-type Presentation interface {
-	Info() PresentationInfo
-	Actions() []string
-	Do(ctx context.Context, action string) (detail map[string]any, err error)
-}
-
-// Mixer is an audio console. Channels are 1-based console channels.
-type Mixer interface {
-	Probe(ctx context.Context) (identity string, err error)
-	MaxChannel() int
-	GetMute(ctx context.Context, ch int) (bool, error)
-	SetMute(ctx context.Context, ch int, muted bool) error
-}
-
-// Closer is optionally implemented by drivers holding OS resources.
-type Closer interface{ Close() error }
-
-// ---------------------------------------------------------------- errors
-
-var (
-	ErrNotConfigured = errors.New("not set up")
-	ErrUnknownAction = errors.New("unknown action")
-)
-
-// ---------------------------------------------------------------- registry
+//
+// The capability types live in the add-on SDK (pkg/addon) so drivers,
+// add-on programs and the controller share one definition.
 
 type (
-	SwitcherFactory     func(cfg json.RawMessage) (Switcher, error)
-	PresentationFactory func(cfg json.RawMessage) (Presentation, error)
-	MixerFactory        func(cfg json.RawMessage) (Mixer, error)
+	Input            = addon.Input
+	SwitcherState    = addon.SwitcherState
+	Switcher         = addon.Switcher
+	PresentationInfo = addon.PresentationInfo
+	Presentation     = addon.Presentation
+	Mixer            = addon.Mixer
+	Closer           = addon.Closer
 )
 
 var (
-	regMu         sync.Mutex
-	switchers     = map[string]SwitcherFactory{}
-	presentations = map[string]PresentationFactory{}
-	mixers        = map[string]MixerFactory{}
+	ErrNotConfigured = addon.ErrNotConfigured
+	ErrUnknownAction = addon.ErrUnknownAction
 )
-
-func RegisterSwitcher(name string, f SwitcherFactory) { reg(switchers, name, f) }
-func RegisterPresentation(name string, f PresentationFactory) {
-	reg(presentations, name, f)
-}
-func RegisterMixer(name string, f MixerFactory) { reg(mixers, name, f) }
-
-func reg[F any](m map[string]F, name string, f F) {
-	regMu.Lock()
-	defer regMu.Unlock()
-	if _, dup := m[name]; dup {
-		panic("devices: driver registered twice: " + name)
-	}
-	m[name] = f
-}
-
-// Drivers lists registered driver names per kind.
-func Drivers() map[string][]string {
-	regMu.Lock()
-	defer regMu.Unlock()
-	keys := func(n int, each func(func(string))) []string {
-		out := make([]string, 0, n)
-		each(func(k string) { out = append(out, k) })
-		sort.Strings(out)
-		return out
-	}
-	return map[string][]string{
-		"switcher": keys(len(switchers), func(f func(string)) {
-			for k := range switchers {
-				f(k)
-			}
-		}),
-		"presentation": keys(len(presentations), func(f func(string)) {
-			for k := range presentations {
-				f(k)
-			}
-		}),
-		"mixer": keys(len(mixers), func(f func(string)) {
-			for k := range mixers {
-				f(k)
-			}
-		}),
-	}
-}
 
 // ---------------------------------------------------------------- config
 
@@ -186,12 +79,105 @@ type Favorite struct {
 	Channel int    `json:"channel"` // 0 = placeholder, not assigned
 }
 
-// File is devices.json.
+// Connection is one piece of gear this install talks to, through an
+// add-on: "vMix — office PC", "Proclaim — sanctuary PC". Any number of
+// each kind.
+type Connection struct {
+	ID     string          `json:"id"`
+	Addon  string          `json:"addon"`
+	Type   string          `json:"type"` // the add-on's connection type
+	Name   string          `json:"name"`
+	Config json.RawMessage `json:"config,omitempty"`
+	// Quick channels, for mixer connections: the channels shown on Mute
+	// buttons and the Favorites widget, with the names people know.
+	Favorites []Favorite `json:"favorites,omitempty"`
+	Disabled  bool       `json:"disabled,omitempty"`
+}
+
+// File is devices.json. Version 1 had one switcher, one presentation and
+// one mixer; LoadFile turns that into connections.
 type File struct {
-	Switcher     *DeviceConfig `json:"switcher"`
-	Presentation *DeviceConfig `json:"presentation"`
-	Mixer        *DeviceConfig `json:"mixer"`
-	Favorites    []Favorite    `json:"favorites"`
+	Version     int          `json:"version"`
+	Connections []Connection `json:"connections"`
+
+	// version 1, read only
+	Switcher     *DeviceConfig `json:"switcher,omitempty"`
+	Presentation *DeviceConfig `json:"presentation,omitempty"`
+	Mixer        *DeviceConfig `json:"mixer,omitempty"`
+	Favorites    []Favorite    `json:"favorites,omitempty"`
+}
+
+// LegacyAddon maps a version-1 driver to the add-on and connection type
+// that replaced it.
+func LegacyAddon(kind, driver string) (addonID, typ string) {
+	switch driver {
+	case "vmix":
+		return "vmix", "vmix"
+	case "osc":
+		return "behringer-wing", "osc"
+	case "midi":
+		return "midi", "midi"
+	case "http":
+		return "http-api", "http"
+	case "sim":
+		return "simulated", map[string]string{"switcher": "sim-switcher", "presentation": "sim-slides", "mixer": "sim-mixer"}[kind]
+	}
+	return driver, driver
+}
+
+// Migrate turns a version-1 file into connections (no-op for version 2).
+func (f *File) Migrate() bool {
+	if f.Version >= 2 {
+		return false
+	}
+	add := func(kind string, d *DeviceConfig, favs []Favorite) {
+		if d == nil || d.Driver == "" {
+			return
+		}
+		a, t := LegacyAddon(kind, d.Driver)
+		name := d.Label
+		if name == "" {
+			name = map[string]string{"switcher": "Video switcher", "presentation": "Slides", "mixer": "Audio mixer"}[kind]
+		}
+		var cfg map[string]any
+		json.Unmarshal(d.Raw, &cfg)
+		delete(cfg, "driver")
+		delete(cfg, "label")
+		raw, _ := json.Marshal(cfg)
+		f.Connections = append(f.Connections, Connection{ID: NewID(f, a), Addon: a, Type: t, Name: name, Config: raw, Favorites: favs})
+	}
+	add("switcher", f.Switcher, nil)
+	add("presentation", f.Presentation, nil)
+	add("mixer", f.Mixer, f.Favorites)
+	if f.Mixer == nil && len(f.Favorites) > 0 {
+		// favorites without a mixer: keep them on a placeholder so nothing is lost
+		f.Connections = append(f.Connections, Connection{ID: NewID(f, "mixer"), Addon: "simulated", Type: "sim-mixer",
+			Name: "Audio mixer (not set up)", Favorites: f.Favorites, Disabled: true})
+	}
+	f.Version = 2
+	f.Switcher, f.Presentation, f.Mixer, f.Favorites = nil, nil, nil, nil
+	return true
+}
+
+// NewID makes a connection id unique within the file.
+func NewID(f *File, base string) string {
+	base = strings.ToLower(strings.TrimSpace(base))
+	if base == "" {
+		base = "conn"
+	}
+	id := base
+	for n := 2; ; n++ {
+		taken := false
+		for _, c := range f.Connections {
+			if c.ID == id {
+				taken = true
+			}
+		}
+		if !taken {
+			return id
+		}
+		id = fmt.Sprintf("%s-%d", base, n)
+	}
 }
 
 func LoadFile(path string) (*File, error) {
@@ -203,6 +189,7 @@ func LoadFile(path string) (*File, error) {
 	if err := json.Unmarshal(b, &f); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	f.Migrate()
 	return &f, nil
 }
 
@@ -215,9 +202,33 @@ type Slot struct {
 	Channel *int   `json:"channel"`
 }
 
-// Set is the live devices of this install. Any member may be nil (not
-// configured); its Err says why when a driver failed to start.
+// Live is an opened connection.
+type Live struct {
+	Connection
+	Caps  []string // capabilities it has
+	Impl  any      // implements the capability interfaces
+	Err   error    // why it couldn't open
+	Slots []Slot   // resolved favorites (mixers)
+}
+
+func (l *Live) Has(cap string) bool {
+	for _, c := range l.Caps {
+		if c == cap {
+			return true
+		}
+	}
+	return false
+}
+
+// Opener opens one connection (through its add-on).
+type Opener func(c Connection) (impl any, caps []string, err error)
+
+// Set is the live connections of this install. Switcher / Presentation /
+// Mixer are the defaults (the first connection with that capability) so
+// widgets and macros that don't name a connection keep working.
 type Set struct {
+	Conns []*Live
+
 	Switcher     Switcher
 	Presentation Presentation
 	Mixer        Mixer
@@ -225,57 +236,142 @@ type Set struct {
 	SwitcherCfg, PresentationCfg, MixerCfg DeviceConfig
 	SwitcherErr, PresentationErr, MixerErr error
 
-	Favorites []Slot
+	Favorites []Slot // the default mixer's quick channels
 }
 
-// Open builds the device set. A driver that fails to start is reported
-// in the *Err field instead of taking the app down.
-func Open(f *File) *Set {
+// Open builds the set. A connection that fails to open is reported in
+// its Err instead of taking the app down.
+func Open(f *File, open Opener) *Set {
 	s := &Set{}
 	if f == nil {
-		f = &File{}
+		f = &File{Version: 2}
 	}
-	if c := f.Switcher; c != nil && c.Driver != "" {
-		s.SwitcherCfg = *c
-		if fac, ok := switchers[c.Driver]; !ok {
-			s.SwitcherErr = fmt.Errorf("unknown switcher driver %q", c.Driver)
-		} else {
-			s.Switcher, s.SwitcherErr = fac(c.Raw)
+	f.Migrate()
+	for _, c := range f.Connections {
+		l := &Live{Connection: c}
+		for i, fav := range c.Favorites {
+			sl := Slot{Slot: i + 1, Label: fav.Label}
+			if sl.Label == "" {
+				sl.Label = fmt.Sprintf("Fav %d", i+1)
+			}
+			if fav.Channel > 0 {
+				ch := fav.Channel
+				sl.Channel = &ch
+			}
+			l.Slots = append(l.Slots, sl)
 		}
+		switch {
+		case c.Disabled:
+			l.Err = fmt.Errorf("turned off")
+		case open == nil:
+			l.Err = fmt.Errorf("no add-on host")
+		default:
+			l.Impl, l.Caps, l.Err = open(c)
+		}
+		s.Conns = append(s.Conns, l)
 	}
-	if c := f.Presentation; c != nil && c.Driver != "" {
-		s.PresentationCfg = *c
-		if fac, ok := presentations[c.Driver]; !ok {
-			s.PresentationErr = fmt.Errorf("unknown presentation driver %q", c.Driver)
-		} else {
-			s.Presentation, s.PresentationErr = fac(c.Raw)
-		}
-	}
-	if c := f.Mixer; c != nil && c.Driver != "" {
-		s.MixerCfg = *c
-		if fac, ok := mixers[c.Driver]; !ok {
-			s.MixerErr = fmt.Errorf("unknown mixer driver %q", c.Driver)
-		} else {
-			s.Mixer, s.MixerErr = fac(c.Raw)
-		}
-	}
-	for i, fav := range f.Favorites {
-		sl := Slot{Slot: i + 1, Label: fav.Label}
-		if sl.Label == "" {
-			sl.Label = fmt.Sprintf("Fav %d", i+1)
-		}
-		if fav.Channel > 0 {
-			ch := fav.Channel
-			sl.Channel = &ch
-		}
-		s.Favorites = append(s.Favorites, sl)
-	}
+	s.pickDefaults()
 	return s
 }
 
+// expected capability per kind (for defaults and errors)
+var kindCap = map[string]string{"switcher": addon.CapSwitcher, "presentation": addon.CapSlides, "mixer": addon.CapMixer}
+
+// declaredCap is filled by the host: connection type → capabilities from
+// the add-on's manifest, so a connection that failed to open still
+// counts as "the switcher" (and shows its error) instead of vanishing.
+var DeclaredCaps func(c Connection) []string
+
+func (s *Set) pickDefaults() {
+	cfg := func(l *Live) DeviceConfig {
+		raw, _ := json.Marshal(map[string]any{"driver": l.Type, "label": l.Name})
+		return DeviceConfig{Driver: l.Type, Label: l.Name, Raw: raw}
+	}
+	for _, kind := range []string{"switcher", "presentation", "mixer"} {
+		capName := kindCap[kind]
+		var pick *Live
+		for _, l := range s.Conns {
+			if l.Disabled {
+				continue
+			}
+			has := l.Has(capName)
+			if !has && l.Impl == nil && DeclaredCaps != nil {
+				for _, c := range DeclaredCaps(l.Connection) {
+					has = has || c == capName
+				}
+			}
+			if has {
+				pick = l
+				break
+			}
+		}
+		if pick == nil {
+			continue
+		}
+		switch kind {
+		case "switcher":
+			s.SwitcherCfg, s.SwitcherErr = cfg(pick), pick.Err
+			s.Switcher, _ = pick.Impl.(Switcher)
+		case "presentation":
+			s.PresentationCfg, s.PresentationErr = cfg(pick), pick.Err
+			s.Presentation, _ = pick.Impl.(Presentation)
+		case "mixer":
+			s.MixerCfg, s.MixerErr = cfg(pick), pick.Err
+			s.Mixer, _ = pick.Impl.(Mixer)
+			s.Favorites = pick.Slots
+		}
+	}
+}
+
+// Get finds a live connection by id.
+func (s *Set) Get(id string) *Live {
+	for _, l := range s.Conns {
+		if l.ID == id {
+			return l
+		}
+	}
+	return nil
+}
+
+// Of returns the connections with a capability.
+func (s *Set) Of(cap string) []*Live {
+	var out []*Live
+	for _, l := range s.Conns {
+		if l.Has(cap) || (l.Impl == nil && DeclaredCaps != nil && contains(DeclaredCaps(l.Connection), cap)) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func contains(xs []string, x string) bool {
+	for _, v := range xs {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
+
+// Scoped returns a view of the set whose defaults are the given
+// connection (for API calls that name one with ?conn=). Unknown or
+// empty id returns the set itself.
+func (s *Set) Scoped(id string) (*Set, error) {
+	if id == "" {
+		return s, nil
+	}
+	l := s.Get(id)
+	if l == nil {
+		return nil, fmt.Errorf("no connection %q", id)
+	}
+	v := &Set{Conns: []*Live{l}}
+	v.pickDefaults()
+	return v, nil
+}
+
 func (s *Set) Close() {
-	for _, d := range []any{s.Switcher, s.Presentation, s.Mixer} {
-		if c, ok := d.(Closer); ok {
+	for _, l := range s.Conns {
+		if c, ok := l.Impl.(Closer); ok {
 			c.Close()
 		}
 	}

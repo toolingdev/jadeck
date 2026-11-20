@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Search, X, Copy, Trash2, Loader2, CloudOff } from "lucide-react";
 import type { DevicesInfo, Preset, Macro, MixerStatus, PresentationStatus, CameraInfo, SwitcherStatus } from "@/lib/api";
 import { useChannels, stageApi } from "@/lib/stage";
@@ -8,17 +8,80 @@ import { Button, Input, Select, Switch } from "@/components/ui";
 import { WIDGETS, WIDGET, GROUPS, UnknownWidget, type WidgetDef, type Field, type Settings } from "@/dash/widgets";
 import type { Item, Widget } from "@/dash/types";
 import { Boundary } from "@/components/Boundary";
+import { WidgetConn } from "@/lib/hooks";
+import { useAddonWidgets } from "@/dash/addonWidgets";
 
 // Edit-mode pieces of the dashboard page: widget view, library,
 // inspector and the save badge.
 
-export function WidgetView({ w, editing }: { w: Widget; editing: boolean }) {
+/** How tall (px) this widget's box must be to show everything in it
+ *  without a scrollbar. Lists that grow by themselves (conversation,
+ *  action log, viewers…) are marked data-feed and are allowed to scroll. */
+function measureNeed(root: HTMLElement): number | null {
+  const scrollers = [...root.querySelectorAll<HTMLElement>("*")].filter((el) => {
+    if (el.closest("[data-feed]") || el.tagName === "TEXTAREA") return false;
+    const oy = getComputedStyle(el).overflowY;
+    return oy === "auto" || oy === "scroll";
+  });
+  if (!scrollers.length) return null;
+  let extra = -Infinity;
+  for (const el of scrollers) {
+    const shown = el.clientHeight;
+    const { height, maxHeight, flex } = el.style;
+    // Lay it out at its natural height for a moment (no paint happens).
+    el.style.height = "max-content";
+    el.style.maxHeight = "none";
+    el.style.flex = "none";
+    const natural = el.offsetHeight;
+    el.style.height = height;
+    el.style.maxHeight = maxHeight;
+    el.style.flex = flex;
+    extra = Math.max(extra, natural - shown);
+  }
+  return Math.ceil(root.getBoundingClientRect().height + extra);
+}
+
+export function WidgetView({ w, editing, onNeed }: { w: Widget; editing: boolean; onNeed?: (id: string, px: number | null) => void }) {
   const def = WIDGET[w.type];
+  const ref = useRef<HTMLDivElement>(null);
+  const last = useRef<number | null | undefined>(undefined);
+  useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root || !onNeed) return;
+    let t = 0;
+    const run = () => {
+      // A short timer, not requestAnimationFrame: rAF stalls in
+      // background / throttled tabs and the box would never fit.
+      clearTimeout(t);
+      t = window.setTimeout(() => {
+        const px = measureNeed(root);
+        const prev = last.current;
+        if (prev === undefined || (px === null) !== (prev === null) || (px !== null && prev !== null && Math.abs(px - prev) > 2)) {
+          last.current = px;
+          onNeed(w.id, px);
+        }
+      }, 30);
+    };
+    run();
+    // Re-measure when the box changes size or what's inside changes
+    // (a preset added, a channel renamed, inputs loaded…).
+    const ro = new ResizeObserver(run);
+    ro.observe(root);
+    const mo = new MutationObserver(run);
+    mo.observe(root, { childList: true, subtree: true, characterData: true });
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, [w.id, onNeed]);
   if (!def) return <UnknownWidget type={w.type} />;
   const R = def.Render;
   return (
-    <div className={cn("h-full", editing && "pointer-events-none select-none")}>
-      <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
+    <div ref={ref} className={cn("h-full overflow-hidden rounded-[var(--radius-card)]", editing && "pointer-events-none select-none")}>
+      <WidgetConn.Provider value={typeof w.settings.connection === "string" ? w.settings.connection : ""}>
+        <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
+      </WidgetConn.Provider>
     </div>
   );
 }
@@ -35,6 +98,7 @@ export function Library({ onAdd, onDragType, onTouchStart, inline }: {
     const k = dev?.[needs as "switcher" | "presentation" | "mixer"];
     return !!k?.configured;
   };
+  const addonDefs = useAddonWidgets();
   const match = (w: WidgetDef) => !q || `${w.label} ${w.description} ${w.group}`.toLowerCase().includes(q.toLowerCase());
   return (
     <aside className={inline ? "" : "sticky top-[68px] hidden max-h-[calc(100dvh-84px)] w-60 shrink-0 overflow-y-auto rounded-2xl border border-line bg-panel p-3 2xl:block"}>
@@ -44,7 +108,7 @@ export function Library({ onAdd, onDragType, onTouchStart, inline }: {
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search widgets…" className="h-9 pl-8" />
       </div>
       {GROUPS.filter((g) => ready(g.needs)).map((g) => {
-        const items = WIDGETS.filter((w) => w.group === g.id && match(w));
+        const items = (g.id === "addons" ? addonDefs : WIDGETS).filter((w) => w.group === g.id && !w.hidden && match(w));
         if (!items.length) return null;
         return (
           <div key={g.id} className="mb-3">
@@ -120,6 +184,12 @@ function FieldInput({ f, value, onChange, all }: { f: Field; value: unknown; onC
   }
   if (f.type === "channel" || f.type === "channels") {
     return <ChannelField f={f} value={value} onChange={onChange} />;
+  }
+  if (f.type === "feed") {
+    return <FeedField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
+  }
+  if (f.type === "connection") {
+    return <ConnectionField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
   }
   if (f.type === "camera") {
     return <CameraField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
@@ -270,4 +340,36 @@ export function SaveBadge({ state, onRetry }: { state: "saved" | "pending" | "sa
     return <span className="flex items-center gap-1 text-[11px] text-muted"><Loader2 size={12} className="animate-spin" /> Saving…</span>;
   }
   return <span className="flex items-center gap-1 text-[11px] text-good"><span className="h-1.5 w-1.5 rounded-full bg-good" /> Saved</span>;
+}
+
+/** Which connection a widget uses: only shown when there's a choice. */
+function ConnectionField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
+  const { data } = useShared<{ connections: { id: string; name: string; addon: string; capabilities: string[]; ready: boolean }[] }>("/api/devices", 0);
+  const list = (data?.connections ?? []).filter((c) => (f.cap ? c.capabilities?.includes(f.cap) : true) && (f.addon ? c.addon === f.addon : true));
+  if (list.length <= 1 && !value) return null;
+  const options = [{ value: "", label: `The first one${list[0] ? ` (${list[0].name})` : ""}` }, ...list.map((c) => ({ value: c.id, label: c.name + (c.ready ? "" : " — not connected") }))];
+  if (value && !list.some((c) => c.id === value)) options.push({ value, label: "(removed connection)" });
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-muted">{f.label}</span>
+      <Select value={value} onChange={onChange} options={options} />
+      {f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>}
+    </label>
+  );
+}
+
+/** Which video feed a Video widget shows: cameras plus Settings → Video feeds. */
+function FeedField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
+  const { data } = useShared<{ feeds: { id: string; name: string; source: string }[] }>("/api/feeds", 0);
+  const feeds = data?.feeds ?? [];
+  const options = [{ value: "", label: "Choose…" }, { value: "cam:", label: "The camera the header controls" },
+    ...feeds.map((x) => ({ value: x.id, label: `${x.name}${x.source === "camera" ? " (camera)" : ""}` }))];
+  if (value && !feeds.some((x) => x.id === value)) options.push({ value, label: "(removed feed)" });
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-muted">{f.label}</span>
+      <Select value={value} onChange={onChange} options={options} />
+      {f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>}
+    </label>
+  );
 }

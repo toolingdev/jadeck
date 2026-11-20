@@ -38,10 +38,52 @@ type Camera struct {
 
 // Video is the built-in stream gateway (MediaMTX).
 type Video struct {
-	Managed    bool   `json:"managed"`    // the app runs MediaMTX itself
-	Program    bool   `json:"program"`    // accept vMix program output over SRT
-	Confidence bool   `json:"confidence"` // accept the slides confidence feed over SRT
-	External   string `json:"external"`   // own gateway: base host, e.g. "10.1.10.20" (when !Managed)
+	Managed  bool   `json:"managed"`  // the app runs MediaMTX itself
+	External string `json:"external"` // own gateway: base host, e.g. "10.1.10.20" (when !Managed)
+	// Feeds are pictures dashboards can show besides the cameras (which
+	// add their own): sent here by vMix / OBS / an encoder (SRT push), or
+	// pulled from an address (RTSP / SRT).
+	Feeds []Feed `json:"feeds"`
+
+	// Before feeds: two fixed SRT inputs. Read once, turned into feeds.
+	Program    bool `json:"program,omitempty"`
+	Confidence bool `json:"confidence,omitempty"`
+}
+
+// Feed is one video feed. ID is its gateway path (and the SRT stream id
+// "publish:<id>" senders use), so it never changes after creation.
+type Feed struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Source string `json:"source"`        // push | pull
+	URL    string `json:"url,omitempty"` // pull: rtsp://… or srt://…
+}
+
+// MigrateFeeds turns the old Program / Confidence switches into feeds
+// with the same stream ids, so a configured vMix keeps working.
+func (v *Video) MigrateFeeds() {
+	if v.Feeds != nil {
+		v.Program, v.Confidence = false, false
+		return
+	}
+	v.Feeds = []Feed{}
+	if v.Program {
+		v.Feeds = append(v.Feeds, Feed{ID: "program", Name: "Program", Source: "push"})
+	}
+	if v.Confidence {
+		v.Feeds = append(v.Feeds, Feed{ID: "confidence", Name: "Slides", Source: "push"})
+	}
+	v.Program, v.Confidence = false, false
+}
+
+// Feed finds a feed by id.
+func (v Video) Feed(id string) (Feed, bool) {
+	for _, f := range v.Feeds {
+		if f.ID == id {
+			return f, true
+		}
+	}
+	return Feed{}, false
 }
 
 // System is network, access and updates.
@@ -242,6 +284,7 @@ func Open(path string, seed func() Settings) (*Store, error) {
 	for i := range st.s.Cameras {
 		st.s.Cameras[i].Defaults()
 	}
+	st.s.Video.MigrateFeeds()
 	if st.s.System.Port == 0 {
 		st.s.System.Port = 8080
 	}

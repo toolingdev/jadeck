@@ -29,7 +29,7 @@ function Box({ title, right, children }: { title: string; right?: ReactNode; chi
         <span className="truncate text-[12px] font-semibold">{title}</span>
         <span className="ml-auto text-[11px] text-dim">{right}</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
+      <div data-feed className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
     </div>
   );
 }

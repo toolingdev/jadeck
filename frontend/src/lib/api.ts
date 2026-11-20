@@ -61,6 +61,7 @@ export type StreamConfig = {
   camera: string; snapshot: string;
   whep?: string; hls?: string; whepSd?: string; hlsSd?: string;
   programWhep?: string; programHls?: string; confidenceWhep?: string; confidenceHls?: string;
+  feeds?: { id: string; name: string; source: "push" | "pull"; whep?: string; hls?: string }[];
 };
 
 export type CameraInfo = {
@@ -114,9 +115,10 @@ export type MixerStatus = {
 };
 
 export type Step = {
-  type: "mixer_mute" | "switcher" | "slides" | "camera_preset" | "delay";
+  type: "mixer_mute" | "switcher" | "slides" | "camera_preset" | "delay" | "addon";
   channel?: number; channelName?: string; muted?: boolean;
   action?: string; input?: number; durationMs?: number; preset?: string; ms?: number;
+  addon?: string; connection?: string; params?: Record<string, unknown>; label?: string;
 };
 export type StepResult = { step: number; type: string; label: string; ok: boolean; detail?: string; error?: string; ms: number };
 export type RunReport = {

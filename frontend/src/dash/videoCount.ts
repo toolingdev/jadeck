@@ -4,7 +4,7 @@ import { screenFor } from "./types";
 /** How many video widgets the dashboard on screen holds (for Auto quality). */
 export const VideoCount = createContext(1);
 
-export const VIDEO_TYPES = new Set(["camera.live", "switcher.program", "switcher.confidence"]);
+export const VIDEO_TYPES = new Set(["video", "camera.live", "switcher.program", "switcher.confidence"]);
 
 /**
  * Auto quality: HD when this is the only video on a tablet/desktop

@@ -188,8 +188,8 @@ type Found struct {
 	ViscaPort int    `json:"viscaPort"`
 	HTTPPort  int    `json:"httpPort"`
 	Model     string `json:"model,omitempty"`
-	Login     bool   `json:"login"`   // needs a login
-	Known     string `json:"known"`   // name of the saved camera at this address
+	Login     bool   `json:"login"` // needs a login
+	Known     string `json:"known"` // name of the saved camera at this address
 }
 
 // Candidate is an address to try (the scan builds them from this PC's

@@ -75,7 +75,7 @@ const (
 )
 
 var (
-	typeRe = regexp.MustCompile(`^[a-z][a-z0-9._-]{0,39}$`)
+	typeRe = regexp.MustCompile(`^[a-z][a-z0-9._:-]{0,79}$`) // add-on widgets: addon:<id>:<widget>
 	idRe   = regexp.MustCompile(`^[A-Za-z0-9_-]{1,40}$`)
 )
 
@@ -229,6 +229,10 @@ func Open(path string) (*Store, error) {
 	// After the defaults: a starter Stage dashboard never becomes a
 	// device's default by surprise.
 	if err := s.seedOnce("stage-v1", StageTablet, StagePhone); err != nil {
+		return nil, err
+	}
+	// The Camera tab became a dashboard: same controls, editable.
+	if err := s.seedOnce("camera-v1", CameraDesktop, CameraPhone); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -577,4 +581,28 @@ func StagePhone() Dashboard {
 		{"reply", 0, 12, 4, 4}, {"stream", 0, 16, 4, 5},
 	}
 	return Dashboard{Name: "Stage — phone", Kind: "phone", Widgets: ws, Layout: layout}
+}
+
+// CameraDesktop is what the Camera tab was: the picture, Move, presets
+// and picture settings, for the camera picked at the top.
+func CameraDesktop() Dashboard {
+	ws := []Widget{
+		{"video", "video", map[string]any{"feed": "cam:", "quality": "auto", "tapToControl": false}},
+		{"move", "camera.move", map[string]any{}},
+		{"presets", "camera.presets", map[string]any{}},
+		{"picture", "camera.picture", map[string]any{}},
+	}
+	layout := []Item{{"video", 0, 0, 8, 10}, {"move", 8, 0, 4, 10}, {"presets", 0, 10, 8, 7}, {"picture", 8, 10, 4, 9}}
+	return Dashboard{Name: "Camera", Kind: "desktop", Widgets: ws, Layout: layout}
+}
+
+// CameraPhone is the Camera tab on a phone.
+func CameraPhone() Dashboard {
+	ws := []Widget{
+		{"video", "video", map[string]any{"feed": "cam:", "quality": "auto", "tapToControl": false}},
+		{"move", "camera.move", map[string]any{}},
+		{"presets", "camera.presets", map[string]any{}},
+	}
+	layout := []Item{{"video", 0, 0, 4, 5}, {"move", 0, 5, 4, 9}, {"presets", 0, 14, 4, 8}}
+	return Dashboard{Name: "Camera — phone", Kind: "phone", Widgets: ws, Layout: layout}
 }

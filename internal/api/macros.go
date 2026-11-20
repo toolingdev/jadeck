@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/toolingdev/ptz-controller/sdk/addon"
 	"net/http"
 	"ptz/internal/cams"
 	"strings"
@@ -33,6 +34,21 @@ func (s *Server) macroEnv() macros.Env {
 			return l
 		},
 		PresetExists: func(name string) bool { _, ok := s.presetSlot(name); return ok },
+		AddonAction: func(addonID, action string) (string, bool) {
+			if s.Addons == nil {
+				return "", false
+			}
+			m, ok := s.Addons.Manifest(addonID)
+			if !ok {
+				return "", false
+			}
+			for _, a := range m.Actions {
+				if a.ID == action {
+					return a.Label, true
+				}
+			}
+			return "", false
+		},
 	}
 	if s.Devs().Mixer != nil {
 		env.MaxChannel = s.Devs().Mixer.MaxChannel()
@@ -100,6 +116,21 @@ func (s *Server) MacroActions() macros.Actions {
 			}
 			_, err := p.Do(ctx, action)
 			return err
+		},
+		AddonAction: func(ctx context.Context, st macros.Step) (string, error) {
+			id, err := s.addonConnection(st.Addon, st.Connection)
+			if err != nil {
+				return "", err
+			}
+			l := s.Devs().Get(id)
+			if l == nil || l.Impl == nil {
+				return "", fmt.Errorf("%s is not connected", id)
+			}
+			out, err := addon.Dispatch(ctx, l.Impl, "addon.action", mustJSON(map[string]any{"name": st.Action, "params": st.Params}))
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("%s on %s → %v", st.Action, l.Name, out), nil
 		},
 		CameraPreset: func(ctx context.Context, name string) error {
 			slot, ok := s.presetSlot(name)

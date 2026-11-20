@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, Check, Star } from "lucide-react";
+import { LayoutDashboard, Settings as Cog, AlertTriangle, ChevronDown, Check, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import { setCamera, useCamera } from "@/lib/camera";
 import { useCameras } from "@/components/CameraSetup";
@@ -9,23 +9,24 @@ import { useControl } from "@/lib/control";
 import { useLog } from "@/lib/log";
 import { Dot } from "@/components/ui";
 import { UpdateBanner } from "@/components/UpdateBanner";
-import { CameraPage } from "@/pages/CameraPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { setLocked, useLocked, useWakeLock } from "@/lib/kiosk";
 import { Boundary } from "@/components/Boundary";
 
-type Route = "/" | "/dashboard" | "/settings" | "/setup";
-const routes: { path: Route; label: string; icon: typeof Camera }[] = [
-  { path: "/", label: "Camera", icon: Camera },
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+// Everything you use is a dashboard (the old Camera page is the starter
+// "Camera" dashboard); the other place is Settings.
+type Route = "/" | "/settings" | "/setup";
+const routes: { path: Route; label: string; icon: typeof Cog }[] = [
+  { path: "/", label: "Dashboard", icon: LayoutDashboard },
   { path: "/settings", label: "Settings", icon: Cog },
 ];
 
 function current(): Route {
   const p = location.pathname.replace(/\/+$/, "") || "/";
   if (p === "/setup") return "/setup";
-  return (routes.find((r) => r.path === p)?.path ?? "/") as Route;
+  if (p === "/settings" || p.startsWith("/settings/")) return "/settings";
+  return "/";
 }
 
 /** Header camera name; a switcher when there is more than one. */
@@ -101,7 +102,7 @@ export function App() {
     }
   };
 
-  const locked = useLocked() && route === "/dashboard";
+  const locked = useLocked() && route === "/";
   useWakeLock(locked);
 
   const camName = status?.device?.devname || "Camera";
@@ -136,10 +137,10 @@ export function App() {
             ))}
           </nav>
           <div className="ml-auto hidden items-center gap-3 font-mono text-[11px] text-muted tabular md:flex">
-            <span>PAN <b className="text-fg">{status?.pan ?? "—"}</b></span>
-            <span>TILT <b className="text-fg">{status?.tilt ?? "—"}</b></span>
-            <span>ZOOM <b className="text-fg">{status?.zoom ?? "—"}</b></span>
-            <span className={cn("rounded px-1.5 py-0.5", status?.driving ? "bg-accent/20 text-accent" : "bg-raise")}>
+            <span>PAN <b className="inline-block w-[6ch] text-right text-fg">{status?.pan ?? "—"}</b></span>
+            <span>TILT <b className="inline-block w-[6ch] text-right text-fg">{status?.tilt ?? "—"}</b></span>
+            <span>ZOOM <b className="inline-block w-[6ch] text-right text-fg">{status?.zoom ?? "—"}</b></span>
+            <span className={cn("inline-block w-[8ch] rounded px-1.5 py-0.5 text-center", status?.driving ? "bg-accent/20 text-accent" : "bg-raise")}>
               {status?.driving ? "MOVING" : "STOPPED"}
             </span>
           </div>
@@ -149,8 +150,7 @@ export function App() {
       <UpdateBanner />
 
       <main key={cam} className="mx-auto w-full max-w-[1600px] flex-1 px-3 pb-24 pt-3 sm:px-5 sm:pb-8">
-        {route === "/" && <Boundary name="Camera page" full><CameraPage /></Boundary>}
-        {route === "/dashboard" && <Boundary name="Dashboard" full><DashboardPage /></Boundary>}
+        {route === "/" && <Boundary name="Dashboard" full><DashboardPage /></Boundary>}
         {route === "/settings" && <Boundary name="Settings" full><SettingsPage /></Boundary>}
         {route === "/setup" && <SetupPage onFinish={() => go("/")} />}
       </main>

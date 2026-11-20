@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"ptz/internal/devices"
-	"ptz/internal/devices/sim"
+	"ptz/internal/devices/fake"
 )
 
 func env() Env {
@@ -94,8 +94,8 @@ func TestExtractImport(t *testing.T) {
 type rig struct {
 	store *Store
 	eng   *Engine
-	mixer *sim.Mixer
-	sw    *sim.Switcher
+	mixer *fake.Mixer
+	sw    *fake.Switcher
 }
 
 func newRig(t *testing.T) *rig {
@@ -104,8 +104,8 @@ func newRig(t *testing.T) *rig {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	mx := sim.NewMixer(48)
-	sw := sim.NewSwitcher()
+	mx := fake.NewMixer(48)
+	sw := fake.NewSwitcher()
 	set := &devices.Set{Mixer: mx, Switcher: sw}
 	eng := NewEngine(st, Actions{
 		MuteChannel:     set.MuteChannel,

@@ -86,7 +86,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
       </CardHeader>
       <CardBody>
         {list.length === 0 ? <Empty>No presets yet.</Empty> : (
-          <div className={cn("grid gap-2", compact ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3 xl:grid-cols-4")}>
+          <div className={cn("grid gap-2", compact ? "grid-cols-[repeat(auto-fill,minmax(120px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(140px,1fr))]")}>
             {list.map((p, i) =>
               edit ? (
                 <div key={p.id} className="flex flex-col gap-2 rounded-xl border border-line bg-panel-2 p-2.5">

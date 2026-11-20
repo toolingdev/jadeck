@@ -50,7 +50,7 @@ export function VideoCard() {
   const [advanced, setAdvanced] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const { log } = useLog();
-  if (!v) return <Card><CardHeader title="Live video" /><CardBody><p className="text-sm text-muted">Loading…</p></CardBody></Card>;
+  if (!v) return <Card><CardHeader title="Stream gateway" /><CardBody><p className="text-sm text-muted">Loading…</p></CardBody></Card>;
 
   const save = async (patch: Partial<VideoInfo["settings"]>, cameras?: Record<string, boolean>) => {
     try {
@@ -77,7 +77,7 @@ export function VideoCard() {
 
   return (
     <Card>
-      <CardHeader title="Live video" meta="built-in stream gateway">
+      <CardHeader title="Stream gateway" meta="camera video on or off · where video is relayed">
         {managed && <Badge tone={label.tone} dot>{label.text}</Badge>}
       </CardHeader>
       <CardBody className="space-y-2">
@@ -106,17 +106,6 @@ export function VideoCard() {
             </Row>
           );
         })}
-        <Row title="Program output (from vMix)" sub={v.settings.program
-          ? <span className="flex flex-wrap items-center gap-1.5">Shows what's live. In vMix → Settings → Outputs/NDI/SRT, send SRT to <CopyText text={v.programSrt} /></span>
-          : "Show what's live on any screen"}>
-          <Switch checked={v.settings.program} onChange={(on) => save({ program: on })} label="Program output" />
-        </Row>
-        <Row title="Slides confidence (from Proclaim / vMix)" sub={v.settings.confidence
-          ? <span className="flex flex-wrap items-center gap-1.5">Send the confidence output over SRT to <CopyText text={v.confidenceSrt} /></span>
-          : "Current and next slide on a phone or stage screen"}>
-          <Switch checked={v.settings.confidence} onChange={(on) => save({ confidence: on })} label="Slides confidence" />
-        </Row>
-
         <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-muted">
           <button type="button" className="flex items-center gap-1 hover:text-fg" onClick={() => setAdvanced((a) => !a)}>
             {advanced ? <ChevronUp size={13} /> : <ChevronDown size={13} />} Advanced: use my own MediaMTX
