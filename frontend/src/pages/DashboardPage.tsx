@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactGridLayout from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { Maximize2, Info, Pencil, Undo2, Redo2, RotateCcw, Plus, Copy, Trash2, X, Check, ChevronDown, Star, Smartphone, Tablet, Monitor } from "lucide-react";
+import { Maximize2, SlidersHorizontal, Pencil, Undo2, Redo2, RotateCcw, Plus, Copy, Trash2, X, Check, ChevronDown, Star, Smartphone, Tablet, Monitor } from "lucide-react";
 import { api } from "@/lib/api";
-import { useLocal } from "@/lib/hooks";
+import { useLocal, useShared } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { Badge, Button, Dialog, Input, Select } from "@/components/ui";
@@ -79,7 +79,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   useAddonWidgets(); // add-on widgets join the registry before widgets render
   const { log } = useLog();
   const { screen: device, sideways } = useDeviceScreen();
-  const [info, setInfo] = useState<string | null>(null);
+
   const [list, setList] = useState<Dashboard[] | null>(null);
   const [defaults, setDefaults] = useState<Defaults>({});
   const [pick, setPick] = useLocal<number | null>("ptz.dashboard", null); // this device's choice
@@ -364,6 +364,27 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.max(it.h, minH), minW: m.w, minH };
   }), [view, shown, colW, need]);
 
+  // Outside edit mode: a Video widget switches feed in place; another
+  // video already showing that feed takes this one's (they swap).
+  const switchFeed = async (id: string, feed: string) => {
+    if (!current) return;
+    const next = clone(current);
+    const me = next.widgets.find((x) => x.id === id);
+    if (!me) return;
+    const old = me.settings.feed;
+    const other = next.widgets.find((x) => x.id !== id && x.type === "video" && x.settings.feed === feed);
+    me.settings = { ...me.settings, feed };
+    if (other) other.settings = { ...other.settings, feed: old };
+    setList((l) => (l ? l.map((x) => (x.id === next.id ? next : x)) : l));
+    try {
+      const back = await api<Dashboard>(`/api/dashboards/${next.id}`, "PUT", JSON.parse(plain(next)));
+      setList((l) => (l ? l.map((x) => (x.id === back.id ? back : x)) : l));
+    } catch (e) {
+      log("Dashboards", (e as Error).message, false);
+      load();
+    }
+  };
+
   if (!list) return <p className="p-6 text-sm text-muted">Loading dashboards…</p>;
   if (!shown) return <p className="p-6 text-sm text-muted">No dashboards.</p>;
   const isDefaultFor = SCREENS.filter((s) => defaults[s] === shown.id);
@@ -456,10 +477,13 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                 {shown.widgets.map((w) => (
                   <div key={w.id} className={cn("relative", editing && "cursor-grab active:cursor-grabbing")}>
                     <WidgetView w={w} editing={editing} onNeed={onNeed} />
+                    {!editing && !locked && w.type === "video" && w.settings?.switchHere !== false && typeof w.settings?.feed === "string" && w.settings.feed && (
+                      <FeedSwitch value={w.settings.feed as string} onPick={(v) => switchFeed(w.id, v)} />
+                    )}
                     {editing && (
                       <div className={cn("absolute inset-0 z-10 rounded-[var(--radius-card)] transition", selected === w.id ? "ring-2 ring-accent" : "hover:ring-1 hover:ring-line-strong")}
-                        onClick={() => { setSelected(w.id); setInfo(null); }} aria-label={`Select ${WIDGET[w.type]?.label ?? w.type}`}>
-                        <NameChip w={w} open={info === w.id} onInfo={() => setInfo(info === w.id ? null : w.id)} />
+                        onClick={() => setSelected(w.id)} aria-label={`Select ${WIDGET[w.type]?.label ?? w.type}`}>
+                        <NameChip w={w} onOpen={() => setSelected(w.id)} />
                       </div>
                     )}
                   </div>
@@ -629,29 +653,63 @@ export function NewDashboard({ open, onClose, list, device, copyOf, onCreated }:
   );
 }
 
-/** Edit mode: what a widget is, on the widget itself; ⓘ says what it does. */
-function NameChip({ w, open, onInfo }: { w: { id: string; type: string; settings?: Settings }; open: boolean; onInfo: () => void }) {
+/** Edit mode: what a widget is, on the widget itself. Tapping it (or
+ *  the widget) opens its settings. */
+function NameChip({ w, onOpen }: { w: { id: string; type: string; settings?: Settings }; onOpen: () => void }) {
   const def = WIDGET[w.type];
   const s = (w.settings ?? {}) as Record<string, unknown>;
+  const feeds = useFeedNames();
+  const cams = useCameraNames();
   const detail = typeof s.channel === "string" ? s.channel
     : Array.isArray(s.channels) && s.channels.length ? (s.channels as string[]).join(", ")
-    : typeof s.feed === "string" && s.feed ? s.feed : "";
-  const name = def?.label ?? w.type;
+    : typeof s.feed === "string" && s.feed ? (s.feed === "cam:" ? "header's camera" : feeds[s.feed] ?? s.feed)
+    : typeof s.camera === "string" && s.camera ? cams[s.camera] ?? "camera"
+    : def?.group === "camera" ? "header's camera" : "";
   return (
     <div className="no-drag pointer-events-none absolute left-2 top-2 z-20 max-w-[calc(100%-1rem)]">
-      <button type="button" onClick={(e) => { e.stopPropagation(); onInfo(); }} onPointerDown={(e) => e.stopPropagation()}
+      <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} onPointerDown={(e) => e.stopPropagation()}
         className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border border-accent bg-bg/90 px-2.5 py-1 text-[11px] font-semibold text-accent shadow backdrop-blur">
-        <span className="truncate">{name}{detail && <span className="font-medium text-accent/80"> · {detail}</span>}</span>
-        <Info size={12} className="shrink-0" />
+        <span className="truncate">{def?.label ?? w.type}{detail && <span className="font-medium text-accent/80"> · {detail}</span>}</span>
+        <SlidersHorizontal size={12} className="shrink-0" />
       </button>
+    </div>
+  );
+}
+
+function useFeedNames() {
+  const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 0);
+  return Object.fromEntries((data?.feeds ?? []).map((f) => [f.id, f.name])) as Record<string, string>;
+}
+
+function useCameraNames() {
+  const { data } = useShared<{ id: string; name: string }[]>("/api/cameras", 0);
+  return Object.fromEntries((data ?? []).map((c) => [c.id, c.name])) as Record<string, string>;
+}
+
+/** Outside edit mode: the feed's name on a Video widget; tap to switch. */
+function FeedSwitch({ value, onPick }: { value: string; onPick: (v: string) => void }) {
+  const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 0);
+  const feeds = data?.feeds ?? [];
+  const [open, setOpen] = useState(false);
+  const name = value === "cam:" ? "Header's camera" : feeds.find((f) => f.id === value)?.name ?? "Feed";
+  if (feeds.length < 2) return null;
+  return (
+    <div className="absolute bottom-2 left-2 z-20">
+      {open && <div className="fixed inset-0 z-0" onClick={() => setOpen(false)} />}
       {open && (
-        <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
-          className="pointer-events-auto mt-1.5 w-64 max-w-[80vw] rounded-xl border border-accent bg-panel-2 p-3 text-xs shadow-2xl">
-          <p className="font-semibold text-fg">{name}</p>
-          <p className="mt-1 text-muted">{def?.description ?? "A widget from an add-on."}</p>
-          <p className="mt-2 text-dim">Tap the widget to change its settings.</p>
+        <div className="absolute bottom-9 left-0 z-10 min-w-44 rounded-xl border border-line bg-panel-2 p-1 shadow-2xl">
+          {feeds.map((f) => (
+            <button key={f.id} type="button" onClick={() => { setOpen(false); if (f.id !== value) onPick(f.id); }}
+              className={cn("flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-left text-sm", f.id === value ? "text-accent" : "text-fg hover:bg-raise")}>
+              <span className="w-3">{f.id === value ? "✓" : ""}</span>{f.name}
+            </button>
+          ))}
         </div>
       )}
+      <button type="button" onClick={() => setOpen(!open)}
+        className="relative z-10 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur hover:bg-black/80">
+        {name} <ChevronDown size={12} />
+      </button>
     </div>
   );
 }

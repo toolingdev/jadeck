@@ -151,6 +151,9 @@ export function Inspector({ w, onChange, onRemove, onDuplicate, onClose, pos }: 
       </div>
       <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-dim">{def ? GROUPS.find((g) => g.id === def.group)?.label : "unknown"}</div>
       {def?.description && <p className="mb-3 text-xs text-muted">{def.description}</p>}
+      {def?.group === "camera" && !def.fields.some((f) => f.type === "camera" || f.type === "feed") && (
+        <p className="mb-3 rounded-lg border border-line bg-bg px-2.5 py-2 text-[11px] text-muted">Drives the camera picked at the top of the screen.</p>
+      )}
       <div className="space-y-3">
         {def?.fields.filter((f) => !f.showIf || f.showIf(s)).map((f) => (
           <FieldInput key={f.key} f={f} all={s} value={s[f.key] ?? def.defaults[f.key]} onChange={(v) => onChange({ ...s, [f.key]: v })} />
@@ -306,15 +309,34 @@ function ChannelField({ f, value, onChange }: { f: Field; value: unknown; onChan
   );
 }
 
+/** One-tap choices (up to 8), else a dropdown. */
+function Choice({ label, help, value, options, onChange, add }: {
+  label: string; help?: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; add?: string;
+}) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-xs font-medium text-muted">{label}</span>
+      {options.length <= 8 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {options.map((o) => (
+            <button key={o.value} type="button" onClick={() => onChange(o.value)}
+              className={cn("rounded-lg border px-2.5 py-1.5 text-xs font-medium transition",
+                o.value === value ? "border-accent bg-accent text-bg" : "border-line bg-bg text-muted hover:text-fg")}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      ) : <Select value={value} onChange={onChange} options={options} />}
+      {add && <a href="/settings" className="mt-1.5 inline-block text-[11px] font-medium text-accent hover:underline">+ {add}</a>}
+      {help && <span className="mt-1 block text-[11px] text-dim">{help}</span>}
+    </div>
+  );
+}
+
 function CameraField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
   const cams = useShared<CameraInfo[]>("/api/cameras", 0).data ?? [];
-  const options = [{ value: "", label: "Follow the header's camera" }, ...cams.map((c) => ({ value: c.id, label: c.name }))];
-  return (
-    <label className="block"><span className="mb-1 block text-xs text-muted">{f.label}</span>
-      <Select value={value} onChange={onChange} options={options} />
-      {f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>}
-    </label>
-  );
+  const options = [{ value: "", label: "Follow the header" }, ...cams.map((c) => ({ value: c.id, label: c.name }))];
+  return <Choice label={f.label} help={f.help} value={value} options={options} onChange={onChange} add="Add a camera (Settings → Cameras)" />;
 }
 
 function InputField({ f, value, onChange }: { f: Field; value: number; onChange: (v: number) => void }) {
@@ -362,14 +384,8 @@ function ConnectionField({ f, value, onChange }: { f: Field; value: string; onCh
 function FeedField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
   const { data } = useShared<{ feeds: { id: string; name: string; source: string }[] }>("/api/feeds", 0);
   const feeds = data?.feeds ?? [];
-  const options = [{ value: "", label: "Choose…" }, { value: "cam:", label: "The camera the header controls" },
-    ...feeds.map((x) => ({ value: x.id, label: `${x.name}${x.source === "camera" ? " (camera)" : ""}` }))];
-  if (value && !feeds.some((x) => x.id === value)) options.push({ value, label: "(removed feed)" });
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted">{f.label}</span>
-      <Select value={value} onChange={onChange} options={options} />
-      {f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>}
-    </label>
-  );
+  const options = [{ value: "cam:", label: "Header's camera" },
+    ...feeds.map((x) => ({ value: x.id, label: x.name }))];
+  if (value && value !== "cam:" && !feeds.some((x) => x.id === value)) options.push({ value, label: "(removed feed)" });
+  return <Choice label={f.label} help={f.help} value={value} options={options} onChange={onChange} add="Add a camera or feed (Settings)" />;
 }

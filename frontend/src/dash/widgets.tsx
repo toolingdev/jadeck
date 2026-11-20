@@ -532,9 +532,10 @@ export const WIDGETS: WidgetDef[] = [
 
   { type: "video", label: "Video", group: "camera", icon: MonitorPlay,
     description: "Any feed: a camera, the program, slides… Drop several to build a multiview.",
-    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { feed: "", quality: "auto", tally: false, tapToControl: true },
+    size: { w: 6, h: 6, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: { feed: "", quality: "auto", tally: false, tapToControl: true, switchHere: true },
     fields: [
       { key: "feed", label: "Feed", type: "feed", help: "Cameras, plus the feeds under Settings → Video feeds." },
+      { key: "switchHere", label: "Let people switch the feed here", type: "bool", help: "A small name tag on the picture; tap it to pick another camera or feed. Two videos swap if needed. Off for stage screens." },
       { key: "quality", label: "Quality", type: "select", showIf: (s) => str(s.feed).startsWith("cam:"), help: "Auto: HD when it's the only video on the screen, SD when there are several or on a phone.",
         options: [{ value: "auto", label: "Auto (recommended)" }, { value: "hd", label: "HD — always" }, { value: "sd", label: "SD — always (lighter)" }] },
       label("title", "Title on the picture"),
