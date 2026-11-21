@@ -58,7 +58,10 @@ export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps)
     ro.observe(el);
     return () => ro.disconnect();
   }, [items.length > 0]);
-  const longest = Math.max(0, ...items.map((it, i) => [...str(it.label, str(it.id, String(i)))].length));
+  // Long labels truncate (the full text is the tooltip), so past ~16
+  // characters they must not push the grid into one narrow column or the
+  // flowing fallback, which left big boxes mostly empty.
+  const longest = Math.min(16, Math.max(0, ...items.map((it, i) => [...str(it.label, str(it.id, String(i)))].length)));
   const fit = fitGrid(items.length, size.w, size.h, cols, longest);
   // Label: 13.5px at 48px tall, up to 19px on big buttons, never more than
   // the longest label has room for.
