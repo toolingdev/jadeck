@@ -33,7 +33,19 @@ type Encoder struct {
 	in io.WriteCloser
 }
 
+// SetURL changes output i's address; ffmpeg picks it up when it
+// (re)starts, which a refused stream makes it do.
+func (e *Encoder) SetURL(i int, url string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if i < len(e.Outputs) {
+		e.Outputs[i].URL = url
+	}
+}
+
 func (e *Encoder) args() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	a := []string{"-hide_banner", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba",
 		"-s", fmt.Sprintf("%dx%d", e.W, e.H), "-r", strconv.Itoa(e.FPS), "-i", "-"}
 	for _, o := range e.Outputs {

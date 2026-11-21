@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,10 +28,12 @@ type Config struct {
 	Host      string // where the gear listens, e.g. 127.0.0.1
 	ViscaBase int    // camera i: ViscaBase+i
 	HTTPBase  int
-	RTSPPort  int // one RTSP server for every camera: /cam1, /cam1-sd, …
-	Switcher  string
+	RTSPPort  int    // one RTSP server for every camera: /cam1, /cam1-sd, …
+	Switcher  string // vMix Web Controller (HTTP)
+	VMixTCP   string // vMix TCP API ("" = off)
 	Slides    string
-	Mixer     string
+	Mixer     string // WING OSC (UDP) ("" = no WING)
+	WingTCP   string // WING native protocol (TCP) and discovery (UDP)
 	Program   string // where to publish the program picture ("" = off)
 	FPS       int
 	FFmpeg    string
@@ -71,7 +74,7 @@ type Rig struct {
 	scene   *Scene
 	slides  *Slides
 	sw      *Switcher
-	mixer   *Mixer
+	wing    *Wing
 	cams    []*camera
 	program *Encoder
 }
@@ -83,8 +86,8 @@ func Start(ctx context.Context, cfg Config) (*Rig, error) {
 	if cfg.FPS == 0 {
 		cfg.FPS = 15
 	}
-	r := &Rig{cfg: cfg, scene: NewScene(), slides: NewSlides(), mixer: NewMixer()}
-	r.mixer.Log = cfg.Log
+	r := &Rig{cfg: cfg, scene: NewScene(), slides: NewSlides(), wing: NewWing()}
+	r.wing.Log = cfg.Log
 	r.scene.SetSlide(r.slides.Image())
 	r.slides.OnChange = func(img *image.RGBA) { r.scene.SetSlide(img) }
 
@@ -119,6 +122,7 @@ func Start(ctx context.Context, cfg Config) (*Rig, error) {
 	inputs = append(inputs, Input{Title: "Slides", Type: "PowerPoint", Frame: r.slides.Image})
 	r.sw = NewSwitcher(inputs)
 	r.sw.Log = cfg.Log
+	r.sw.AddServiceInputs()
 
 	if err := r.sw.Serve(cfg.Switcher); err != nil {
 		return nil, err
@@ -126,12 +130,29 @@ func Start(ctx context.Context, cfg Config) (*Rig, error) {
 	if err := r.slides.ServeProclaim(cfg.Slides, cfg.Log); err != nil {
 		return nil, err
 	}
-	if err := r.mixer.Serve(cfg.Mixer); err != nil {
-		return nil, err
+	if cfg.VMixTCP != "" {
+		if err := r.sw.ServeTCP(cfg.VMixTCP); err != nil {
+			return nil, err
+		}
 	}
-	cfg.Log.Info("switcher (vMix API)", "at", cfg.Switcher)
+	if cfg.Mixer != "" {
+		host, op, _ := net.SplitHostPort(cfg.Mixer)
+		oscPort, _ := strconv.Atoi(op)
+		nativePort := 2222
+		if cfg.WingTCP != "" {
+			_, np, _ := net.SplitHostPort(cfg.WingTCP)
+			nativePort, _ = strconv.Atoi(np)
+		}
+		if err := r.wing.Serve(host, oscPort, nativePort); err != nil {
+			return nil, err
+		}
+		o, n := r.wing.Ports()
+		cfg.Log.Info("mixer (Behringer WING)", "host", host, "osc", o, "native", n, "discovery", n)
+	} else {
+		r.wing = nil
+	}
+	cfg.Log.Info("switcher (vMix API)", "http", cfg.Switcher, "tcp", cfg.VMixTCP)
 	cfg.Log.Info("slides (Proclaim network control)", "at", cfg.Slides)
-	cfg.Log.Info("mixer (WING OSC)", "at", cfg.Mixer)
 
 	for _, c := range r.cams {
 		go r.cameraLoop(ctx, c)
@@ -266,8 +287,9 @@ func (r *Rig) Setup(ctx context.Context, base string) error {
 		r.cfg.Log.Info("setup: camera", "name", c.name, "status", code, "detail", short(msg))
 	}
 	if r.cfg.Program != "" {
-		code, msg := post("/api/feeds", map[string]any{"name": "Program", "source": "push", "program": true})
-		r.cfg.Log.Info("setup: program feed", "status", code, "detail", short(msg))
+		code, _ := post("/api/feeds", map[string]any{"name": "Program", "source": "push", "program": true})
+		r.cfg.Log.Info("setup: program feed", "status", code)
+		r.useProgramKey(ctx, base)
 	}
 	// which camera is on which vMix input (camera n = input n)
 	camInputs := map[string]int{}
@@ -290,19 +312,86 @@ func (r *Rig) Setup(ctx context.Context, base string) error {
 		n, _ := strconv.Atoi(p)
 		return n
 	}
-	for _, c := range []map[string]any{
-		{"addon": "vmix", "type": "vmix", "name": "vMix (simulated)", "config": map[string]any{"host": host, "port": port(r.cfg.Switcher)}, "cameraInputs": camInputs},
+	vcfg := map[string]any{"host": host, "port": port(r.cfg.Switcher), "link": "http"}
+	if r.cfg.VMixTCP != "" {
+		vcfg["tcpPort"], vcfg["link"] = port(r.cfg.VMixTCP), "tcp"
+	}
+	conns := []map[string]any{
+		{"addon": "vmix", "type": "vmix", "name": "vMix (simulated)", "config": vcfg, "cameraInputs": camInputs},
 		{"addon": "proclaim", "type": "proclaim", "name": "Proclaim (simulated)", "config": map[string]any{"host": host}},
-		{"addon": "behringer-wing", "type": "osc", "name": "WING (simulated)", "config": map[string]any{"preset": "wing", "host": host, "port": port(r.cfg.Mixer)},
-			"favorites": []map[string]any{{"label": "Lead Vocal", "channel": 1}, {"label": "Lectern", "channel": 2}, {"label": "Wireless 1", "channel": 3},
-				{"label": "Wireless 2", "channel": 4}, {"label": "Keys", "channel": 5}, {"label": "PC Audio", "channel": 13}}},
-	} {
+	}
+	if r.wing != nil {
+		o, n := r.wing.Ports()
+		conns = append(conns, map[string]any{"addon": "behringer-wing", "type": "osc", "name": "WING (simulated)",
+			"config": map[string]any{"preset": "wing", "host": host, "port": o, "nativePort": n},
+			"favorites": []map[string]any{{"label": "Speaker", "channel": 1}, {"label": "Lectern", "channel": 2}, {"label": "Lead vox", "channel": 3},
+				{"label": "Keys", "channel": 6}, {"label": "Choir", "channel": 12}, {"label": "Video", "channel": 13}}})
+	}
+	for _, c := range conns {
 		code, msg := post("/api/connections", c)
 		r.cfg.Log.Info("setup: connection", "name", c["name"], "status", code, "detail", short(msg))
 	}
 	r.dashboard(ctx, base, post)
 	post("/api/setup", map[string]any{"done": true})
 	return nil
+}
+
+// useProgramKey reads the program feed's publish key from jadeck (this
+// PC is on its trusted network) and has the program encoder send with
+// it, unless -program already carries credentials.
+func (r *Rig) useProgramKey(ctx context.Context, base string) bool {
+	if r.program == nil || strings.Contains(r.cfg.Program, "@") || strings.Count(r.cfg.Program, ":") > 4 {
+		return true
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", base+"/api/feeds", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Feeds []struct {
+			ID   string `json:"id"`
+			Push *struct {
+				Key string `json:"key"`
+			} `json:"push"`
+		} `json:"feeds"`
+	}
+	json.NewDecoder(resp.Body).Decode(&body)
+	for _, f := range body.Feeds {
+		if f.ID == "program" && f.Push != nil && f.Push.Key != "" {
+			r.program.SetURL(0, WithPublishKey(r.cfg.Program, "program", f.Push.Key))
+			r.cfg.Log.Info("program feed: sending with its publish key")
+			return true
+		}
+	}
+	r.cfg.Log.Warn("program feed: no publish key found; jadeck will refuse the program picture")
+	return false
+}
+
+// FollowProgramKey reads the program feed's publish key from a jadeck
+// that already has the gear (no -setup), retrying until jadeck answers.
+func (r *Rig) FollowProgramKey(ctx context.Context, base string) {
+	for !r.useProgramKey(ctx, base) {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+// WithPublishKey adds a push feed's publish key to a sender address:
+// rtsp://host:8554/<id> → rtsp://<id>:<key>@host:8554/<id>, and an SRT
+// stream id publish:<id> → publish:<id>:<id>:<key>.
+func WithPublishKey(addr, id, key string) string {
+	if rest, ok := strings.CutPrefix(addr, "rtsp://"); ok {
+		return "rtsp://" + id + ":" + key + "@" + rest
+	}
+	return strings.Replace(addr, "streamid=publish:"+id, "streamid=publish:"+id+":"+id+":"+key, 1)
 }
 
 func short(s string) string {

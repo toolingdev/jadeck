@@ -1,11 +1,12 @@
 // Command ptzsim simulates a whole booth for trying jadeck without gear:
 // N PTZOptics cameras with live video of a drawn venue (pan, tilt and
-// zoom move the picture), a vMix switcher (Web Controller API, program
-// output over SRT), Proclaim slides (network control on 52195) and a
-// Behringer WING (OSC on 2223). jadeck and its add-ons talk to them
-// exactly as to the real things.
+// zoom move the picture), a vMix switcher (Web Controller API on 8088,
+// TCP API on 8099, program output), Proclaim slides (network control on
+// 52195) and a Behringer WING (OSC on UDP 2223, native protocol on TCP
+// 2222, discovery on UDP 2222, meters over UDP). jadeck and its add-ons
+// talk to them exactly as to the real things.
 //
-//	ptzsim [--cameras 4] [--setup http://127.0.0.1:8080]
+//	ptzsim [--cameras 4] [--setup http://127.0.0.1:8080 | --jadeck http://127.0.0.1:8080]
 //
 // Needs ffmpeg (video encoding) and MediaMTX (each camera's RTSP
 // server; jadeck unpacks one into <data>/video/bin).
@@ -51,19 +52,22 @@ func main() {
 	flag.IntVar(&c.RTSPPort, "rtsp", 18554, "RTSP port for every camera's video")
 	flag.StringVar(&c.Switcher, "vmix", "127.0.0.1:8088", "vMix Web Controller address")
 	flag.StringVar(&c.Slides, "proclaim", "127.0.0.1:52195", "Proclaim network control address")
-	flag.StringVar(&c.Mixer, "wing", "127.0.0.1:2223", "WING OSC address (UDP)")
-	flag.StringVar(&c.Program, "program", "rtsp://127.0.0.1:8554/program", "where to publish the program picture: jadeck's gateway (RTSP, or srt://…?streamid=publish:program if your ffmpeg has SRT); \"\" = off")
+	flag.StringVar(&c.VMixTCP, "vmix-tcp", "127.0.0.1:8099", "vMix TCP API address (\"\" = off)")
+	flag.StringVar(&c.Mixer, "wing", "127.0.0.1:2223", "WING OSC address (UDP); \"\" = no WING")
+	flag.StringVar(&c.WingTCP, "wing-native", "127.0.0.1:2222", "WING native protocol address (TCP; discovery answers on the same UDP port)")
+	flag.StringVar(&c.Program, "program", "rtsp://127.0.0.1:8554/program", "where to publish the program picture: jadeck's gateway (RTSP, or srt://…?streamid=publish:program if your ffmpeg has SRT); with -setup the feed's publish key is added for you, else give it (rtsp://program:<key>@…); \"\" = off")
 	flag.IntVar(&c.FPS, "fps", 15, "frames per second")
 	flag.StringVar(&c.FFmpeg, "ffmpeg", "ffmpeg", "ffmpeg to encode video with")
 	flag.StringVar(&c.MediaMTX, "mediamtx", findMediaMTX(), "MediaMTX binary for the cameras' RTSP server")
 	setup := flag.String("setup", "", "add the gear to this jadeck (e.g. http://127.0.0.1:8080)")
+	keyFrom := flag.String("jadeck", "", "a jadeck that already has the gear: only read the program feed's publish key from it (retries until it answers)")
 	flag.Parse()
 
 	c.Log = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	for _, a := range []*string{&c.Switcher, &c.Slides, &c.Mixer} {
-		if c.Host != "127.0.0.1" {
+	for _, a := range []*string{&c.Switcher, &c.VMixTCP, &c.Slides, &c.Mixer, &c.WingTCP} {
+		if c.Host != "127.0.0.1" && *a != "" {
 			_, p, _ := cut(*a)
 			*a = c.Host + ":" + p
 		}
@@ -76,6 +80,8 @@ func main() {
 	if *setup != "" {
 		time.Sleep(time.Second)
 		rig.Setup(ctx, *setup)
+	} else if *keyFrom != "" {
+		go rig.FollowProgramKey(ctx, *keyFrom)
 	}
 	c.Log.Info("simulator running — Ctrl-C to stop")
 	<-ctx.Done()
