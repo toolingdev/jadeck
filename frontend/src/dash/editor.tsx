@@ -12,6 +12,7 @@ import type { Item, Widget } from "@/dash/types";
 import { Boundary } from "@/components/Boundary";
 import { WidgetConn } from "@/lib/hooks";
 import { useAddonWidgets } from "@/dash/addonWidgets";
+import { FieldRow } from "@/components/FieldRow";
 
 // Edit-mode pieces of the dashboard page: widget view, library,
 // inspector and the save badge.
@@ -95,7 +96,7 @@ export function WidgetView({ w, editing, onNeed, dash }: { w: Widget; editing: b
         <CameraContext.Provider value={cam}>
           <CameraPickContext.Provider value={editing ? null : (id) => setPicked(id === setting ? null : id)}>
             {def.group === "camera" && def.fields.some((f) => f.type === "camera") && <HoldControl cam={cam} />}
-            <Boundary name={def.label}><R s={w.settings} editing={editing} /></Boundary>
+            <Boundary name={def.label}><R s={w.settings} editing={editing} id={w.id} dash={dash} /></Boundary>
           </CameraPickContext.Provider>
         </CameraContext.Provider>
       </WidgetConn.Provider>
@@ -225,6 +226,9 @@ function FieldInput({ f, value, onChange, all }: { f: Field; value: unknown; onC
   }
   if (f.type === "connection") {
     return <ConnectionField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
+  }
+  if (f.type === "addon" && f.addonField) {
+    return <AddonFieldInput f={f} value={value} onChange={onChange} conn={typeof all.connection === "string" ? all.connection : ""} />;
   }
   if (f.type === "camera") {
     return <CameraField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
@@ -410,6 +414,16 @@ function ConnectionField({ f, value, onChange }: { f: Field; value: string; onCh
       {f.help && <span className="mt-1 block text-[11px] text-dim">{f.help}</span>}
     </label>
   );
+}
+
+/** A setting an add-on declared for its widget (v2.1), drawn like a
+ *  connection setting. Live options come from the widget's connection
+ *  (its own, else the add-on's first). */
+function AddonFieldInput({ f, value, onChange, conn }: { f: Field; value: unknown; onChange: (v: unknown) => void; conn: string }) {
+  const { data } = useShared<{ connections: { id: string; addon: string }[] }>("/api/devices", 10000);
+  const mine = (data?.connections ?? []).filter((c) => c.addon === f.addon);
+  const id = mine.find((c) => c.id === conn)?.id ?? mine[0]?.id ?? "";
+  return <FieldRow f={f.addonField!} value={value} onChange={onChange} addon={f.addon} conn={id} widget />;
 }
 
 /** Which video feed a Video widget shows: cameras plus Settings → Video feeds. */

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, GripVertical, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import type { Fav, Field, Opt } from "@/lib/addons";
@@ -8,12 +8,20 @@ import { Button, Input, Select, Switch } from "@/components/ui";
 // Form pieces for add-on connection settings (drawn from each connection
 // type's field list) and the mixer quick-channel editor.
 
-export function FieldRow({ f, value, onChange, addon, hasSecret }: { f: Field; value: unknown; onChange: (v: unknown) => void; addon?: string; hasSecret?: boolean }) {
+export function FieldRow({ f, value, onChange, addon, hasSecret, conn, widget }: {
+  f: Field; value: unknown; onChange: (v: unknown) => void; addon?: string; hasSecret?: boolean;
+  /** A widget field (v2.1): live options are asked of this connection. */
+  conn?: string; widget?: boolean;
+}) {
   const [opts, setOpts] = useState<Opt[]>(f.options ?? []);
   useEffect(() => {
     if (!f.optionsFrom || !addon) return;
-    api<Opt[]>(`/api/connections/options/${addon}/${f.optionsFrom}`).then((o) => setOpts(o ?? [])).catch(() => {});
-  }, [f.optionsFrom, addon]);
+    const q = conn ? `?conn=${encodeURIComponent(conn)}` : "";
+    let live = true;
+    api<Opt[]>(`/api/connections/options/${encodeURIComponent(addon)}/${encodeURIComponent(f.optionsFrom)}${q}`)
+      .then((o) => live && setOpts(o?.length ? o : f.options ?? [])).catch(() => {});
+    return () => { live = false; };
+  }, [f.optionsFrom, f.options, addon, conn]);
   const label = (
     <span className="mb-1 block text-xs font-medium text-muted">{f.label}{f.required && <span className="text-accent"> *</span>}</span>
   );
@@ -28,7 +36,16 @@ export function FieldRow({ f, value, onChange, addon, hasSecret }: { f: Field; v
             onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))} />{help}
         </label>
       );
+    case "order":
+      return <div>{label}<OrderPick value={strList(value)} options={opts} onChange={onChange} label={f.label} />{help}</div>;
     case "select":
+      if (f.multiple) return <div>{label}<MultiPick value={strList(value)} options={opts} onChange={onChange} />{help}</div>;
+      if (f.optionsFrom && widget) {
+        // A widget's live list (channel names...): pick one of them.
+        const v = typeof value === "string" ? value : "";
+        const list = [{ value: "", label: opts.length ? "Choose…" : "Nothing found yet" }, ...withMissing(opts, v ? [v] : [])];
+        return <label className="block">{label}<Select value={v} onChange={onChange} options={list} />{help}</label>;
+      }
       if (f.optionsFrom) {
         const id = `opts-${f.key}`;
         return (
@@ -145,6 +162,123 @@ function ScopesField({ value, onChange, label, help }: { value: string[]; onChan
           </label>
         ))}
       </div>{help}
+    </div>
+  );
+}
+
+// ------------------------------------------------- multi-select and order
+
+const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+/** Options plus any saved value that's no longer offered (shown, so it can be removed). */
+function withMissing(opts: Opt[], values: string[]): Opt[] {
+  const known = new Set(opts.map((o) => o.value));
+  return [...opts, ...values.filter((v) => !known.has(v)).map((v) => ({ value: v, label: `${v} (not found)` }))];
+}
+
+/** select + multiple: tap rows to pick several (value: string[] in option order). */
+function MultiPick({ value, options, onChange }: { value: string[]; options: Opt[]; onChange: (v: string[]) => void }) {
+  const all = withMissing(options, value);
+  const on = new Set(value);
+  const toggle = (v: string) => {
+    const next = on.has(v) ? value.filter((x) => x !== v) : [...value, v];
+    // keep the options' order, so the same picks always read the same
+    const rank = new Map(all.map((o, i) => [o.value, i]));
+    onChange(next.sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0)));
+  };
+  if (!all.length) return <p className="rounded-lg border border-line bg-bg px-2.5 py-2 text-[11px] text-dim">Nothing to pick yet.</p>;
+  return (
+    <div className="max-h-60 space-y-0.5 overflow-y-auto rounded-lg border border-line bg-bg p-1" role="listbox" aria-multiselectable>
+      {all.map((o) => (
+        <button key={o.value} type="button" role="option" aria-selected={on.has(o.value)} onClick={() => toggle(o.value)}
+          className={cn("flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm", on.has(o.value) ? "bg-raise" : "hover:bg-panel-2")}>
+          <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded border", on.has(o.value) ? "border-accent bg-accent text-bg" : "border-line-strong")}>
+            {on.has(o.value) && <Check size={12} strokeWidth={3} />}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{o.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** order: pick from the options, then put them in order (drag the grip,
+ *  or the arrows). Value: string[] in the chosen order. Touch friendly:
+ *  every target is at least 32px. */
+function OrderPick({ value, options, onChange, label }: { value: string[]; options: Opt[]; onChange: (v: string[]) => void; label: string }) {
+  const all = withMissing(options, value);
+  const name = new Map(all.map((o) => [o.value, o.label]));
+  const rest = options.filter((o) => !value.includes(o.value));
+  const [drag, setDrag] = useState<{ from: number; to: number; dy: number; y0: number; h: number } | null>(null);
+
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= value.length || from === to) return;
+    const n = [...value];
+    const [x] = n.splice(from, 1);
+    n.splice(to, 0, x);
+    onChange(n);
+  };
+  const down = (i: number, e: React.PointerEvent<HTMLButtonElement>) => {
+    const row = (e.currentTarget.closest("[data-row]") as HTMLElement | null)?.getBoundingClientRect();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ from: i, to: i, dy: 0, y0: e.clientY, h: (row?.height ?? 36) + 4 });
+  };
+  const moveTo = (e: React.PointerEvent) => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y0;
+    const to = Math.max(0, Math.min(value.length - 1, drag.from + Math.round(dy / drag.h)));
+    setDrag({ ...drag, dy, to });
+  };
+  const up = () => {
+    if (drag) move(drag.from, drag.to);
+    setDrag(null);
+  };
+  // Where each row sits while one is dragged: the dragged one follows the
+  // finger, the others slide to make room.
+  const shift = (i: number) => {
+    if (!drag) return 0;
+    if (i === drag.from) return drag.dy;
+    if (drag.from < drag.to && i > drag.from && i <= drag.to) return -drag.h;
+    if (drag.from > drag.to && i < drag.from && i >= drag.to) return drag.h;
+    return 0;
+  };
+
+  return (
+    <div className="space-y-1.5 rounded-lg border border-line bg-bg p-1.5">
+      {value.length > 0 ? (
+        <div className="space-y-1" role="list" aria-label={label}>
+          {value.map((v, i) => (
+            <div key={v} data-row role="listitem"
+              className={cn("relative flex min-h-9 items-center gap-0.5 rounded-md border bg-panel-2 py-0.5 pr-0.5", drag?.from === i ? "z-10 border-accent shadow-[0_6px_18px_rgba(0,0,0,.6)]" : "border-line")}
+              style={{ transform: `translateY(${shift(i)}px)`, transition: drag && drag.from !== i ? "transform 120ms" : undefined }}>
+              <button type="button" aria-label={`Drag ${name.get(v) ?? v}`} title="Drag to reorder"
+                onPointerDown={(e) => down(i, e)} onPointerMove={moveTo} onPointerUp={up} onPointerCancel={() => setDrag(null)}
+                className="flex h-8 w-8 shrink-0 cursor-grab touch-none items-center justify-center text-dim active:cursor-grabbing">
+                <GripVertical size={15} />
+              </button>
+              <span className="w-4 shrink-0 text-right font-mono text-[11px] text-dim">{i + 1}</span>
+              {/* long names wrap to two lines rather than cut off ("Previous…") in the narrow panel */}
+              <span title={name.get(v) ?? v} className={cn("line-clamp-2 min-w-0 flex-1 break-words px-1 text-[13px] leading-[16px]", !options.some((o) => o.value === v) && "text-dim")}>{name.get(v) ?? v}</span>
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-raise disabled:opacity-30" disabled={i === 0} onClick={() => move(i, i - 1)} aria-label="Move up"><ChevronUp size={15} /></button>
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-raise disabled:opacity-30" disabled={i === value.length - 1} onClick={() => move(i, i + 1)} aria-label="Move down"><ChevronDown size={15} /></button>
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-raise hover:text-bad" onClick={() => onChange(value.filter((x) => x !== v))} aria-label={`Remove ${name.get(v) ?? v}`}><X size={14} /></button>
+            </div>
+          ))}
+        </div>
+      ) : <p className="px-1 py-1 text-[11px] text-dim">Nothing picked yet. Add from the list below.</p>}
+      {rest.length > 0 && (rest.length <= 12 ? (
+        <div className="flex flex-wrap gap-1 border-t border-line pt-1.5">
+          {rest.map((o) => (
+            <button key={o.value} type="button" onClick={() => onChange([...value, o.value])}
+              className="flex h-8 max-w-full items-center gap-1 rounded-lg border border-line bg-panel px-2.5 text-xs text-muted hover:border-line-strong hover:text-fg">
+              <Plus size={12} className="shrink-0" /><span className="truncate">{o.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <Select value="" onChange={(v) => v && onChange([...value, v])} options={[{ value: "", label: "＋ Add…" }, ...rest]} className="h-9" />
+      ))}
+      {!options.length && !value.length && <p className="px-1 text-[11px] text-dim">No choices found yet (is the connection on?).</p>}
     </div>
   );
 }

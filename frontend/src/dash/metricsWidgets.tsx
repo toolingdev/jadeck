@@ -24,10 +24,10 @@ export function rate(kbps: number) {
 
 function Box({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel">
+    <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
       <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
-        <span className="truncate text-[12px] font-semibold">{title}</span>
-        <span className="ml-auto text-[11px] text-dim">{right}</span>
+        <span className="truncate text-[13px] font-bold leading-[18px]">{title}</span>
+        <span className="smallcaps ml-auto leading-[18px]">{right}</span>
       </div>
       <div data-feed className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
     </div>
@@ -67,7 +67,7 @@ export function BandwidthWidget({ s }: { s: Settings }) {
       </div>
       <div className="space-y-1.5">
         {data.feeds.map((f) => (
-          <div key={f.path} className="rounded-lg bg-panel-2 px-2.5 py-1.5">
+          <div key={f.path} className="rounded-lg border border-line/60 bg-white/[0.025] px-2.5 py-1.5">
             <div className="flex items-center gap-2 text-[12px]">
               <span className={cn("h-2 w-2 shrink-0 rounded-full", f.online ? "bg-good" : "bg-line-strong")} />
               <span className="min-w-0 flex-1 truncate font-semibold">{f.name}</span>
@@ -76,7 +76,7 @@ export function BandwidthWidget({ s }: { s: Settings }) {
               <span className="w-20 text-right font-mono tabular">{f.online ? rate(f.outKbps) : "idle"}</span>
             </div>
             {f.online && (
-              <div className="mt-1 h-1 overflow-hidden rounded bg-raise">
+              <div className="mt-1 h-1 overflow-hidden rounded bg-unlit">
                 <div className="h-full rounded bg-info" style={{ width: `${Math.min(100, ((f.outKbps + f.inKbps) / max) * 100)}%` }} />
               </div>
             )}
@@ -117,8 +117,8 @@ export function BandwidthWidget({ s }: { s: Settings }) {
 
 function Stat({ label, value, sub, tone = "ok" }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
   return (
-    <div className="rounded-lg bg-panel-2 px-2.5 py-2">
-      <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-dim">{label}</div>
+    <div className="recess rounded-lg border px-2.5 py-2">
+      <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-dim">{label}</div>
       <div className={cn("font-mono text-[clamp(16px,2.6vw,24px)] font-bold tabular", tone === "warn" ? "text-warn" : "text-fg")}>{value}</div>
       {sub && <div className="text-[11px] text-muted">{sub}</div>}
     </div>

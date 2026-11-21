@@ -65,7 +65,7 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
           <>
             <Segmented value={group} onChange={setGroup} options={shownGroups.map((g) => ({ value: g.id, label: g.label }))} className="max-w-full overflow-x-auto" />
             {group === "wb" && (
-              <div className="rounded-xl border border-line bg-panel-2 p-3">
+              <div className="recess rounded-xl border p-3">
                 <div className="flex items-center gap-3">
                   <div className="flex-1 text-sm">
                     <div className="font-semibold">Pick a white point</div>
@@ -111,7 +111,7 @@ function Field({ spec, value, onCommit }: { spec: FieldSpec; value: number | str
   }
   return (
     <div className="text-sm">
-      <div className="mb-0.5 flex justify-between"><span className="text-muted">{spec.label}</span><span className="font-mono tabular">{String(local)}</span></div>
+      <div className="mb-0.5 flex justify-between"><span className="font-semibold text-[#c9d1db]">{spec.label}</span><span className="font-mono font-bold tabular">{String(local)}</span></div>
       <Slider value={Number(local)} min={spec.min ?? 0} max={spec.max ?? 100} onChange={(v) => setLocal(v)} onCommit={(v) => onCommit(v)} label={spec.label} />
     </div>
   );

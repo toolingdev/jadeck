@@ -55,7 +55,7 @@ export function Macros() {
       <CardBody className="space-y-2">
         {(data ?? []).length === 0 ? <Empty>No macros yet. A macro runs its steps in order and stops at the first one that doesn't land.</Empty> :
           data!.map((m) => (
-            <div key={m.id} className="flex items-center gap-2 rounded-xl border border-line bg-panel-2 p-2">
+            <div key={m.id} className="btn-raised flex items-center gap-2 rounded-xl border p-2">
               <Button size="lg" variant="accent" className="w-14 shrink-0 px-0" onClick={() => run(m)} disabled={running !== null} aria-label={`Run ${m.name}`}>
                 {running === m.id ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
               </Button>

@@ -47,7 +47,9 @@ export function Switcher() {
                 return (
                   <button key={i.key || i.number} onClick={() => run(`Preview input ${i.number}`, withConn("/api/switcher/preview", conn), { input: i.number })}
                     className={cn("flex h-16 flex-col items-start justify-center rounded-xl border-2 px-3 text-left transition active:scale-[0.98]",
-                      pgm ? "border-pgm bg-pgm/15" : pvw ? "border-pvw bg-pvw/12" : "border-line bg-panel-2 hover:border-line-strong")}>
+                      pgm ? "border-pgm bg-pgm/15 shadow-[var(--shadow-hi),0_0_10px_color-mix(in_srgb,var(--color-pgm)_45%,transparent)]"
+                        : pvw ? "border-pvw bg-pvw/12 shadow-[var(--shadow-hi),0_0_10px_color-mix(in_srgb,var(--color-pvw)_40%,transparent)]"
+                        : "btn-raised hover:brightness-125")}>
                     <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
                       {i.number}{pgm && <span className="text-pgm">PGM</span>}{pvw && <span className="text-pvw">PVW</span>}
                     </span>
@@ -130,15 +132,16 @@ export function Mixer() {
             <button key={c.slot}
               disabled={c.channel == null || !st?.connected}
               onClick={async () => { await act(name, `${c.label} ${c.muted ? "unmuted" : "muted"} (read back)`, withConn("/api/mixer/mute", conn), { slot: c.slot }); reload(); }}
-              className={cn("flex h-[76px] flex-col justify-between rounded-xl border-2 p-2.5 text-left transition active:scale-[0.98] disabled:opacity-40",
-                c.muted ? "border-pgm/70 bg-pgm/15" : "border-line bg-panel-2 hover:border-line-strong")}>
+              className={cn("flex h-[76px] flex-col justify-between rounded-xl border-2 p-2.5 text-left transition active:scale-[0.98] disabled:btn-off",
+                // muted = red filled (WIDGETS.md §6)
+                c.muted ? "btn-pgm hover:brightness-110" : "btn-raised hover:brightness-125")}>
               <span className="flex w-full items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.label}</span>
-                {c.muted ? <MicOff size={15} className="text-bad" /> : <Mic size={15} className="text-good" />}
+                {c.muted ? <MicOff size={15} className="text-white" /> : <Mic size={15} className="text-good" />}
               </span>
               <span className="flex w-full items-center justify-between text-[10px] font-semibold uppercase tracking-[0.08em]">
-                <span className="text-dim">{c.channel ? `Ch ${c.channel}` : "Unassigned"}</span>
-                <span className={c.muted ? "text-bad" : c.muted === false ? "text-good" : "text-dim"}>{c.muted == null ? "—" : c.muted ? "Muted" : "Live"}</span>
+                <span className={c.muted ? "text-white/70" : "text-dim"}>{c.channel ? `Ch ${c.channel}` : "Unassigned"}</span>
+                <span className={c.muted ? "text-white" : c.muted === false ? "text-good" : "text-dim"}>{c.muted == null ? "—" : c.muted ? "Muted" : "Live"}</span>
               </span>
             </button>
           ))}

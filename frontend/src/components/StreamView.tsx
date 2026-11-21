@@ -45,9 +45,11 @@ function useSeen(ref: React.RefObject<HTMLElement | null>) {
   return docOn && onScreen;
 }
 
-export function StreamView({ whep, hls, snapshot, title, noSignalText, overlay, className, fullscreen = true, aspect = "aspect-video", onMedia }: {
+export function StreamView({ whep, hls, snapshot, title, noSignalText, overlay, className, fullscreen = true, aspect = "aspect-video", onMedia, badges = "top" }: {
   whep?: string; hls?: string; snapshot?: string; title?: ReactNode; noSignalText?: string;
   overlay?: ReactNode; className?: string; fullscreen?: boolean; aspect?: string;
+  /** where the name / quality / live badges sit ("bottom" when a picker takes the top-left) */
+  badges?: "top" | "bottom";
   onMedia?: (el: HTMLVideoElement | HTMLImageElement | null) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
@@ -99,16 +101,18 @@ export function StreamView({ whep, hls, snapshot, title, noSignalText, overlay, 
           <Button size="sm" variant="outline" onClick={retry}><RefreshCw size={14} /> Retry</Button>
         </div>
       )}
-      <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-2">
-        {title && <Badge tone="neutral" className="bg-black/60">{title}</Badge>}
-        <Badge tone={live ? "pgm" : tier === "snapshot" ? "warn" : "neutral"} dot={live} className={live ? "" : "bg-black/60"}>
+      {/* a dark gradient behind the bottom badges (WIDGETS.md §6 pictures) */}
+      {badges === "bottom" && <div aria-hidden className="pic-shade pointer-events-none absolute inset-x-0 bottom-0 h-14 opacity-80" />}
+      <div className={cn("pointer-events-none absolute left-2 flex items-center gap-2", badges === "bottom" ? "bottom-2" : "top-2")}>
+        {title && <Badge tone="neutral" className="border-white/10 bg-black/65 text-fg">{title}</Badge>}
+        <Badge tone={live ? "pgm" : tier === "snapshot" ? "warn" : "neutral"} dot={live} className={live ? "" : "border-white/10 bg-black/65"}>
           {tierLabel[tier]}
         </Badge>
       </div>
       {fullscreen && (
         <button
           onClick={toggleFs} aria-label={fs ? "Exit full screen" : "Full screen"}
-          className="absolute right-2 top-2 rounded-lg bg-black/60 p-2 text-fg opacity-80 transition hover:opacity-100"
+          className="absolute right-2 top-2 rounded-lg border border-white/10 bg-black/60 p-[7px] text-fg opacity-80 transition hover:opacity-100"
         >
           {fs ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
         </button>

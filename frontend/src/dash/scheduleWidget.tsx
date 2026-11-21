@@ -38,14 +38,14 @@ export function ComingUp({ s }: { s: Settings }) {
     refreshShared("/api/schedule");
   };
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel">
-      <div className="shrink-0 px-3 pt-2.5 pb-1.5 text-[12px] font-semibold">Coming up</div>
+    <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
+      <div className="shrink-0 px-3 pt-2.5 pb-1.5 text-[13px] font-bold leading-[18px]">Coming up</div>
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3" data-feed>
         {pending.length === 0 && <p className="text-xs text-dim">Nothing scheduled. Ask the Assistant (“in 5 minutes cut to camera 2”) or an agent.</p>}
         {pending.map((j, i) => {
           const ms = new Date(j.at).getTime() - Date.now();
           return (
-            <div key={j.id} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", i === 0 ? "border-accent bg-accent/10" : "border-line bg-panel-2")}>
+            <div key={j.id} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", i === 0 ? "btn-sel" : "btn-raised")}>
               <span className={cn("w-16 shrink-0 font-mono text-sm font-bold tabular", i === 0 ? "text-accent" : "text-muted")}>
                 {j.status === "running" ? "now" : ms > 3600_000 ? new Date(j.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : left(ms)}
               </span>

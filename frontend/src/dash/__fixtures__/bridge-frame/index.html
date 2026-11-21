@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Test-only frame widget page for the WIDGETS-V2 bridge (not bundled).
+     Serve it as an add-on's ui/ entry (e.g. Playwright page.route on
+     /api/addons/<id>/ui/**) with the host's CSP; it has no inline script. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="frame.css" />
+  </head>
+  <body data-ready="0">
+    <header><span id="title">Bridge test</span><span id="size"></span></header>
+    <main>
+      <button id="act" type="button">Action</button>
+      <button id="bad" type="button">Undeclared</button>
+      <button id="res" type="button">Picture</button>
+    </main>
+    <img id="pic" alt="" />
+    <pre id="out"></pre>
+    <script src="frame.js"></script>
+  </body>
+</html>

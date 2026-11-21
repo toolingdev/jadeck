@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { HoldDemo } from "@/dash/addon/holdDemo";
 import { CheckCircle2, ChevronRight, FolderOpen, Loader2, RefreshCw, RotateCcw, ScrollText, ShieldAlert, Trash2, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLog } from "@/lib/log";
@@ -15,12 +16,14 @@ import { AddonSample, AddonWidget } from "@/dash/addonWidgets";
 
 const CAP_STEPS: Record<string, string[]> = {
   assistant: [],
+  tool: [],
   switcher: ["Cut", "Fade", "Preview input"],
   slides: ["Next slide", "Previous slide", "Blank"],
   mixer: ["Mute / unmute channel"],
 };
 const CAP_TOOLS: Record<string, string[]> = {
   assistant: [],
+  tool: [],
   switcher: ["switcher_status", "switcher_preview", "switcher_cut", "switcher_fade"],
   slides: ["slides_status", "slides_action"],
   mixer: ["mixer_status", "mixer_mute"],
@@ -76,6 +79,7 @@ export function AddonsSection() {
         {generic.map(row)}
         {rows.length === 0 && <p className="rounded-xl border border-dashed border-line px-3 py-3 text-sm text-muted">No add-ons installed. Install one from a file below.</p>}
         <Developer onDone={reload} />
+        <HoldDemo />
       </div>
       <div className="min-w-0">{current ? <Detail key={current.info.manifest.id} r={current} onChanged={reload} /> : null}</div>
       {browse && <Browse onClose={() => setBrowse(false)} onInstalled={(id) => { reload(); setSel(id); }} />}
@@ -185,19 +189,19 @@ function Detail({ r, onChanged }: { r: AddonRow; onChanged: () => void }) {
 
 function WidgetPreview({ m, w }: { m: Manifest; w: AddonWidgetDef }) {
   const core = w.kind === "core" ? WIDGET[w.type] : null;
-  const tall = w.kind === "list" || w.kind === "chat" || w.type === "switcher.inputs" || w.type === "audio.favorites";
+  const tall = ["list", "image", "strip", "sections", "frame", "input"].includes(w.kind) || w.type === "switcher.inputs" || w.type === "audio.favorites";
   let body: React.ReactNode;
   if (core) {
     const R = core.Render;
     body = <SampleData.Provider value={w.sample}><R s={{ ...core.defaults, ...(w.settings ?? {}) }} editing={false} /></SampleData.Provider>;
   } else if (w.kind !== "core") {
-    body = <AddonSample.Provider value={w.sample}><AddonWidget def={w} s={{ addon: m.id }} /></AddonSample.Provider>;
+    body = <AddonSample.Provider value={w.sample}><AddonWidget def={w} s={{ addon: m.id }} manifest={m} /></AddonSample.Provider>;
   } else {
     body = <p className="p-3 text-xs text-dim">Needs a newer controller ({w.type}).</p>;
   }
   return (
     <figure className="space-y-1.5">
-      <div className={cn("pointer-events-none overflow-hidden rounded-[var(--radius-card)] select-none", w.kind === "chat" ? "h-72" : tall ? "h-48" : "h-24")} aria-hidden>{body}</div>
+      <div className={cn("pointer-events-none overflow-hidden rounded-[var(--radius-card)] select-none", w.kind === "chat" || w.kind === "sections" ? "h-72" : tall ? "h-48" : w.kind === "buttons" || w.kind === "clock" || w.kind === "text" || w.kind === "slider" ? "h-32" : "h-24")} aria-hidden>{body}</div>
       <figcaption className="text-[11px] text-muted">{w.label}{w.description ? ` — ${w.description}` : ""}</figcaption>
     </figure>
   );

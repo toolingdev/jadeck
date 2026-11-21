@@ -11,7 +11,9 @@ import { FieldRow, QuickChannels } from "@/components/FieldRow";
 // Settings → Connections: the gear this controller talks to, any number of
 // each kind, each through an add-on's connection type.
 
-const CAPS: Capability[] = ["switcher", "slides", "mixer", "assistant"];
+const CAPS: Capability[] = ["switcher", "slides", "mixer", "assistant", "tool"];
+/** Kinds listed only when there is one (most venues have none). */
+const OPTIONAL = new Set<Capability>(["tool"]);
 
 type Draft = { id?: string; addon: string; type: string; name: string; config: Record<string, unknown>; favorites: Fav[]; cameraInputs?: Record<string, number> };
 type TestResult = { ok: boolean; detail?: string; error?: string } | null;
@@ -56,6 +58,7 @@ export function ConnectionsSection({ only, compact }: { only?: Capability[]; com
         )}
         {caps.map((k) => {
           const list = conns.filter((c) => c.capabilities.includes(k));
+          if (!list.length && OPTIONAL.has(k)) return null;
           return (
             <section key={k}>
               <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-dim">{CAP_LABEL[k]}</h3>

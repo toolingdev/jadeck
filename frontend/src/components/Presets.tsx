@@ -92,7 +92,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
           <div className={cn("grid gap-2", compact ? "grid-cols-[repeat(auto-fill,minmax(120px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(140px,1fr))]")}>
             {list.map((p, i) =>
               edit ? (
-                <div key={p.id} className="flex flex-col gap-2 rounded-xl border border-line bg-panel-2 p-2.5">
+                <div key={p.id} className="btn-raised flex flex-col gap-2 rounded-[10px] border p-2.5">
                   <div className="flex items-center gap-1">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{p.name}</span>
                     <span className="font-mono text-[10px] text-dim">#{p.slot}</span>
@@ -109,13 +109,14 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
                 <button
                   key={p.id} onClick={() => recall(p)}
                   className={cn(
-                    "group flex flex-col items-start justify-center rounded-xl border px-3.5 text-left transition active:scale-[0.98]",
+                    "group flex flex-col items-start justify-center rounded-[10px] border px-3.5 text-left transition active:scale-[0.98]",
                     compact ? "h-14" : "h-[72px]",
-                    active === p.id ? "border-accent bg-accent/12" : "border-line bg-panel-2 hover:border-line-strong",
+                    // the last recalled shot: amber (selected)
+                    active === p.id ? "btn-sel" : "btn-raised hover:brightness-125",
                   )}
                 >
-                  <span className="w-full truncate text-[15px] font-semibold">{p.name}</span>
-                  <span className="font-mono text-[10px] text-dim">SLOT {p.slot}</span>
+                  <span className="w-full truncate text-[15px] font-bold">{p.name}</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-dim">Slot {p.slot}{active === p.id ? " · last" : ""}</span>
                 </button>
               ),
             )}

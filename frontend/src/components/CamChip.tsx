@@ -27,7 +27,7 @@ export function CamChip({ className }: { className?: string }) {
   return (
     <div ref={ref} className={cn("no-drag relative", className)}>
       <button type="button" disabled={!pick} onClick={(e) => setOpen(open ? null : e.currentTarget.getBoundingClientRect())}
-        className="flex max-w-[11rem] items-center gap-1.5 rounded-lg border border-accent/60 bg-accent/12 px-2 py-1 text-[12px] font-semibold text-accent">
+        className="btn-sel flex max-w-[11rem] items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] font-bold transition hover:brightness-125">
         <Video size={13} className="shrink-0" />
         <span className="truncate">{cur?.name ?? "Camera"}</span>
         {pick && <ChevronDown size={13} className="shrink-0" />}

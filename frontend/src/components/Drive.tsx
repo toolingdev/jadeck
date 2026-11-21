@@ -31,8 +31,8 @@ export function HoldButton({ vec, children, className, label }: { vec: Vec; chil
       onPointerDown={start} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
       onContextMenu={(e) => e.preventDefault()}
       className={cn(
-        "touch-hold flex items-center justify-center rounded-2xl border border-line bg-raise text-fg transition active:scale-[0.97]",
-        held && "border-accent bg-accent/20 text-accent",
+        "touch-hold flex items-center justify-center rounded-2xl border transition active:scale-[0.97]",
+        held ? "btn-sel" : "btn-raised hover:brightness-125",
         className,
       )}
     >
@@ -77,7 +77,7 @@ export function DirPad({ compact, home = true, className }: { compact?: boolean;
           <button
             key="home" type="button" aria-label="Home"
             onClick={() => act("Home", "/api/ptz/home")}
-            className="flex aspect-square items-center justify-center rounded-2xl border border-line bg-panel-2 text-muted transition hover:text-fg active:scale-[0.97]"
+            className="btn-raised flex aspect-square items-center justify-center rounded-2xl border !text-muted transition hover:brightness-125 hover:!text-fg active:scale-[0.97]"
           >
             <Home size={compact ? 18 : 22} />
           </button>
@@ -214,14 +214,14 @@ export function ZoomStop({ vertical = true, home = false }: { vertical?: boolean
       {home && <HoldButton vec={{ zoom: -1 }} label="Zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><Minus size={20} />WIDE</HoldButton>}
       <button
         type="button" aria-label="Stop" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }}
-        className={cn(h, "flex w-16 items-center justify-center rounded-2xl border border-pgm/50 bg-pgm/15 text-bad active:scale-[0.97]")}
+        className={cn(h, "btn-pgm flex w-16 items-center justify-center rounded-2xl border transition hover:brightness-110 active:scale-[0.97]")}
       >
         <Square size={20} fill="currentColor" />
       </button>
       {home ? (
         <button
           type="button" aria-label="Home" onClick={() => act("Home", "/api/ptz/home")}
-          className="flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border border-line-strong bg-panel-2 text-[9px] font-bold tracking-[0.1em] text-muted transition hover:text-fg active:scale-[0.97]"
+          className="btn-raised flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-[9px] font-bold tracking-[0.1em] !text-muted transition hover:brightness-125 hover:!text-fg active:scale-[0.97]"
         >
           <Home size={18} className="text-fg" />HOME
         </button>
@@ -244,8 +244,8 @@ export function SpeedControl({ speed, onChange, fine, onFine, label = "Speed" }:
   return (
     <div>
       <div className="mb-1 flex items-center gap-2 text-xs">
-        <span className="font-semibold text-muted">{label}</span>
-        <span className={cn("font-mono tabular", fine ? "text-accent" : "text-fg")}>{fine ? `${eff} · fine` : speed}</span>
+        <span className="smallcaps">{label}</span>
+        <span className={cn("recess rounded-md border px-1.5 font-mono font-bold leading-[16px] tabular", fine ? "text-accent" : "text-fg")}>{fine ? `${eff} · fine` : speed}</span>
         <label className="ml-auto flex cursor-pointer items-center gap-2">
           <span className={cn("font-semibold", fine ? "text-fg" : "text-muted")}>Fine</span>
           <Switch checked={fine} onChange={(v) => { onFine(v); setDrive({ speed: v ? Math.min(FINE_SPEED, speed) : speed }, cam); }} label="Fine movement" />
@@ -253,7 +253,7 @@ export function SpeedControl({ speed, onChange, fine, onFine, label = "Speed" }:
       </div>
       <Slider value={eff} min={5} max={fine ? FINE_SPEED : 100}
         onChange={(v) => { if (!fine) onChange(v); setDrive({ speed: v }, cam); }} label="Movement speed" />
-      <div className="flex justify-between text-[10px] uppercase tracking-[0.1em] text-dim"><span>Precise</span><span>{fine ? "Fine max" : "Fast"}</span></div>
+      <div className="flex justify-between text-[9.5px] font-bold uppercase tracking-[0.12em] text-dim"><span>Precise</span><span>{fine ? "Fine max" : "Fast"}</span></div>
     </div>
   );
 }

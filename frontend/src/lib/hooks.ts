@@ -91,6 +91,15 @@ export function refreshShared(path: string) {
   return pollOnce(path);
 }
 
+/** Refreshes `path` and every polled variant of it with a query string
+ *  (e.g. one add-on state per widget: …/state?widget=…). */
+export function refreshSharedAll(path: string) {
+  if (!path) return Promise.resolve();
+  const hits = [...shared.keys()].filter((k) => k === path || k.startsWith(`${path}?`));
+  if (!hits.includes(path)) hits.push(path);
+  return Promise.all(hits.map(pollOnce));
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("ptz:changed", () => shared.forEach((_, path) => pollOnce(path)));
 }

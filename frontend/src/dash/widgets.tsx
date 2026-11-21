@@ -10,7 +10,7 @@ import { ComingUp } from "./scheduleWidget";
 import { StageShow, StageCue, sendAsCue, showAsCue, StageTimer, StageLive, TallyLight, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK, DEFAULT_REPLIES } from "./stageWidgets";
 import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
 import { useShared, refreshShared, useLocal, useWidgetConn } from "@/lib/hooks";
-import { withConn } from "@/lib/addons";
+import { withConn, type Field as AddonField } from "@/lib/addons";
 import { useLog } from "@/lib/log";
 import { setDrive, stopDrive } from "@/lib/control";
 import { useCam } from "@/lib/camera";
@@ -40,9 +40,11 @@ export const GROUPS: { id: Group; label: string; needs?: "switcher" | "presentat
 ];
 
 export type Field = {
-  key: string; label: string; type: "select" | "bool" | "text" | "number" | "source" | "list" | "channel" | "channels" | "camera" | "input" | "connection" | "feed";
+  key: string; label: string; type: "select" | "bool" | "text" | "number" | "source" | "list" | "channel" | "channels" | "camera" | "input" | "connection" | "feed" | "addon";
   /** connection fields: which connections to offer */
   cap?: "switcher" | "slides" | "mixer"; addon?: string;
+  /** type "addon" (v2.1): a field an add-on declared for its widget (WidgetDef.fields). */
+  addonField?: AddonField;
   options?: { value: string; label: string }[]; source?: "presets" | "macros" | "favorites" | "slideActions";
   help?: string; showIf?: (s: Settings) => boolean;
 };
@@ -56,7 +58,8 @@ export type WidgetDef = {
   defaults: Settings; fields: Field[];
   /** Kept so saved dashboards still render, but not offered in the library. */
   hidden?: boolean;
-  Render: (p: { s: Settings; editing: boolean }) => ReactNode;
+  /** id / dash: the dashboard widget and dashboard being drawn (absent in previews). */
+  Render: (p: { s: Settings; editing: boolean; id?: string; dash?: number }) => ReactNode;
 };
 
 const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
@@ -64,12 +67,14 @@ const list = (v: unknown, d: string[] = []) => (Array.isArray(v) ? v.filter((x):
 const bool = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
 
 /** Chrome for widgets that aren't already a card. */
-function Frame({ title, children, className, right }: { title?: ReactNode; children: ReactNode; className?: string; right?: ReactNode }) {
+export function Frame({ title, children, className, right }: { title?: ReactNode; children: ReactNode; className?: string; right?: ReactNode }) {
   return (
-    <div className={cn("flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel", className)}>
+    <div className={cn("card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line", className)}>
       {title !== undefined && (
+        // 13px bold title (WIDGETS.md §6), on the same 18px line as before so
+        // nothing below it moves; the context sits right in small caps.
         <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
-          <span className="min-w-0 truncate text-[12px] font-semibold text-fg [&:has(.no-drag)]:overflow-visible">{title}</span>
+          <span className="min-w-0 truncate text-[13px] font-bold leading-[18px] tracking-[-0.005em] text-fg [&:has(.no-drag)]:overflow-visible">{title}</span>
           <div className="ml-auto flex items-center gap-2">{right}</div>
         </div>
       )}
@@ -140,12 +145,12 @@ function ZoomCol({ home }: { home: boolean }) {
       <HoldButton vec={{ zoom: 1 }} label="Zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><ZoomIn size={18} />TELE</HoldButton>
       <HoldButton vec={{ zoom: -1 }} label="Zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}>−<br />WIDE</HoldButton>
       <button type="button" aria-label="Stop" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }}
-        className={cn(h, "flex w-16 items-center justify-center rounded-2xl border border-pgm/50 bg-pgm/15 text-bad active:scale-[0.97]")}>
+        className={cn(h, "btn-pgm flex w-16 items-center justify-center rounded-2xl border transition hover:brightness-110 active:scale-[0.97]")}>
         <Square size={18} fill="currentColor" />
       </button>
       {home && (
         <button type="button" aria-label="Home" onClick={() => act("Home", "/api/ptz/home")}
-          className="flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border border-line-strong bg-panel-2 text-[9px] font-bold tracking-[0.1em] text-muted active:scale-[0.97]">
+          className="btn-raised flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-[9px] font-bold tracking-[0.1em] text-muted transition hover:brightness-125 active:scale-[0.97]">
           <HomeIcon size={17} className="text-fg" />HOME
         </button>
       )}
@@ -167,10 +172,10 @@ function OnePreset({ s }: { s: Settings }) {
         try { await recallPinned(cam, p.id); log("Camera", `Preset “${p.name}”`); }
         catch (e) { log("Camera", `Preset “${p.name}” failed — ${(e as Error).message}`, false); }
       }}
-      className="flex h-full w-full flex-col items-start justify-center rounded-[var(--radius-card)] border border-line bg-panel-2 px-4 text-left transition hover:border-line-strong active:scale-[0.98]"
+      className="btn-raised flex h-full w-full flex-col items-start justify-center rounded-[var(--radius-card)] border px-4 text-left transition hover:brightness-125 active:scale-[0.98]"
     >
-      <span className="w-full truncate text-lg font-semibold">{str(s.label) || name}</span>
-      <span className="font-mono text-[10px] text-dim">{p ? `PRESET · SLOT ${p.slot}` : "PRESET NOT FOUND"}</span>
+      <span className="w-full truncate text-lg font-bold">{str(s.label) || name}</span>
+      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-dim">{p ? `PRESET · SLOT ${p.slot}` : "PRESET NOT FOUND"}</span>
     </button>
   );
 }
@@ -186,14 +191,14 @@ function BigButton({ onClick, className, children, label }: { onClick: () => voi
 
 function HomeWidget() {
   const act = useCamAction();
-  return <BigButton label="Home" onClick={() => act("Home", "/api/ptz/home")} className="border-accent/50 bg-panel-2 text-accent"><HomeIcon size={26} />Home</BigButton>;
+  return <BigButton label="Home" onClick={() => act("Home", "/api/ptz/home")} className="btn-sel hover:brightness-125"><HomeIcon size={26} />Home</BigButton>;
 }
 
 function StopWidget() {
   const act = useCamAction();
   const cam = useCam();
   return (
-    <BigButton label="Stop camera" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }} className="border-pgm bg-pgm tracking-[0.1em] text-white">
+    <BigButton label="Stop camera" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }} className="btn-pgm tracking-[0.1em] hover:brightness-110">
       <Square size={24} fill="currentColor" />STOP CAMERA
     </BigButton>
   );
@@ -228,10 +233,13 @@ function VideoWidget({ s, editing }: { s: Settings; editing: boolean }) {
   const cfg = useCfg();
   const feed = str(s.feed);
   if (!feed) return <Unset what="Pick a feed in this widget's settings." />;
-  if (feed.startsWith("cam:")) return <LiveCamPinned s={{ ...s, camera: feed.slice(4) }} editing={editing} />;
+  // the feed picker sits top-left (where every widget's picker is), so the badges go bottom-left;
+  // decided by the setting, not by whether the picker shows, so edit mode looks the same as after Done
+  const badges = s.switchHere !== false ? "bottom" : "top";
+  if (feed.startsWith("cam:")) return <LiveCamPinned s={{ ...s, camera: feed.slice(4) }} editing={editing} badges={badges} />;
   const f = cfg?.feeds?.find((x) => x.id === feed);
   if (cfg && !f) return <Unset what="That feed was removed — pick another in this widget's settings." />;
-  return <StreamView title={str(s.title) || f?.name || ""} whep={f?.whep} hls={f?.hls} aspect="h-full"
+  return <StreamView title={str(s.title) || f?.name || ""} whep={f?.whep} hls={f?.hls} aspect="h-full" badges={badges}
     noSignalText={f?.source === "push" ? `Nothing is sending ${f?.name} yet (Settings → Video feeds shows how).` : `${f?.name ?? "This feed"} isn't answering.`} />;
 }
 
@@ -252,15 +260,17 @@ function Inputs() {
   const run = switchAct(useLog().log, useWidgetConn());
   if (!st?.connected) return <Unset what={st?.error || "Switcher not answering."} />;
   return (
-    <Frame title={<>Inputs{st.label && <span className="ml-2 font-medium text-[10px] uppercase tracking-[0.08em] text-muted">{st.label}</span>}</>}>
+    <Frame title={<>Inputs{st.label && <span className="smallcaps ml-2">{st.label}</span>}</>}>
       {/* tiles keep their own height; a big widget leaves room below instead of stretching them tall */}
       <div className="grid h-full auto-rows-[minmax(56px,72px)] content-start grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 overflow-auto">
         {st.inputs.map((i) => {
           const pgm = i.number === st.active, pvw = i.number === st.preview;
           return (
             <button key={i.key || i.number} onClick={() => run(`Preview input ${i.number}`, "/api/switcher/preview", { input: i.number })}
-              className={cn("flex min-h-14 flex-col items-start justify-center rounded-xl border-2 px-3 text-left active:scale-[0.98]",
-                pgm ? "border-pgm bg-pgm/15" : pvw ? "border-pvw bg-pvw/12" : "border-line bg-panel-2")}>
+              className={cn("flex min-h-14 flex-col items-start justify-center rounded-xl border-2 px-3 text-left transition active:scale-[0.98]",
+                pgm ? "border-pgm bg-pgm/15 shadow-[var(--shadow-hi),0_0_10px_color-mix(in_srgb,var(--color-pgm)_45%,transparent)]"
+                  : pvw ? "border-pvw bg-pvw/12 shadow-[var(--shadow-hi),0_0_10px_color-mix(in_srgb,var(--color-pvw)_40%,transparent)]"
+                  : "btn-raised hover:brightness-125")}>
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{i.number} {pgm && <span className="text-pgm">PGM</span>}{pvw && <span className="text-pvw">PVW</span>}</span>
               <span className="w-full truncate text-sm font-semibold">{i.title}</span>
             </button>
@@ -317,7 +327,7 @@ function SlideButton({ s }: { s: Settings }) {
   const action = str(s.action);
   if (!action) return <Unset what="Pick a slide action in this widget's settings." />;
   const label = str(s.label) || { black: "Black screen", logo: "Logo", clear: "Clear text", next: "Next", prev: "Prev" }[action] || action;
-  return <BigButton label={label} onClick={() => act(action, label)} className="border-line bg-raise">{label}</BigButton>;
+  return <BigButton label={label} onClick={() => act(action, label)} className="btn-raised hover:brightness-125">{label}</BigButton>;
 }
 
 // ----------------------------------------------------------------- audio
@@ -350,15 +360,16 @@ function MuteButton({ s }: { s: Settings }) {
     <>
       <button type="button" onClick={press} disabled={busy || ch.channel == null || !st?.connected}
         className={cn("flex h-full w-full flex-col justify-between rounded-[var(--radius-card)] border-2 p-3 text-left transition active:scale-[0.98] disabled:opacity-50",
-          ch.muted ? "border-pgm/70 bg-pgm/15" : "border-line bg-panel-2")}>
+          // muted = red filled (WIDGETS.md §6)
+          ch.muted ? "btn-pgm hover:brightness-110" : "btn-raised hover:brightness-125")}>
         <span className="flex w-full items-start gap-2">
           <span className="min-w-0 flex-1">
             <span className="block truncate text-lg font-bold">{label}</span>
-            {bool(s.showChannel, true) && <span className="block text-[11px] text-dim">{ch.channel ? `Ch ${ch.channel}` : "unassigned"}{bool(s.askUnmute) ? " · asks before unmuting" : ""}</span>}
+            {bool(s.showChannel, true) && <span className={cn("block text-[11px]", ch.muted ? "text-white/75" : "text-dim")}>{ch.channel ? `Ch ${ch.channel}` : "unassigned"}{bool(s.askUnmute) ? " · asks before unmuting" : ""}</span>}
           </span>
-          {busy ? <Loader2 size={18} className="animate-spin text-muted" /> : ch.muted ? <MicOff size={18} className="text-bad" /> : <Mic size={18} className="text-good" />}
+          {busy ? <Loader2 size={18} className="animate-spin text-muted" /> : ch.muted ? <MicOff size={18} className="text-white" /> : <Mic size={18} className="text-good" />}
         </span>
-        <span className={cn("rounded-lg py-1.5 text-center text-sm font-bold tracking-[0.12em]", ch.muted ? "bg-pgm text-white" : ch.muted === false ? "bg-good/15 text-good" : "bg-raise text-dim")}>
+        <span className={cn("rounded-lg py-1.5 text-center text-sm font-bold tracking-[0.12em]", ch.muted ? "bg-black/20 text-white" : ch.muted === false ? "bg-good/15 text-good" : "recess text-dim")}>
           {ch.muted == null ? "—" : ch.muted ? "MUTED" : "LIVE"}
         </span>
       </button>
@@ -396,8 +407,8 @@ function MacroButton({ s }: { s: Settings }) {
   };
   return (
     <button type="button" onClick={run} disabled={busy}
-      className="flex h-full w-full flex-col items-start justify-between rounded-[var(--radius-card)] border border-line bg-panel p-3 text-left transition hover:border-line-strong active:scale-[0.98]">
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-fg">
+      className="btn-raised flex h-full w-full flex-col items-start justify-between rounded-[var(--radius-card)] border p-3 text-left transition hover:brightness-125 active:scale-[0.98]">
+      <span className="btn-sel flex h-10 w-10 items-center justify-center rounded-full border">
         {busy ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
       </span>
       <span className="w-full">
@@ -448,7 +459,7 @@ function CountdownWidget({ s }: { s: Settings }) {
   return (
     <Frame>
       <div className="flex h-full flex-col items-center justify-center">
-        <div className="text-xs font-semibold uppercase tracking-[0.1em] text-muted">{str(s.label) || `until ${target}`}</div>
+        <div className="text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-dim">{str(s.label) || `until ${target}`}</div>
         <div className={cn("font-mono text-[clamp(28px,7vw,64px)] font-bold leading-none tabular", diff < 0 ? "text-bad" : diff < 120 ? "text-accent" : "text-fg")}>{text}</div>
         {diff < 0 && <div className="mt-1 text-[11px] text-bad">over time</div>}
       </div>

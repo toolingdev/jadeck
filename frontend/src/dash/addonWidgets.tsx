@@ -1,95 +1,168 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Puzzle } from "lucide-react";
-import { api } from "@/lib/api";
-import { useShared, refreshShared } from "@/lib/hooks";
-import { useLog } from "@/lib/log";
+import { useShared } from "@/lib/hooks";
 import { cn } from "@/lib/cn";
-import type { Manifest, WidgetDef as AddonWidgetDef } from "@/lib/addons";
+import { useMemo } from "react";
+import { WIDGET_KINDS, fieldSettings, resolveBind, type Manifest, type WidgetDef as AddonWidgetDef, type WidgetKind } from "@/lib/addons";
 import { registerWidgets, type Settings, type WidgetDef } from "./widgets";
+import { AddonSample, bound, str, useAddonAction, useAddonState, type ShapeProps } from "./addon/common";
+import { Chat } from "./addon/chat";
+import { ImageShape } from "./addon/image";
+import { ButtonsShape } from "./addon/buttons";
+import { InputShape } from "./addon/input";
+import { StripShape } from "./addon/strip";
+import { SectionsShape } from "./addon/sections";
+import { TextShape } from "./addon/text";
+import { ClockShape } from "./addon/clock";
+import { SliderShape } from "./addon/slider";
+import { FrameShape } from "./addon/frame";
 
-// Widgets an add-on brings (kind "list" or "status" in its manifest),
-// drawn by the controller from the add-on's state. Their dashboard type
-// is addon:<add-on id>:<widget>; settings.connection picks the
-// connection (defaults to the add-on's first one).
+// Widgets an add-on brings (design/WIDGETS-V2.md), drawn by the controller
+// from the add-on's state in one of the shared shapes, or by the add-on
+// itself in a sandboxed frame. Their dashboard type is
+// addon:<add-on id>:<widget>; settings.connection picks the connection
+// (defaults to the add-on's first one). Kind "core" reuses a built-in.
 
-const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
+export { AddonSample };
 
-/** Preview state for Settings → Add-ons (instead of the live connection). */
-export const AddonSample = createContext<Record<string, unknown> | null>(null);
+const SHAPES: Partial<Record<WidgetKind, (p: ShapeProps) => React.ReactNode>> = {
+  status: StatusShape, list: ListShape, image: ImageShape, buttons: ButtonsShape, input: InputShape, strip: StripShape,
+  sections: SectionsShape, text: TextShape, clock: ClockShape, slider: SliderShape, frame: FrameShape,
+};
 
-type Conns = { connections: { id: string; addon: string; name: string; ready: boolean; error: string }[] };
-
-function useAddonState(addonId: string, conn: string) {
-  const sample = useContext(AddonSample);
-  const { data: list } = useShared<Conns>(sample ? null : "/api/devices", 10000);
-  const mine = (list?.connections ?? []).filter((c) => c.addon === addonId);
-  const c = mine.find((x) => x.id === conn) ?? mine[0];
-  const path = !sample && c ? `/api/connections/${c.id}/state` : null;
-  const { data } = useShared<Record<string, unknown>>(path, 2000);
-  return { state: sample ?? data, conn: c, none: !sample && list && !c };
-}
-
-export function AddonWidget({ def, s }: { def: AddonWidgetDef; s: Settings; manifest?: Manifest }) {
-  const addonId = str(s.addon);
-  const { state, conn, none } = useAddonState(addonId, str(s.connection));
-  const { log } = useLog();
-  const b = def.bind ?? {};
-  const shell = (body: React.ReactNode, title?: string) => (
-    <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel">
-      {title && <div className="shrink-0 px-3 pt-2.5 pb-1.5 text-[12px] font-semibold">{title}</div>}
-      <div className={cn("min-h-0 flex-1", title ? "px-3 pb-3" : "p-3")}>{body}</div>
+export function AddonWidget({ def: raw, s, manifest, editing = false, widgetId, dash }: {
+  def: AddonWidgetDef; s: Settings; manifest?: Manifest; editing?: boolean;
+  /** The dashboard widget (v2.1): with add-on fields, state requests name it so the add-on gets its settings. */
+  widgetId?: string; dash?: number;
+}) {
+  const addonId = str(s.addon) || manifest?.id || "";
+  // v2.1: the widget's add-on settings (field defaults, then saved values)
+  // and its binds with "$settings.<key>" filled in.
+  const settings = useMemo(() => fieldSettings(raw.fields, s), [raw.fields, s]);
+  const settingsKey = JSON.stringify(settings);
+  const def = useMemo(() => (raw.fields?.length ? { ...raw, bind: resolveBind(raw.bind, settings) } : raw),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [raw, settingsKey]);
+  const widget = raw.fields?.length && widgetId ? { id: widgetId, dash, settingsKey } : undefined;
+  const { state, conn, none, preview } = useAddonState(addonId, str(s.connection), widget);
+  const shell = (body: React.ReactNode) => (
+    <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
+      <div className="shrink-0 truncate px-3 pt-2.5 pb-1.5 text-[13px] font-bold leading-[18px]">{def.label}</div>
+      <div className="min-h-0 flex-1 px-3 pb-3">{body}</div>
     </div>
   );
-  if (none) return shell(<p className="text-xs text-dim">Add a connection for this add-on (Settings → Connections).</p>, def.label);
-  if (!state) return shell(<p className="text-xs text-dim">Loading…</p>, def.label);
-  if (state.error) return shell(<p className="text-xs text-bad">{String(state.error)}</p>, def.label);
-
+  const Shape = def.kind === "chat" ? null : SHAPES[def.kind];
+  if (def.kind !== "chat" && !Shape) return shell(<p className="text-xs text-dim">Needs a newer jadeck (widget kind “{String(def.kind)}”).</p>);
+  if (none) return shell(<p className="text-xs text-dim">Add a connection for this add-on (Settings → Connections).</p>);
+  if (!state) return shell(<p className="text-xs text-dim">Loading…</p>);
+  if (state.error) return shell(<p className="line-clamp-3 text-xs text-bad">{String(state.error)}</p>);
   if (def.kind === "chat") return <Chat label={def.label} state={state} conn={conn} />;
+  const S = Shape!;
+  return <S def={def} state={state} conn={conn} s={s} editing={editing} preview={preview} manifest={manifest} />;
+}
 
-  if (def.kind === "status") {
-    const on = !!state[b.on ?? "on"];
-    const title = str(state[b.title ?? "title"]);
-    const slide = state[b.slide ?? ""] as number | undefined, slides = state[b.slides ?? ""] as number | undefined;
-    return (
-      <div className={cn("flex h-full flex-col justify-center gap-1 rounded-[var(--radius-card)] border-2 bg-panel px-4", on ? "border-pgm" : "border-line")}>
-        <span className={cn("flex items-center gap-2 text-sm font-bold tracking-[0.1em]", on ? "text-bad" : "text-dim")}>
-          <span className={cn("h-2.5 w-2.5 rounded-full", on ? "animate-pulse bg-pgm" : "bg-dim")} />{on ? "ON AIR" : "OFF AIR"}
-        </span>
-        {on && title && <span className="truncate text-base font-semibold">{title}{slide ? ` · slide ${slide}${slides ? ` of ${slides}` : ""}` : ""}</span>}
-      </div>
-    );
-  }
+// ------------------------------------------------------------- v1 shapes
 
-  // list
-  const items = (state[b.items ?? "items"] as { index: number; title: string }[]) ?? [];
-  const cur = Number(state[b.current ?? "current"]) || 0;
-  const action = b.action;
-  const go = async (index: number, title: string) => {
-    if (!action || !conn) return;
-    try {
-      await api(`/api/connections/${conn.id}/actions/${action}`, "POST", { index });
-      log(conn.name, `Go to ${title}`);
-      refreshShared(`/api/connections/${conn.id}/state`);
-    } catch (e) {
-      log(conn.name, `Go to ${title} failed — ${(e as Error).message}`, false);
-    }
-  };
-  return shell(
-    items.length === 0 ? <p className="text-xs text-dim">{state.onAir === false ? "Not on air." : "Nothing in the list."}</p> : (
-      <div className="h-full space-y-1 overflow-y-auto" data-feed>
-        {items.map((it) => (
-          <button key={it.index} type="button" onClick={() => go(it.index, it.title)}
-            className={cn("flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm active:scale-[0.99]",
-              it.index === cur ? "border-accent bg-accent/12 font-semibold text-accent" : "border-transparent bg-panel-2 hover:border-line-strong")}>
-            <span className="w-5 shrink-0 text-right font-mono text-[11px] text-dim">{it.index}</span>
-            <span className="min-w-0 flex-1 truncate">{it.title}</span>
-            {it.index === cur && <span className="text-[10px] font-bold">● LIVE</span>}
-          </button>
-        ))}
-      </div>
-    ),
-    def.label,
+function StatusShape({ def, state }: ShapeProps) {
+  const b = def.bind ?? {};
+  const on = !!bound(state, b, "on", "on");
+  const title = str(bound(state, b, "title", "title"));
+  const slide = bound(state, b, "slide") as number | undefined, slides = bound(state, b, "slides") as number | undefined;
+  return (
+    <div className={cn("card-surface flex h-full flex-col justify-center gap-1 rounded-[var(--radius-card)] border-2 px-4 transition-[border-color,box-shadow]",
+      on ? "border-pgm shadow-[inset_0_0_18px_color-mix(in_srgb,var(--color-pgm)_18%,transparent)]" : "border-line")}>
+      <span className={cn("flex items-center gap-2 text-sm font-bold tracking-[0.12em]", on ? "text-bad" : "text-dim")}>
+        {/* 12px dot; the pulse is for on air only (WIDGETS.md §6) */}
+        <span className={cn("h-3 w-3 shrink-0 rounded-full", on ? "animate-pulse bg-pgm shadow-[0_0_8px_var(--color-pgm)]" : "bg-unlit border border-line-strong")} />{on ? "ON AIR" : "OFF AIR"}
+      </span>
+      {on && title && <span className="truncate text-base font-semibold">{title}{slide ? ` · slide ${slide}${slides ? ` of ${slides}` : ""}` : ""}</span>}
+    </div>
   );
+}
+
+function ListShape({ def, state, conn, preview, editing }: ShapeProps) {
+  const b = def.bind ?? {};
+  const items = (bound(state, b, "items", "items") as { index: number; title: string }[] | undefined) ?? [];
+  const cur = Number(bound(state, b, "current", "current")) || 0;
+  const action = str(b.action);
+  const { run, busy } = useAddonAction(conn, preview);
+  return (
+    <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
+      <div className="shrink-0 truncate px-3 pt-2.5 pb-1.5 text-[13px] font-bold leading-[18px]">{def.label}</div>
+      <div className="min-h-0 flex-1 px-3 pb-3">
+        {items.length === 0 ? <p className="text-xs text-dim">{state.onAir === false ? "Not on air." : "Nothing in the list."}</p> : (
+          <div className="h-full space-y-1 overflow-y-auto" data-feed>
+            {items.map((it) => (
+              <button key={it.index} type="button" disabled={!action || !!busy || editing} onClick={() => run(action, { index: it.index }, `Go to ${it.title}`, String(it.index))}
+                className={cn("relative flex w-full items-center gap-2 overflow-hidden rounded-lg border px-2.5 py-2 text-left text-sm transition active:scale-[0.99]",
+                  it.index === cur ? "btn-sel font-bold" : "border-transparent bg-white/[0.025] hover:border-line-strong hover:bg-white/[0.04]")}>
+                {it.index === cur && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-accent" />}
+                <span className={cn("w-5 shrink-0 text-right font-mono text-[11px] tabular", it.index === cur ? "text-accent/80" : "text-dim")}>{it.index}</span>
+                <span className="min-w-0 flex-1 truncate">{it.title}</span>
+                {it.index === cur && <span className="btn-pgm shrink-0 rounded-full px-1.5 text-[9.5px] font-bold leading-[15px] tracking-[0.08em]">LIVE</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------- library
+
+type Size = WidgetDef["size"];
+type Px = { w: number; h: number };
+
+/** Per-kind defaults: desktop/tablet w×h (12 columns, 40px rows) and phone pw×ph (4 columns). */
+const KIND_SIZE: Record<Exclude<WidgetKind, "core">, { size: Size; minPx: Px }> = {
+  status: { size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 160, h: 60 } },
+  list: { size: { w: 4, h: 8, pw: 4, ph: 8 }, minPx: { w: 180, h: 140 } },
+  chat: { size: { w: 5, h: 10, pw: 4, ph: 10 }, minPx: { w: 260, h: 260 } },
+  image: { size: { w: 6, h: 7, pw: 4, ph: 6 }, minPx: { w: 200, h: 150 } },
+  buttons: { size: { w: 4, h: 3, pw: 4, ph: 3 }, minPx: { w: 140, h: 90 } },
+  input: { size: { w: 4, h: 4, pw: 4, ph: 4 }, minPx: { w: 220, h: 130 } },
+  strip: { size: { w: 8, h: 4, pw: 4, ph: 4 }, minPx: { w: 240, h: 120 } },
+  sections: { size: { w: 4, h: 10, pw: 4, ph: 10 }, minPx: { w: 220, h: 160 } },
+  text: { size: { w: 4, h: 3, pw: 4, ph: 3 }, minPx: { w: 160, h: 80 } },
+  clock: { size: { w: 3, h: 4, pw: 2, ph: 3 }, minPx: { w: 150, h: 110 } },
+  slider: { size: { w: 4, h: 3, pw: 4, ph: 3 }, minPx: { w: 120, h: 110 } },
+  frame: { size: { w: 6, h: 6, pw: 4, ph: 6 }, minPx: { w: 200, h: 120 } },
+};
+
+const clamp = (v: unknown, lo: number, hi: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : null);
+
+/** Grid size and minimum px: the manifest's when given (clamped), else the kind's. */
+export function addonSize(w: AddonWidgetDef): { size: Size; minPx: Px } {
+  const d = KIND_SIZE[w.kind as Exclude<WidgetKind, "core">] ?? KIND_SIZE.text;
+  let size = d.size;
+  const mw = clamp(w.size?.w, 1, 12), mh = clamp(w.size?.h, 1, 40);
+  if (mw !== null && mh !== null) {
+    // Phones have 4 columns: a widget a third of the desktop or more takes the full width.
+    size = { w: mw, h: mh, pw: Math.min(4, Math.max(1, Math.ceil(mw / 3))), ph: mh };
+  }
+  const pw = clamp(w.minPx?.w, 40, 1200), ph = clamp(w.minPx?.h, 28, 2000);
+  return { size, minPx: pw !== null && ph !== null ? { w: pw, h: ph } : d.minPx };
+}
+
+const warned = new Set<string>();
+
+// One Render component per add-on widget type, kept for the life of the page.
+// The add-on list is fetched again after every action (ptz:changed), and a new
+// arrow function each time made React remount every add-on widget: frames
+// reloaded mid-drag and lost the pointer. The component reads the newest
+// manifest from `latest`, so updates still show.
+const latest = new Map<string, { def: AddonWidgetDef; m: Manifest }>();
+const renders = new Map<string, WidgetDef["Render"]>();
+function stableRender(type: string): WidgetDef["Render"] {
+  let r = renders.get(type);
+  if (!r) {
+    r = ({ s, editing, id, dash }) => {
+      const x = latest.get(type);
+      return x ? <AddonWidget def={x.def} s={s} manifest={x.m} editing={editing} widgetId={id} dash={dash} /> : null;
+    };
+    renders.set(type, r);
+  }
+  return r;
 }
 
 /** Widget-library entries for every add-on widget (registered as the add-ons load). */
@@ -98,15 +171,25 @@ export function addonWidgetDefs(manifests: Manifest[]): WidgetDef[] {
   for (const m of manifests) {
     for (const w of m.widgets ?? []) {
       if (w.kind === "core") continue;
+      if (!(WIDGET_KINDS as readonly string[]).includes(w.kind)) {
+        if (!warned.has(`${m.id}:${w.type}`)) console.warn(`add-on ${m.id}: widget ${w.type} has kind "${w.kind}", which this jadeck doesn't know; left out`);
+        warned.add(`${m.id}:${w.type}`);
+        continue;
+      }
       const def = w;
+      const type = `addon:${m.id}:${w.type}`;
+      latest.set(type, { def, m });
       out.push({
-        type: `addon:${m.id}:${w.type}`, label: w.label, group: "addons", icon: Puzzle,
+        type, label: w.label, group: "addons", icon: Puzzle,
         description: `${m.name}: ${w.description ?? ""}`.trim(),
-        size: w.kind === "chat" ? { w: 5, h: 10, pw: 4, ph: 10 } : w.kind === "list" ? { w: 4, h: 8, pw: 4, ph: 8 } : { w: 4, h: 2, pw: 4, ph: 2 },
-        minPx: w.kind === "chat" ? { w: 260, h: 260 } : w.kind === "list" ? { w: 180, h: 140 } : { w: 160, h: 60 },
-        defaults: { addon: m.id, widget: w.type },
-        fields: [{ key: "connection", label: "Connection", type: "connection", addon: m.id }],
-        Render: ({ s }) => <AddonWidget def={def} s={s} />,
+        ...addonSize(w),
+        defaults: { ...fieldSettings(w.fields, {}), addon: m.id, widget: w.type },
+        fields: [
+          { key: "connection", label: "Connection", type: "connection", addon: m.id },
+          // v2.1: the add-on's own settings for this widget, drawn like connection settings.
+          ...(w.fields ?? []).map((f) => ({ key: f.key, label: f.label, type: "addon" as const, addon: m.id, addonField: f, help: f.help })),
+        ],
+        Render: stableRender(type),
       });
     }
   }
@@ -116,92 +199,8 @@ export function addonWidgetDefs(manifests: Manifest[]): WidgetDef[] {
 /** Registers add-on widgets and returns them (re-renders when add-ons change). */
 export function useAddonWidgets(): WidgetDef[] {
   const { data } = useShared<{ addons: { info: { enabled: boolean; manifest: Manifest } }[] }>("/api/addons", 0);
-  const defs = addonWidgetDefs((data?.addons ?? []).filter((a) => a.info.enabled).map((a) => a.info.manifest));
+  const ms = (data?.addons ?? []).filter((a) => a.info.enabled).map((a) => a.info.manifest);
+  const defs = addonWidgetDefs(ms);
   registerWidgets(defs);
   return defs;
-}
-
-// ------------------------------------------------------------- chat
-
-type Line = { role: "user" | "assistant" | "action" | "error"; text: string; pending?: { label: string }[]; at?: string };
-
-/** One conversation per screen. */
-function chatSession() {
-  try {
-    let id = localStorage.getItem("ptz.chatSession");
-    if (!id) {
-      id = (localStorage.getItem("ptz.screen") || "screen") + "-" + Math.random().toString(36).slice(2, 7);
-      localStorage.setItem("ptz.chatSession", id);
-    }
-    return id;
-  } catch {
-    return "screen";
-  }
-}
-
-function Chat({ label, state, conn }: { label: string; state: Record<string, unknown>; conn?: { id: string; name: string } }) {
-  const sid = useRef(chatSession()).current;
-  const preview = useContext(AddonSample);
-  const saved = ((state.sessions as Record<string, { lines: Line[]; pending: boolean }> | undefined)?.[sid]);
-  const [lines, setLines] = useState<Line[]>(() => (preview ? (state.messages as Line[]) ?? [] : saved?.lines ?? []));
-  const [pending, setPending] = useState(!!saved?.pending || !!preview);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const list = useRef<HTMLDivElement>(null);
-  const loaded = useRef(!!saved);
-  useEffect(() => { // first state from the add-on (a reopened screen sees its conversation)
-    if (!loaded.current && saved) { loaded.current = true; setLines(saved.lines ?? []); setPending(!!saved.pending); }
-  }, [saved]);
-  useEffect(() => { const el = list.current; if (el && !preview) el.scrollTop = el.scrollHeight; }, [lines.length, busy, preview]);
-  const send = async (action: "chat" | "approve" | "reject" | "reset", message?: string) => {
-    if (!conn || preview) return;
-    setBusy(true);
-    if (action === "chat" && message) setLines((l) => [...l, { role: "user", text: message }]);
-    try {
-      const r = await api<{ result: { lines: Line[]; pending: boolean } }>(`/api/connections/${conn.id}/actions/${action}`, "POST", { session: sid, message });
-      const got = r.result?.lines ?? [];
-      setLines((l) => action === "reset" ? [] : [...(action === "chat" ? l.slice(0, -1) : l), ...got]);
-      setPending(!!r.result?.pending);
-    } catch (e) {
-      setLines((l) => [...l, { role: "error", text: (e as Error).message }]);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const lastPending = pending ? [...lines].reverse().find((l) => l.pending?.length) : undefined;
-  return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel">
-      <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
-        <span className="text-[12px] font-semibold">✦ {label}</span>
-        <span className="ml-auto truncate text-[11px] text-dim">{conn?.name ?? ""}{state.askFirst === false ? " · acts right away" : " · asks before acting"}</span>
-        {lines.length > 0 && !preview && <button type="button" className="text-[11px] text-muted hover:text-fg" onClick={() => send("reset")}>New</button>}
-      </div>
-      <div ref={list} data-feed className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-2">
-        {lines.length === 0 && <p className="pt-2 text-xs text-dim">Tell the booth what to do — “go to the pulpit shot”, “next slide”, “in 5 minutes cut to camera 2”.</p>}
-        {lines.map((l, i) => (
-          <div key={i} className={cn("max-w-[90%] rounded-xl px-3 py-2 text-sm",
-            l.role === "user" ? "ml-auto bg-info/15" : l.role === "action" ? "bg-transparent px-1 py-0 text-xs text-good" : l.role === "error" ? "bg-bad/10 text-bad" : "bg-panel-2")}>
-            {l.text}
-            {l.pending?.length ? (
-              <div className="mt-2 space-y-1">
-                {l.pending.map((p, j) => <div key={j} className="rounded-lg border border-line bg-bg px-2 py-1.5 text-xs">▶ {p.label}</div>)}
-              </div>
-            ) : null}
-          </div>
-        ))}
-        {busy && <p className="text-xs text-dim">…</p>}
-      </div>
-      {lastPending && (
-        <div className="flex shrink-0 gap-2 px-3 pb-2">
-          <button type="button" disabled={busy} onClick={() => send("approve")} className="rounded-lg bg-accent px-4 py-2 text-sm font-bold text-accent-fg disabled:opacity-50">Do it</button>
-          <button type="button" disabled={busy} onClick={() => send("reject")} className="rounded-lg bg-raise px-4 py-2 text-sm disabled:opacity-50">Cancel</button>
-        </div>
-      )}
-      <form className="flex shrink-0 gap-2 border-t border-line p-2" onSubmit={(e) => { e.preventDefault(); const m = text.trim(); if (m && !busy) { setText(""); send("chat", m); } }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} disabled={busy || !conn} placeholder={conn || preview ? "Tell the booth what to do…" : "Add an AI controller connection first"}
-          className="h-10 min-w-0 flex-1 rounded-xl border border-line bg-bg px-3 text-sm focus:border-accent focus:outline-none" />
-        <button type="submit" disabled={busy || !text.trim()} className="rounded-xl px-3 text-sm font-bold text-accent disabled:opacity-40">Send</button>
-      </form>
-    </div>
-  );
 }

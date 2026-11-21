@@ -20,7 +20,7 @@ export const DEFAULT_QUICK = ["5 min left", "Wrap up", "Speak up", "Mic is off",
 export const DEFAULT_REPLIES = ["👍 Got it", "Ready", "Mic problem", "+2 min"];
 
 function Box({ children, className, style }: { children: ReactNode; className?: string; style?: React.CSSProperties }) {
-  return <div style={style} className={cn("flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-panel", className)}>{children}</div>;
+  return <div style={style} className={cn("card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line", className)}>{children}</div>;
 }
 
 function Note({ children }: { children: ReactNode }) {
@@ -208,7 +208,7 @@ function Conversation({ ch, me, offset, online }: { ch?: ChannelState; me: strin
     <Box className={cn(!online && "opacity-70")}>
       <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
         <span className="h-2 w-2 rounded-full" style={{ background: ch?.color }} />
-        <span className="truncate text-[12px] font-semibold">{ch?.name ?? "…"} · conversation</span>
+        <span className="truncate text-[13px] font-bold leading-[18px]">{ch?.name ?? "…"} · conversation</span>
         <span className="ml-auto text-[11px] text-dim">{online ? `${ch?.screens.length ?? 0} online` : <span className="text-bad">offline</span>}</span>
       </div>
       <div ref={list} data-feed className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
@@ -318,7 +318,7 @@ function CueIn({ live, me, offset, s, editing, fill }: { live: ChannelState[]; m
         <div className="mt-2 grid shrink-0 grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-1.5">
           {replies.map((r) => (
             <button key={r} type="button" onClick={() => answer(r)}
-              className="no-drag min-h-11 rounded-lg border border-line bg-bg px-2 py-1.5 text-sm font-semibold text-fg transition hover:border-line-strong active:scale-[0.97]">
+              className="no-drag min-h-11 rounded-lg btn-raised border hover:brightness-125 px-2 py-1.5 text-sm font-semibold text-fg transition hover:border-line-strong active:scale-[0.97]">
               {r}
             </button>
           ))}
@@ -382,11 +382,11 @@ function CueOut({ live, me, s, editing, online }: { live: ChannelState[]; me: st
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
       <div className="flex shrink-0 items-center gap-2">
-        <span className="truncate text-[12px] font-semibold">Cue → {live.map((c) => c.name).join(", ")}</span>
+        <span className="truncate text-[13px] font-bold leading-[18px]">Cue → {live.map((c) => c.name).join(", ")}</span>
         <span className={cn("ml-auto shrink-0 text-[11px]", online ? "text-good" : "text-bad")}>{online ? `● ${screens} screen${screens === 1 ? "" : "s"}` : "offline"}</span>
       </div>
       {answers.length > 0 && (
-        <div className="shrink-0 space-y-0.5 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-[12px]">
+        <div className="recess shrink-0 space-y-0.5 rounded-lg border px-2.5 py-1.5 text-[12px]">
           {answers.map(({ c, mine, replied, waiting }) => (
             <div key={c.id}>
               <div className="truncate text-muted">{live.length > 1 && `${c.name}: `}“{mine.text}” · {hhmm(mine.at)}{mine.done && " · answered"}</div>
@@ -412,9 +412,9 @@ function CueOut({ live, me, s, editing, online }: { live: ChannelState[]; me: st
           <textarea value={text} maxLength={MAX_TEXT} rows={2} placeholder="Type a cue…"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(text); } }}
-            className="no-drag min-w-0 flex-1 resize-none rounded-lg border border-line bg-bg px-3 py-2 text-[15px] outline-none focus:border-accent" />
+            className="no-drag min-w-0 flex-1 resize-none recess rounded-lg border px-3 py-2 text-[15px] outline-none focus:border-accent" />
           <button type="button" disabled={busy || !text.trim()} onClick={() => send(text)}
-            className="no-drag flex w-16 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-40" aria-label="Send"><Send size={16} /></button>
+            className="no-drag flex w-16 items-center justify-center rounded-lg btn-sel border hover:brightness-125 disabled:btn-off" aria-label="Send"><Send size={16} /></button>
         </div>
       )}
       <div className="flex shrink-0 flex-wrap gap-1.5">
@@ -422,11 +422,11 @@ function CueOut({ live, me, s, editing, online }: { live: ChannelState[]; me: st
           const p = parseTimerPreset(t);
           return p && (
             <button key={t} type="button" onClick={() => timer("start", p.seconds, p.label)}
-              className="no-drag h-9 rounded-lg border border-line bg-bg px-2.5 text-xs font-semibold">⏱ {p.label || "Timer"} {fmtClock(p.seconds)}</button>
+              className="no-drag h-9 rounded-lg btn-raised border hover:brightness-125 px-2.5 text-xs font-semibold">⏱ {p.label || "Timer"} {fmtClock(p.seconds)}</button>
           );
         })}
-        {anyTimer && <button type="button" onClick={() => timer("stop")} className="no-drag h-9 rounded-lg border border-line bg-bg px-2.5 text-xs text-bad">Stop timer</button>}
-        <button type="button" onClick={clear} className="no-drag ml-auto flex h-9 items-center gap-1.5 rounded-lg border border-line bg-bg px-2.5 text-xs text-muted">
+        {anyTimer && <button type="button" onClick={() => timer("stop")} className="no-drag h-9 rounded-lg btn-raised border hover:brightness-125 px-2.5 text-xs text-bad">Stop timer</button>}
+        <button type="button" onClick={clear} className="no-drag ml-auto flex h-9 items-center gap-1.5 rounded-lg btn-raised border hover:brightness-125 px-2.5 text-xs text-muted">
           <Eraser size={13} /> Clear
         </button>
       </div>
@@ -513,13 +513,13 @@ export function StageSend({ s, editing }: { s: Settings; editing: boolean }) {
     <Box>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
         <div className="flex shrink-0 items-center gap-2">
-          <span className="truncate text-[12px] font-semibold">{textBox ? "Stage messages" : "Reply"}</span>
+          <span className="truncate text-[13px] font-bold leading-[18px]">{textBox ? "Stage messages" : "Reply"}</span>
           <span className={cn("ml-auto text-[11px]", online ? "text-good" : "text-bad")}>
             {online ? `● ${new Set(live.flatMap((c) => c.screens.filter((x) => x.name !== me).map((x) => x.name))).size} screens online` : "offline"}
           </span>
         </div>
         {live.length > 1 && (
-          <div className="flex shrink-0 flex-wrap gap-1 rounded-lg border border-line bg-panel-2 p-1">
+          <div className="recess flex shrink-0 flex-wrap gap-1 rounded-lg border p-1">
             {[{ id: "all", name: "All", color: "" }, ...live].map((c) => (
               <button key={c.id} type="button" onClick={() => setTarget(c.id)}
                 className={cn("rounded-md px-2.5 py-1 text-xs", target === c.id ? "bg-accent font-bold text-accent-fg" : "text-muted")}>{c.name}</button>
@@ -531,7 +531,7 @@ export function StageSend({ s, editing }: { s: Settings; editing: boolean }) {
             <textarea value={text} maxLength={MAX_TEXT} rows={3} placeholder="Type, paste or dictate…"
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(text); } }}
-              className="no-drag w-full resize-none rounded-lg border border-line bg-bg px-3 py-2 text-[15px] outline-none focus:border-accent" />
+              className="no-drag w-full resize-none recess rounded-lg border px-3 py-2 text-[15px] outline-none focus:border-accent" />
             <div className="flex items-center gap-2 text-[11px]">
               {long && <span className="text-warn">Long: phones will need a swipe to read it all.</span>}
               <span className="ml-auto text-dim tabular">{text.length} / {MAX_TEXT}</span>
@@ -544,7 +544,7 @@ export function StageSend({ s, editing }: { s: Settings; editing: boolean }) {
               <button key={q} type="button" disabled={busy}
                 onClick={() => (onTap ? send(q) : setText(q))}
                 className={cn("no-drag min-h-11 rounded-lg border px-2 py-1.5 text-sm font-semibold transition active:scale-[0.97]",
-                  flash === q ? "border-good bg-good/15 text-good" : "border-line bg-panel-2 text-fg hover:border-line-strong")}>
+                  flash === q ? "border-good bg-good/15 text-good" : "btn-raised hover:brightness-125")}>
                 {flash === q ? "✓ Sent" : q}
               </button>
             ))}
@@ -553,11 +553,11 @@ export function StageSend({ s, editing }: { s: Settings; editing: boolean }) {
         {(textBox || !onTap) && (
           <div className="grid shrink-0 grid-cols-[2fr_1fr] gap-1.5">
             <button type="button" disabled={busy || !text.trim()} onClick={() => send(text)}
-              className="no-drag flex h-11 items-center justify-center gap-2 rounded-lg bg-accent text-sm font-bold text-accent-fg disabled:opacity-40">
+              className="no-drag flex h-11 items-center justify-center gap-2 rounded-lg btn-sel border text-sm font-bold hover:brightness-125 disabled:btn-off">
               <Send size={15} /> {flash && flash === text ? "Sent" : "Send"}
             </button>
             <button type="button" onClick={clear}
-              className="no-drag flex h-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-panel-2 text-sm">
+              className="no-drag flex h-11 items-center justify-center gap-1.5 rounded-lg btn-raised border hover:brightness-125 text-sm">
               <Eraser size={14} /> Clear screen
             </button>
           </div>
@@ -568,13 +568,13 @@ export function StageSend({ s, editing }: { s: Settings; editing: boolean }) {
               const p = parseTimerPreset(t);
               return p && (
                 <button key={t} type="button" onClick={() => timer("start", p.seconds, p.label)}
-                  className="no-drag h-9 rounded-lg border border-line bg-panel-2 px-2.5 text-xs font-semibold">⏱ {p.label || "Timer"} {fmtClock(p.seconds)}</button>
+                  className="no-drag h-9 rounded-lg btn-raised border hover:brightness-125 px-2.5 text-xs font-semibold">⏱ {p.label || "Timer"} {fmtClock(p.seconds)}</button>
               );
             })}
             {anyTimer && (
               <>
-                <button type="button" onClick={() => timer("add", 60)} className="no-drag h-9 rounded-lg border border-line bg-panel-2 px-2.5 text-xs"><Plus size={12} className="inline" /> 1 min</button>
-                <button type="button" onClick={() => timer("stop")} className="no-drag h-9 rounded-lg border border-line bg-panel-2 px-2.5 text-xs text-bad">Stop timer</button>
+                <button type="button" onClick={() => timer("add", 60)} className="no-drag h-9 rounded-lg btn-raised border hover:brightness-125 px-2.5 text-xs"><Plus size={12} className="inline" /> 1 min</button>
+                <button type="button" onClick={() => timer("stop")} className="no-drag h-9 rounded-lg btn-raised border hover:brightness-125 px-2.5 text-xs text-bad">Stop timer</button>
               </>
             )}
           </div>
@@ -620,9 +620,9 @@ export function StageTimer({ s, editing }: { s: Settings; editing: boolean }) {
         </div>
         {controls && t && (
           <div className="flex shrink-0 gap-1">
-            <button type="button" className="no-drag flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-panel-2" onClick={() => op(t.running ? "pause" : "resume")} aria-label={t.running ? "Pause" : "Resume"}>{t.running ? <Pause size={15} /> : <Play size={15} />}</button>
-            <button type="button" className="no-drag h-9 rounded-lg border border-line bg-panel-2 px-2 text-xs" onClick={() => op("add", 60)}>+1</button>
-            <button type="button" className="no-drag flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-panel-2 text-bad" onClick={() => op("stop")} aria-label="Stop"><StopIcon size={13} fill="currentColor" /></button>
+            <button type="button" className="no-drag flex h-9 w-9 items-center justify-center rounded-lg btn-raised border hover:brightness-125" onClick={() => op(t.running ? "pause" : "resume")} aria-label={t.running ? "Pause" : "Resume"}>{t.running ? <Pause size={15} /> : <Play size={15} />}</button>
+            <button type="button" className="no-drag h-9 rounded-lg btn-raised border hover:brightness-125 px-2 text-xs" onClick={() => op("add", 60)}>+1</button>
+            <button type="button" className="no-drag flex h-9 w-9 items-center justify-center rounded-lg btn-raised border hover:brightness-125 text-bad" onClick={() => op("stop")} aria-label="Stop"><StopIcon size={13} fill="currentColor" /></button>
           </div>
         )}
       </div>
@@ -661,7 +661,7 @@ export function StageLive({ s }: { s: Settings }) {
   const live = sw.streaming;
   return (
     <div className={cn("@container flex h-full items-center justify-center rounded-full border-2 px-2 text-center font-bold transition-colors",
-      live ? "border-pgm bg-pgm text-white" : "border-line-strong bg-panel-2 text-dim")}>
+      live ? "btn-pgm" : "recess border-line-strong text-dim")}>
       {/* The size comes from the box, so the words always fit — never cut
           off: "WE ARE LIVE" needs ~6.6em of width, "OFF AIR" / "● LIVE" ~4.6em. */}
       <span className={cn("whitespace-nowrap leading-none",
@@ -681,7 +681,7 @@ export function TallyLight({ s }: { s: Settings }) {
   const cam = cams?.find((c) => c.id === str(s.camera)) ?? cams?.find((c) => c.main);
   if (!sw) return <Note>Reading the switcher…</Note>;
   if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected.</Note>;
-  const cls = state === "pgm" ? "border-pgm bg-pgm text-white" : state === "pvw" ? "border-pvw bg-pvw text-white" : "border-line-strong bg-panel-2 text-dim";
+  const cls = state === "pgm" ? "btn-pgm" : state === "pvw" ? "btn-pvw" : "recess border-line-strong text-dim";
   const word = state === "pgm" ? "ON" : state === "pvw" ? "NEXT" : state === null ? "?" : "—";
   return (
     <div className={cn("@container flex h-full flex-col items-center justify-center rounded-[var(--radius-card)] border-2 px-2 text-center font-bold transition-colors", cls)}>
@@ -695,7 +695,7 @@ export function TallyLight({ s }: { s: Settings }) {
 
 // ----------------------------------------------------- camera live view
 
-export function LiveCamPinned({ s }: { s: Settings; editing: boolean }) {
+export function LiveCamPinned({ s, badges }: { s: Settings; editing: boolean; badges?: "top" | "bottom" }) {
   const pin = str(s.camera);
   const cfg = useShared<StreamConfig>(pin ? `/api/config?cam=${encodeURIComponent(pin)}` : "/api/config", 0).data;
   const { data: cams } = useShared<CameraInfo[]>("/api/cameras", 10000);
@@ -707,7 +707,7 @@ export function LiveCamPinned({ s }: { s: Settings; editing: boolean }) {
   const title = str(s.title) || cam?.name;
   return (
     <div className={cn("relative h-full rounded-[var(--radius-card)]", tally === "pgm" && "ring-[3px] ring-pgm", tally === "pvw" && "ring-[3px] ring-pvw")}>
-      <StreamView key={`${pin}-${sd ? "sd" : "hd"}`} aspect="h-full"
+      <StreamView key={`${pin}-${sd ? "sd" : "hd"}`} aspect="h-full" badges={badges}
         title={(title || quality === "auto") && <span className="flex items-center gap-1.5">{tally === "pgm" && <b className="text-pgm">● LIVE</b>}{tally === "pvw" && <b className="text-pvw">● NEXT</b>}{title}{quality === "auto" && <span className="text-dim">{title ? " · " : ""}{sd ? "SD" : "HD"} auto</span>}</span>}
         whep={cfg ? (sd ? cfg.whepSd : cfg.whep) : undefined} hls={cfg ? (sd ? cfg.hlsSd : cfg.hls) : undefined} snapshot={cfg?.snapshot} />
     </div>

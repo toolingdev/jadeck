@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ReactGridLayout from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { Maximize2, SlidersHorizontal, Pencil, Undo2, Redo2, RotateCcw, Plus, Copy, Trash2, X, Check, ChevronDown, Star, Smartphone, Tablet, Monitor } from "lucide-react";
+import { Maximize2, SlidersHorizontal, Pencil, Undo2, Redo2, RotateCcw, Plus, Copy, Trash2, X, Check, ChevronDown, Star, Smartphone, Tablet, Monitor, Video } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLocal, useShared } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
@@ -379,7 +380,11 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     // A box taller than any screen is a leftover from an old measuring bug
     // (grew a few px each pass and got saved): bring it back to size.
     const maxH = Math.max(MAX_ROWS, minH);
-    return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.min(maxH, Math.max(it.h, minH)), minW: m.w, minH, maxH };
+    // Sitting exactly at the cap means that bug saved it there (nobody sizes
+    // a box to 2000px on purpose): show it at its normal size instead, or
+    // what its content needs, whichever is taller. Saved as such on the next edit.
+    const h = it.h >= MAX_ROWS && minH < MAX_ROWS ? Math.max(minH, def?.size?.h ?? minH) : it.h;
+    return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.min(maxH, Math.max(h, minH)), minW: m.w, minH, maxH };
   }), [view, shown, colW, need]);
 
   // Phone: the settings sheet covers the bottom 60% — bring the tapped
@@ -739,26 +744,37 @@ function useCameraNames() {
 function FeedSwitch({ value, onPick }: { value: string; onPick: (v: string) => void }) {
   const { data } = useShared<{ feeds: { id: string; name: string }[] }>("/api/feeds", 10000);
   const feeds = data?.feeds ?? [];
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<DOMRect | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && !menu.current?.contains(e.target as Node) && setOpen(null);
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [open]);
   const name = value === "cam:" ? "Main camera" : feeds.find((f) => f.id === value)?.name ?? "Feed";
   if (feeds.length < 2) return null;
+  // top-left, the same amber chip as the camera picker on Move / Presets / Picture
   return (
-    <div className="absolute bottom-2 left-2 z-20">
-      {open && <div className="fixed inset-0 z-0" onClick={() => setOpen(false)} />}
-      {open && (
-        <div className="absolute bottom-9 left-0 z-10 min-w-44 rounded-xl border border-line bg-panel-2 p-1 shadow-2xl">
+    <div ref={ref} className="no-drag absolute left-2 top-2 z-20">
+      <button type="button" onClick={(e) => setOpen(open ? null : e.currentTarget.getBoundingClientRect())}
+        className="flex min-h-8 max-w-[12rem] items-center gap-1.5 rounded-lg border border-accent/60 bg-panel/85 px-2 py-1 text-[12px] font-semibold text-accent backdrop-blur">
+        <Video size={13} className="shrink-0" />
+        <span className="truncate">{name}</span>
+        <ChevronDown size={13} className="shrink-0" />
+      </button>
+      {/* in a portal: a short widget would clip it */}
+      {open && createPortal(
+        <div ref={menu} style={{ left: open.left, top: open.bottom + 4 }} className="fixed z-[70] min-w-44 rounded-xl border border-line bg-panel-2 p-1 shadow-2xl">
           {feeds.map((f) => (
-            <button key={f.id} type="button" onClick={() => { setOpen(false); if (f.id !== value) onPick(f.id); }}
+            <button key={f.id} type="button" onClick={() => { setOpen(null); if (f.id !== value) onPick(f.id); }}
               className={cn("flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-left text-sm", f.id === value ? "text-accent" : "text-fg hover:bg-raise")}>
-              <span className="w-3">{f.id === value ? "✓" : ""}</span>{f.name}
+              <span className="w-3">{f.id === value && <Check size={13} />}</span>{f.name}
             </button>
           ))}
-        </div>
+        </div>, document.body,
       )}
-      <button type="button" onClick={() => setOpen(!open)}
-        className="relative z-10 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur hover:bg-black/80">
-        {name} <ChevronDown size={12} />
-      </button>
     </div>
   );
 }

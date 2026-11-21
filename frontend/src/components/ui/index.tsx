@@ -10,14 +10,19 @@ import { cn } from "@/lib/cn";
 type Variant = "default" | "accent" | "ghost" | "danger" | "pgm" | "pvw" | "outline";
 type Size = "sm" | "md" | "lg" | "xl" | "icon";
 
+// The raised look (WIDGETS.md §6). Colour is state: red = program / on air /
+// muted, green = preview / next, amber outline + tint = selected or the
+// primary action; disabled is flat and dim. Shadows, gradients and outlines
+// only, so no variant changes a button's size.
+const FLAT_OFF = "disabled:btn-off disabled:outline-0";
 const variants: Record<Variant, string> = {
-  default: "bg-raise text-fg border border-line hover:bg-line-strong/70 active:bg-line-strong",
-  accent: "bg-accent text-accent-fg font-semibold hover:brightness-110 active:brightness-95",
-  ghost: "text-muted hover:text-fg hover:bg-raise",
-  danger: "bg-pgm/15 text-bad border border-pgm/40 hover:bg-pgm/25",
-  pgm: "bg-pgm text-white font-semibold hover:brightness-110",
-  pvw: "bg-pvw text-[#04130a] font-semibold hover:brightness-110",
-  outline: "border border-line-strong text-fg hover:bg-raise",
+  default: `btn-raised border hover:brightness-125 active:brightness-95 ${FLAT_OFF}`,
+  accent: `btn-sel font-semibold outline outline-1 -outline-offset-1 outline-accent/80 hover:brightness-125 active:brightness-95 ${FLAT_OFF}`,
+  ghost: "text-muted hover:text-fg hover:bg-raise disabled:opacity-40",
+  danger: "bg-pgm/15 text-bad border border-pgm/40 shadow-[var(--shadow-hi)] hover:bg-pgm/25 disabled:opacity-40",
+  pgm: `btn-pgm font-semibold hover:brightness-110 active:brightness-95 ${FLAT_OFF}`,
+  pvw: `btn-pvw font-semibold hover:brightness-110 active:brightness-95 ${FLAT_OFF}`,
+  outline: "border border-line-strong text-fg shadow-[var(--shadow-hi)] hover:bg-raise disabled:opacity-40",
 };
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-xs rounded-lg gap-1.5",
@@ -33,7 +38,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap transition select-none disabled:opacity-40 disabled:pointer-events-none",
+        "inline-flex items-center justify-center whitespace-nowrap transition select-none disabled:pointer-events-none",
         variants[variant],
         sizes[size],
         className,
@@ -47,15 +52,15 @@ Button.displayName = "Button";
 // ------------------------------------------------------------------ Card
 
 export function Card({ className, ...p }: HTMLAttributes<HTMLDivElement>) {
-  return <section className={cn("rounded-[var(--radius-card)] border border-line bg-panel", className)} {...p} />;
+  return <section className={cn("card-surface rounded-[var(--radius-card)] border border-line", className)} {...p} />;
 }
 
 export function CardHeader({ title, meta, children, className }: { title: ReactNode; meta?: ReactNode; children?: ReactNode; className?: string }) {
   return (
     <header className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3.5 pb-2", className)}>
-      <h2 className="shrink-0 text-[13px] font-semibold tracking-wide text-fg">{title}</h2>
+      <h2 className="shrink-0 text-[13px] font-bold text-fg">{title}</h2>
       {/* phones: the note goes under the title instead of squeezing beside it */}
-      {meta && <span className="text-[11px] uppercase tracking-[0.08em] text-dim max-sm:order-3 max-sm:basis-full">{meta}</span>}
+      {meta && <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-dim max-sm:order-3 max-sm:basis-full">{meta}</span>}
       <div className="ml-auto flex shrink-0 items-center gap-2">{children}</div>
     </header>
   );
@@ -74,14 +79,14 @@ const tones: Record<Tone, string> = {
   bad: "bg-bad/10 text-bad border-bad/30",
   warn: "bg-warn/10 text-warn border-warn/30",
   info: "bg-info/10 text-info border-info/30",
-  pgm: "bg-pgm text-white border-pgm",
-  pvw: "bg-pvw text-[#04130a] border-pvw",
+  pgm: "bg-pgm text-white border-pgm shadow-[var(--shadow-hi-strong),0_0_8px_color-mix(in_srgb,var(--color-pgm)_35%,transparent)]",
+  pvw: "bg-pvw text-[#04130a] border-pvw shadow-[var(--shadow-hi-strong),0_0_8px_color-mix(in_srgb,var(--color-pvw)_30%,transparent)]",
   accent: "bg-accent/15 text-accent border-accent/40",
 };
 
 export function Badge({ tone = "neutral", className, children, dot }: { tone?: Tone; className?: string; children: ReactNode; dot?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.07em]", tones[tone], className)}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em]", tones[tone], className)}>
       {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
       {children}
     </span>
@@ -114,10 +119,11 @@ export function Slider({ value, min, max, step = 1, onChange, onCommit, classNam
       onValueCommit={(v) => onCommit?.(v[0])}
       aria-label={label}
     >
-      <RSlider.Track className="relative h-1.5 grow rounded-full bg-raise">
-        <RSlider.Range className="absolute h-full rounded-full bg-accent" />
+      {/* recessed track, amber value, metallic cap (WIDGETS.md §6) */}
+      <RSlider.Track className="recess relative h-1.5 grow rounded-full border">
+        <RSlider.Range className="absolute -top-px -bottom-px rounded-full bg-accent" />
       </RSlider.Track>
-      <RSlider.Thumb className="block h-5 w-5 rounded-full border-2 border-accent bg-bg shadow focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/30" />
+      <RSlider.Thumb className="fader-cap block h-5 w-5 rounded-full transition-[filter] hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/40 data-[disabled]:brightness-75" />
     </RSlider.Root>
   );
 }
@@ -128,9 +134,9 @@ export function Switch({ checked, onChange, disabled, label }: { checked: boolea
   return (
     <RSwitch.Root
       checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label}
-      className="relative h-6 w-11 shrink-0 rounded-full border border-line-strong bg-raise transition data-[state=checked]:border-accent data-[state=checked]:bg-accent disabled:opacity-40"
+      className="recess relative h-6 w-11 shrink-0 rounded-full border border-line-strong transition data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:shadow-none disabled:opacity-40"
     >
-      <RSwitch.Thumb className="block h-4.5 w-4.5 translate-x-0.5 rounded-full bg-fg shadow transition data-[state=checked]:translate-x-[22px] data-[state=checked]:bg-accent-fg" />
+      <RSwitch.Thumb className="fader-cap block h-4.5 w-4.5 translate-x-0.5 rounded-full transition data-[state=checked]:translate-x-[22px]" />
     </RSwitch.Root>
   );
 }
@@ -141,14 +147,14 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
   value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void; className?: string;
 }) {
   return (
-    <div className={cn("inline-flex rounded-xl border border-line bg-bg p-0.5", className)} role="tablist">
+    <div className={cn("recess inline-flex rounded-xl border p-0.5", className)} role="tablist">
       {options.map((o) => (
         <button
           key={o.value} type="button" role="tab" aria-selected={o.value === value}
           onClick={() => onChange(o.value)}
           className={cn(
             "h-8 rounded-[10px] px-3 text-xs font-semibold transition",
-            o.value === value ? "bg-raise text-fg shadow-sm" : "text-muted hover:text-fg",
+            o.value === value ? "btn-raised font-bold" : "text-muted hover:text-fg",
           )}
         >
           {o.label}
@@ -163,7 +169,7 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className, ...p }, ref) => (
   <input
     ref={ref}
-    className={cn("h-10 w-full rounded-xl border border-line bg-bg px-3 text-sm text-fg placeholder:text-dim focus:border-accent focus:outline-none", className)}
+    className={cn("recess h-10 w-full rounded-xl border px-3 text-sm text-fg transition-colors placeholder:text-dim focus:border-accent focus:outline-none", className)}
     {...p}
   />
 ));
