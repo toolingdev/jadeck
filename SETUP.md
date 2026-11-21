@@ -90,7 +90,7 @@ Already running your own MediaMTX? Go to **Video feeds → Stream gateway → Ad
 switch off the built-in gateway. Then type the IP of the PC that runs it.
 
 Video ports: 8889 (WebRTC), 8888 (HLS), UDP 8189 (WebRTC media), UDP 8890
-(SRT in, only when program or confidence is on), and 127.0.0.1:9997 (the
+(SRT in, only when a feed is sent here; publishing needs the feed's key), TCP 8554 (RTSP), and 127.0.0.1:9997 (the
 gateway's control API, this PC only).
 
 ### Where the work happens
@@ -120,15 +120,24 @@ is Wi-Fi and the viewing device, so the app keeps it down by itself:
 ### Sending the program (or any vMix output) by SRT
 
 Add a feed under **Settings → Video feeds → Add feed → Sent to this
-controller**, named e.g. Program. It shows the address, e.g.
-`srt://192.168.1.20:8890?streamid=publish:program`. (Proclaim only sends
-NDI: add its NDI as a vMix input and send a vMix output here the same way.) In vMix:
-**Settings → Outputs / NDI / SRT → Output 1 (Program) → ⚙ → SRT**, type
-**Caller**, paste the address's host and port, and set the stream ID to
-`publish:program`. A modest setting is plenty for phones: 1280×720,
-H.264, 2–3 Mbps, latency 200 ms. This is separate from the YouTube
-stream; it doesn't change it. The confidence feed works the same way with
-`publish:confidence` (from vMix or Proclaim's output).
+controller**, named e.g. Program. Each feed sent here has its own
+**publish key**: the gateway takes a stream only from a sender that gives
+it, so nobody else on the network can push a picture into your feeds
+(watching needs no key). The feed's panel shows the address with the key,
+e.g. `srt://192.168.1.20:8890?streamid=publish:program:program:<key>`, with
+copy buttons and **New key** (the old key stops working). (Proclaim only
+sends NDI: add its NDI as a vMix input and send a vMix output here the same
+way.) In vMix: **Settings → Outputs / NDI / SRT → Output 1 (Program) → ⚙ →
+SRT**, type **Caller**, paste the address's host and port, and set the
+stream ID to the one shown (`publish:program:program:<key>`). A modest
+setting is plenty for phones: 1280×720, H.264, 2–3 Mbps, latency 200 ms.
+This is separate from the YouTube stream; it doesn't change it. The
+confidence feed works the same way with its own stream ID. RTSP senders
+(ffmpeg, encoders) use `rtsp://program:<key>@192.168.1.20:8554/program`.
+
+Upgrading from a version without keys: every feed sent here gets a key on
+first start, and senders set up before must be given the new stream ID
+(or address) once.
 
 ## Moving from env files
 

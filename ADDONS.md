@@ -143,6 +143,7 @@ steps and agent tools that work with any connection that has it:
 | `slides` | `Info`, `Actions`, `Do(action)` | Prev / Next, Slide button |
 | `mixer` | `Probe`, `MaxChannel`, `GetMute`, `SetMute` (always read back) | Mute button, Favorites |
 | `assistant` | `AddonAction` (`chat`, `approve`, `reject`) | none; declare a `chat` widget |
+| `tool` | `AddonState` / `AddonAction` only | none; a general add-on that brings its own widgets and actions (SDK v0.3.0, jadeck 0.5.0+) |
 
 **Product-specific extras** come from two optional interfaces:
 
@@ -160,6 +161,16 @@ Every action is three things at once: a button, a macro step (when
 - `kind: "chat"` is a conversation box bound to `chat` / `approve` /
   `reject` actions (the AI controller's Assistant).
 - `kind: "core"` points at a built-in widget your connection powers.
+
+**Widgets v2** (SDK v0.3.0, `apiVersion` 2, jadeck 0.5.0+) add the
+shared kinds `image`, `buttons`, `input`, `strip`, `text`, `clock`,
+`sections`, `slider` and `frame` (your own HTML from the package's `ui/`
+folder), pictures served through `addon.resource`, and per-widget sizes.
+**v2.1** adds per-widget settings (`WidgetDef.Fields`, answered by
+`SettingsStater` / `Optioner`) and fast data (`ResourceResult.MaxAge`).
+Risky buttons can ask for **hold to confirm** (`hold` seconds on a
+button). The full reference is `design/WIDGETS-V2.md`; an add-on that
+needs `apiVersion` 2 refuses to start on an older controller.
 
 Every widget needs `sample` data. That's what the Add-ons screen draws as
 its preview, and `build` refuses a widget without it.

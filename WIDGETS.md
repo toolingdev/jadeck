@@ -90,3 +90,51 @@ cd e2e && npm test
 
 `report/index.html` shows every step, every problem, and a picture of every
 page. See `e2e/README.md`.
+
+## 6. Look: professional, same dark style
+
+Reference renders: `design/wing-polished-mock.png` and
+`design/vmix-polished-mock.png` (sources `design/*-polished.svg`). Built-in
+and add-on widgets, both the shared shapes and frames, follow these:
+
+- **Cards:** a subtle vertical gradient (`#181C22` → `#111418`), a 1px
+  border (`line`), radius `--radius-card`. The title is 13px bold. The
+  connection or context goes top-right in 9.5px letter-spaced small caps,
+  in the dim colour.
+- **Buttons:** a raised look, made of a gentle top-to-bottom gradient
+  (`#262C35` → `#1D2229`), a 1px border and a 1px top highlight at 6%
+  white. Labels are 13.5px bold, with an optional second line in 9px
+  letter-spaced caps at 60% (e.g. "0.5 s", "ON AIR").
+  - **Colours mean state only:**
+    - red filled = on air / program / recording / muted;
+    - green = preview / next;
+    - amber outline + tint = selected or the primary action in this
+      widget;
+    - flat and dim = disabled.
+  - **Size:** buttons in a group are the same size, at least 48px tall
+    on touch screens.
+- **Pictures:** rounded 10px. A dark gradient at the bottom carries the
+  caption. A number tag sits top-left on a black pill. PGM/PVW pills sit
+  top-right. The tally border is 3px with a soft glow of the same colour.
+- **Readouts:**
+  - numbers (dB, times, timecode) are monospace in a recessed pill (`#07080A`
+    with a 1px border);
+  - small labels are 9–10px letter-spaced caps in the dim colour.
+- **Meters:** segmented LEDs (about 24–30 segments): green up to 70%,
+  amber up to 90%, red above, with a peak-hold segment. Two columns for
+  stereo, labelled L/R. Unlit segments are `#1C2128`.
+- **Faders:** a recessed 6px track and a dB scale with 0 dB picked out.
+  The cap is metallic (light gradient, centre line, grip lines, soft
+  shadow).
+- **Knobs:** a 270° ring. The value arc is in the colour for its job: amber
+  for gain, blue for filters, grey for frequency. Bipolar values fill out
+  from 12 o'clock. The body has a radial gradient, a white pointer, the
+  value below in bold and a small caps label under it.
+- **Status dots:** 12px, red when live. A pulse is for on air only.
+- **Motion:** 120–160 ms ease on state changes. Meters animate with
+  transforms or canvas, never by changing layout. Respect
+  `prefers-reduced-motion`.
+
+- **Risky actions are held, not tapped.** Start and stop stream or
+  recording, and the like, use press-and-hold with a fill (default 5 s).
+  See "Hold to confirm" in `design/WIDGETS-V2.md`.
