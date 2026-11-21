@@ -105,8 +105,9 @@ export function WidgetView({ w, editing, onNeed, dash }: { w: Widget; editing: b
 
 // ---------------------------------------------------------------- library
 
-export function Library({ onAdd, onDragType, onTouchStart, inline }: {
+export function Library({ onAdd, onDragType, onTouchStart, inline, onClose, dragging }: {
   onAdd: (d: WidgetDef) => void; onDragType: (t: string | null) => void; onTouchStart: (d: WidgetDef, e: React.PointerEvent) => void; inline?: boolean;
+  onClose?: () => void; dragging?: boolean;
 }) {
   const { data: dev } = useShared<DevicesInfo>("/api/devices", 10000);
   const [q, setQ] = useState("");
@@ -118,8 +119,16 @@ export function Library({ onAdd, onDragType, onTouchStart, inline }: {
   const addonDefs = useAddonWidgets();
   const match = (w: WidgetDef) => !q || `${w.label} ${w.description} ${w.group}`.toLowerCase().includes(q.toLowerCase());
   return (
-    <aside className={inline ? "" : "sticky top-[68px] hidden max-h-[calc(100dvh-84px)] w-60 shrink-0 overflow-y-auto rounded-2xl border border-line bg-panel p-3 2xl:block"}>
-      {!inline && <div className="mb-2 text-sm font-semibold">Add widgets</div>}
+    // Big screens: floats over the board (it never takes room from it, so
+    // editing shows widgets at their real size). Fades out while dragging
+    // from it so the spot under it can take the drop.
+    <aside className={inline ? "" : cn("fixed left-4 top-[124px] z-[55] hidden max-h-[calc(100dvh-140px)] w-60 overflow-y-auto rounded-2xl border border-line bg-panel p-3 shadow-[0_12px_40px_rgba(0,0,0,.7)] transition-opacity 2xl:block", dragging && "pointer-events-none opacity-15")}>
+      {!inline && (
+        <div className="mb-2 flex items-center">
+          <span className="text-sm font-semibold">Add widgets</span>
+          {onClose && <Button size="icon" variant="ghost" className="ml-auto h-7 w-7" onClick={onClose} aria-label="Close the widget list"><X size={14} /></Button>}
+        </div>
+      )}
       <div className="relative mb-3">
         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dim" />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search widgets…" className="h-9 pl-8" />
@@ -155,13 +164,19 @@ export function Library({ onAdd, onDragType, onTouchStart, inline }: {
 
 // --------------------------------------------------------------- inspector
 
-export function Inspector({ w, onChange, onRemove, onDuplicate, onClose, pos }: {
+export function Inspector({ w, onChange, onRemove, onDuplicate, onClose, pos, side = "right" }: {
   w: Widget; onChange: (s: Settings) => void; onRemove: () => void; onDuplicate: () => void; onClose: () => void; pos?: Item;
+  /** Which side it floats on (tablets and up): away from the widget. */
+  side?: "left" | "right";
 }) {
   const def = WIDGET[w.type];
   const s = w.settings;
   return (
-    <aside className="fixed inset-x-0 bottom-0 z-[60] max-h-[60dvh] overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-2xl md:inset-x-auto md:bottom-auto md:right-4 md:top-[124px] md:w-72 md:max-h-[calc(100dvh-140px)] md:rounded-2xl 2xl:sticky 2xl:top-[68px] 2xl:right-auto 2xl:w-64 2xl:shrink-0 2xl:shadow-none">
+    // Phones: a sheet over the bottom. Bigger: a panel floating over the
+    // board on the side away from the widget. Never beside the board, so
+    // the board keeps the size it has after Done.
+    <aside className={cn("fixed inset-x-0 bottom-0 z-[60] max-h-[60dvh] overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-[0_12px_40px_rgba(0,0,0,.7)] md:inset-x-auto md:bottom-auto md:top-[124px] md:w-72 md:max-h-[calc(100dvh-140px)] md:rounded-2xl short:md:top-24 short:md:max-h-[calc(100dvh-104px)]",
+      side === "left" ? "md:left-4" : "md:right-4")}>
       <div className="mb-1 flex items-center gap-2">
         <span className="text-sm font-semibold">{def?.label ?? w.type}</span>
         <Button size="icon" variant="ghost" className="ml-auto h-8 w-8" onClick={onClose} aria-label="Close"><X size={15} /></Button>

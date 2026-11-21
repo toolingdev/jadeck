@@ -95,6 +95,12 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   const [dialog, setDialog] = useState<null | "picker" | "new" | "delete">(null);
   const [newCopyOf, setNewCopyOf] = useState<number | null>(null);
   const [sheet, setSheet] = useState(false);
+  // Big screens: the floating widget list. Tucked away until "+ Add widget"
+  // (so editing starts with the whole board, exactly as it will be), closed
+  // again once a widget is added, and hidden while a widget's settings are
+  // open. It floats over the board, so widgets under it wait until it closes.
+  const [lib, setLib] = useState(false);
+  const wide = () => window.matchMedia("(min-width: 1536px)").matches;
   const lastKey = useRef<{ key: string; at: number } | null>(null);
   const snapshot = useRef<Dashboard | null>(null);
 
@@ -177,6 +183,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     setFuture([]);
     setSaveState("saved");
     setSelected(null);
+    setLib(false);
   };
   const undo = () => {
     if (!past.length || !draft) return;
@@ -268,6 +275,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   // --------------------------------------------------------- widgets
   const addWidget = (def: WidgetDef, at?: { x: number; y: number }) => {
     if (!draft) return;
+    setLib(false);
     const next = clone(draft);
     const id = newId(def.type);
     next.widgets.push({ id, type: def.type, settings: clone(def.defaults) });
@@ -405,6 +413,14 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     }
   };
 
+  // The settings panel floats on the side away from the tapped widget.
+  const inspectorSide = (id: string): "left" | "right" => {
+    const el = document.querySelector<HTMLElement>(`[data-wid="${id}"]`);
+    if (!el) return "right";
+    const r = el.getBoundingClientRect();
+    return r.left + r.width / 2 > window.innerWidth / 2 ? "left" : "right";
+  };
+
   if (!list) return <p className="p-6 text-sm text-muted">Loading dashboards…</p>;
   if (!shown) return <p className="p-6 text-sm text-muted">No dashboards.</p>;
   const isDefaultFor = SCREENS.filter((s) => defaults[s] === shown.id);
@@ -413,7 +429,10 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
 
   return (
     <div className={cn("flex gap-3", editing && "2xl:items-start")}>
-      {editing && <Library onAdd={(d) => !touch.swallowClick() && addWidget(d)} onDragType={setDragType} onTouchStart={touch.start} />}
+      {editing && lib && !selected && (
+        <Library onAdd={(d) => !touch.swallowClick() && addWidget(d)} onDragType={(t) => { setDragType(t); if (!t) setLib(false); }} onTouchStart={touch.start}
+          onClose={() => setLib(false)} dragging={!!dragType} />
+      )}
 
       <div className="min-w-0 flex-1">
         <div className={cn("mb-3 flex flex-wrap items-center gap-2 max-sm:mb-2 short:mb-1.5", !editing && "max-sm:flex-nowrap", locked && "hidden")}>
@@ -422,7 +441,8 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
               <Input value={draft!.name} onChange={(e) => commit({ ...draft!, name: e.target.value }, "name")} className="h-9 w-40 sm:w-48" aria-label="Dashboard name" />
               <Badge tone="accent">Editing</Badge>
               <KindBadge kind={kind} />
-              <Button size="sm" variant="accent" className="2xl:hidden" onClick={() => setSheet(true)}><Plus size={14} /> Add widget</Button>
+              <Button size="sm" variant="accent" className={cn(lib && !selected && "2xl:hidden")}
+                onClick={() => { if (wide()) { setSelected(null); setLib(true); } else setSheet(true); }}><Plus size={14} /> Add widget</Button>
               <SaveBadge state={saveState} onRetry={() => draft && doSave(draft)} />
               <div className="ml-auto flex items-center gap-1">
                 <Button size="sm" variant="ghost" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)"><Undo2 size={15} /><span className="max-sm:hidden">Undo</span></Button>
@@ -535,7 +555,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
       {editing && selectedWidget && (
         <Inspector w={selectedWidget} onChange={(s) => setSettings(selectedWidget.id, s)}
           onRemove={() => removeWidget(selectedWidget.id)} onDuplicate={() => duplicateWidget(selectedWidget.id)}
-          onClose={() => setSelected(null)} pos={draft!.layout.find((it) => it.i === selectedWidget.id)} />
+          onClose={() => setSelected(null)} pos={draft!.layout.find((it) => it.i === selectedWidget.id)} side={inspectorSide(selectedWidget.id)} />
       )}
 
       {sheet && (

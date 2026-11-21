@@ -14,10 +14,16 @@ widget has the same width and height in both, to the pixel.
   Nothing that exists only while editing (the dashed edge, the grid lines,
   name chips, selection rings) takes up room: use `outline`, overlays or
   absolute positioning, never `border`/`padding` on the canvas.
-- **Editing panels never squeeze the board.** The widget list and a widget's
-  settings either float over the board or the board is drawn smaller as a
-  whole; they never make the board narrower and let widgets reflow. (Phones
-  and tablets: bottom sheet. Desktop: see design page 19.)
+- **Editing panels float over the board, never beside it.** They never make
+  the board narrower (design page 19, option A):
+  - Phones: the widget list and a widget's settings are sheets from the
+    bottom; the tapped widget scrolls up above the sheet.
+  - Tablets, sideways phones, laptops: settings float on the side away from
+    the tapped widget, below the toolbar so Done is always tappable.
+  - Desktop: the widget list is tucked into "+ Add widget" until wanted,
+    floats on the left, fades out while you drag from it, and closes once a
+    widget is added. Tapping a widget closes it and opens that widget's
+    settings.
 - **Arranged-for-you layouts preview as they are.** A phone held sideways
   shows two columns after Done, so editing sideways shows the same two
   columns. Moving widgets waits until the phone is upright; settings still

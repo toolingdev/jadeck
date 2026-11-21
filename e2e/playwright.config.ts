@@ -11,5 +11,5 @@ export default defineConfig({
   expect: { timeout: 8_000 },
   workers: 1,
   reporter: [["list"]],
-  use: { baseURL: process.env.JADECK_URL ?? "http://127.0.0.1:8080" },
+  use: { actionTimeout: 10_000, baseURL: process.env.JADECK_URL ?? "http://127.0.0.1:8080" },
 });

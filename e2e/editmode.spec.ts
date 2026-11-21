@@ -17,6 +17,7 @@ test("edit mode looks like done", async () => {
   for (const [, dev] of Object.entries(DEVICES)) {
     const kind = dev.viewport.width < 640 || Math.min(dev.viewport.width, dev.viewport.height) < 500 ? "phone" : dev.viewport.width < 1280 ? "tablet" : "desktop";
     for (const d of dashboards.filter((x) => x.kind === kind)) {
+      console.log(`… ${dev.name} · ${d.name}`);
       const { ctx, page } = await openDevice(dev, { screen: "Edit check", dashboard: d.id });
       await page.waitForTimeout(1500);
       const done: Box[] = await page.evaluate(boxes);
@@ -38,7 +39,7 @@ test("edit mode looks like done", async () => {
         await page.waitForTimeout(600);
         await compare("editing, settings open");
       }
-      await page.getByRole("button", { name: "Done" }).first().click().catch(() => {});
+      await page.getByRole("button", { name: "Done" }).first().click({ timeout: 5000 }).catch(() => diffs.push({ device: dev.name, dashboard: d.name, when: "leaving edit", widget: "Done button", done: "tappable", edit: "covered or missing" }));
       await ctx.close();
     }
   }
