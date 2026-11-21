@@ -41,6 +41,20 @@ export function fitGrid(n: number, w: number, h: number, fixedCols = 0, longest 
     const score = Math.min(bw, bh * 1.6) * bh - (c * r - n) * 0.01;
     if (!best || score > best.score) best = { cols: c, rows: r, bh, bw, score };
   }
+  if (best) return { cols: best.cols, rows: best.rows, bh: best.bh, bw: best.bw };
+  // Nothing fits at full size: shrink rather than scroll. Labels truncate
+  // (full text in the tooltip), so ignore their width and go down to 34px
+  // rows; only a box too small even for that flows and grows.
+  if (!fixedCols) {
+    for (const c of tries) {
+      const r = Math.ceil(n / c);
+      const bw = (w - (c - 1) * GAP) / c;
+      const bh = Math.min(MAX_H, (h - (r - 1) * GAP) / r);
+      if (bh < 34 || bw < 56) continue;
+      const score = Math.min(bw, bh * 1.6) * bh - (c * r - n) * 0.01;
+      if (!best || score > best.score) best = { cols: c, rows: r, bh, bw, score };
+    }
+  }
   return best && { cols: best.cols, rows: best.rows, bh: best.bh, bw: best.bw };
 }
 
@@ -73,7 +87,7 @@ export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps)
         <div ref={box} className="h-full overflow-y-auto">
           <div className={cn("grid content-start gap-2", fit && "h-full")} style={fit ? {
             gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`,
-            gridTemplateRows: `repeat(${fit.rows}, minmax(${MIN_H}px, 1fr))`,
+            gridTemplateRows: `repeat(${fit.rows}, minmax(${Math.min(MIN_H, Math.floor(fit.bh))}px, 1fr))`,
             maxHeight: fit.rows * MAX_H + (fit.rows - 1) * GAP,
           } : {
             gridTemplateColumns: cols ? `repeat(${cols}, minmax(0, 1fr))` : "repeat(auto-fill, minmax(96px, 1fr))",
@@ -102,7 +116,7 @@ export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps)
               return (
                 <button key={id} type="button" disabled={off} title={sub ? `${lbl} · ${sub}` : lbl}
                   onClick={() => run(action, params, `${def.label}: ${lbl}`, id)}
-                  className={cn("flex h-full min-h-12 min-w-0 flex-col items-center justify-center rounded-[10px] border px-2 transition active:scale-[0.98] disabled:active:scale-100",
+                  className={cn("flex h-full min-h-0 min-w-0 flex-col items-center justify-center rounded-[10px] border px-2 transition active:scale-[0.98] disabled:active:scale-100",
                     stateClass(str(it.tone), it.active === true, it.disabled === true), busy && busy !== id && "opacity-70")}>
                   <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
                     {busy === id && <Loader2 size={14} className="shrink-0 animate-spin" />}
