@@ -666,7 +666,7 @@ export function StageLive({ s }: { s: Settings }) {
           off: "WE ARE LIVE" needs ~6.6em of width, "OFF AIR" / "● LIVE" ~4.6em. */}
       <span className={cn("whitespace-nowrap leading-none",
         live ? "text-[min(42cqh,13cqw,48px)] @max-[15rem]:text-[min(42cqh,17cqw,48px)]" : "text-[min(42cqh,17cqw,48px)]")}>
-        {live ? <>● <span className="@max-[15rem]:hidden">WE ARE </span>LIVE</> : "OFF AIR"}
+        {live ? <><span className="live-dot">●</span> <span className="@max-[15rem]:hidden">WE ARE </span>LIVE</> : "OFF AIR"}
       </span>
     </div>
   );

@@ -187,6 +187,19 @@ body {
   50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 45%, transparent); }
 }
 
+/* On air: the dot breathes slowly so the page reads as live, not a static label. */
+@keyframes live-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+.live-dot {
+  display: inline-block;
+  animation: live-breathe 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
 /* Hold to confirm: a soft light sweeping across the fill while held. */
 @keyframes hold-shimmer {
   from { transform: translateX(-100%); }
