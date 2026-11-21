@@ -302,9 +302,9 @@ function PrevNext() {
   const act = slideAct(useLog().log, st?.label || "Slides", useWidgetConn());
   return (
     <Frame>
-      <div className="grid h-full grid-cols-[1fr_2fr] gap-2">
+      <div className="grid h-full grid-cols-2 gap-2">
         <Button className="h-full text-base" disabled={!st?.available} onClick={() => act("prev", "Previous slide")}><ChevronLeft size={20} />Prev</Button>
-        <Button variant="accent" className="h-full text-lg" disabled={!st?.available} onClick={() => act("next", "Next slide")}>Next slide<ChevronRight size={20} /></Button>
+        <Button className="h-full text-base" disabled={!st?.available} onClick={() => act("next", "Next slide")}>Next<ChevronRight size={20} /></Button>
       </div>
     </Frame>
   );
