@@ -252,8 +252,9 @@ function Inputs() {
   const run = switchAct(useLog().log, useWidgetConn());
   if (!st?.connected) return <Unset what={st?.error || "Switcher not answering."} />;
   return (
-    <Frame title={st.label || "Inputs"}>
-      <div className="grid h-full auto-rows-[minmax(56px,1fr)] grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 overflow-auto">
+    <Frame title={<>Inputs{st.label && <span className="ml-2 font-medium text-[10px] uppercase tracking-[0.08em] text-muted">{st.label}</span>}</>}>
+      {/* tiles keep their own height; a big widget leaves room below instead of stretching them tall */}
+      <div className="grid h-full auto-rows-[minmax(56px,72px)] content-start grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 overflow-auto">
         {st.inputs.map((i) => {
           const pgm = i.number === st.active, pvw = i.number === st.preview;
           return (

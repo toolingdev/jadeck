@@ -17,8 +17,12 @@ import { VideoCount, VIDEO_TYPES } from "@/dash/videoCount";
 import { COLS, ROW_H, SCREENS, SCREEN_LABEL, screenFor, newId, bottomOf, stacked, twoUp, type Dashboard, type Defaults, type Screen } from "@/dash/types";
 
 const MARGIN: [number, number] = [12, 12];
-const PAD = 6;
-const CANVAS_MAX: Record<Screen, string> = { phone: "max-w-[420px]", tablet: "max-w-[1100px]", desktop: "max-w-none" };
+// Edit mode and the finished dashboard use the same canvas: same width,
+// no extra padding (the dashed edge is an outline, which takes no room).
+// See WIDGETS.md → "Edit is exactly what you get".
+const PAD = 0;
+const MAX_ROWS = 40; // 2000px: taller than any screen
+const CANVAS_MAX: Record<Screen, string> = { phone: "max-w-[420px]", tablet: "max-w-[1180px]", desktop: "max-w-none" };
 export const KIND_ICON = { phone: Smartphone, tablet: Tablet, desktop: Monitor };
 const KIND_TONE: Record<Screen, "accent" | "info" | "good"> = { phone: "accent", tablet: "info", desktop: "good" };
 
@@ -123,13 +127,16 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   const kind = shown?.kind ?? "tablet";
   const view = useMemo(() => {
     if (!shown) return { cols: 12, layout: [], max: "max-w-none", note: "" };
+    // A phone on its side: two columns instead of one long scroll. Editing
+    // shows the same two columns (what you get), arranged for you.
+    if (device === "phone" && sideways && kind === "phone") return { cols: 8, layout: twoUp(shown.layout, 4), max: "max-w-none", note: "two columns sideways", arranged: true };
     if (editing) return { cols: COLS[kind], layout: shown.layout, max: CANVAS_MAX[kind], note: "" };
-    // A phone on its side: two columns instead of one long scroll.
     if (device === "phone" && sideways) return { cols: 8, layout: twoUp(shown.layout, 4), max: "max-w-none", note: "two columns sideways" };
     if (kind === "phone" && device !== "phone") return { cols: 4, layout: shown.layout, max: "max-w-[420px]", note: "phone dashboard" };
     if (kind !== "phone" && device === "phone") return { cols: 4, layout: stacked(shown.layout, 4), max: "max-w-none", note: "stacked for this phone" };
-    return { cols: COLS[kind], layout: shown.layout, max: "max-w-none", note: "" };
-  }, [shown, editing, kind, device, sideways]);
+    return { cols: COLS[kind], layout: shown.layout, max: CANVAS_MAX[kind], note: "" };
+  }, [shown, editing, kind, device, sideways]) as { cols: number; layout: Dashboard["layout"]; max: string; note: string; arranged?: boolean };
+  const canArrange = editing && !view.arranged;
   const colW = colWidth(width, view.cols, editing ? PAD : 0);
   // Measured height each widget needs to show all its contents.
   const [need, setNeed] = useState<Record<string, number>>({});
@@ -361,7 +368,10 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     // 20, the box grows to fit them rather than growing a scrollbar.
     const fit = need[it.i] ? Math.ceil((need[it.i] + MARGIN[1]) / (ROW_H + MARGIN[1])) : 0;
     const minH = Math.max(m.h, fit);
-    return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.max(it.h, minH), minW: m.w, minH };
+    // A box taller than any screen is a leftover from an old measuring bug
+    // (grew a few px each pass and got saved): bring it back to size.
+    const maxH = Math.max(MAX_ROWS, minH);
+    return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.min(maxH, Math.max(it.h, minH)), minW: m.w, minH, maxH };
   }), [view, shown, colW, need]);
 
   // Phone: the settings sheet covers the bottom 60% — bring the tapped
@@ -447,7 +457,9 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
               {device !== kind && COLS[device] < COLS[kind]
                 ? `This is a ${SCREEN_LABEL[kind].toLowerCase()} dashboard — it's easier to arrange on a ${SCREEN_LABEL[kind].toLowerCase()}. `
                 : ""}
-              Drag widgets in (press and hold on touch screens). Drag to move, pull the corner to resize. Changes save themselves.
+              {view.arranged
+                ? "Sideways, this phone shows two columns, arranged for you. Turn it upright to move or resize widgets; tap one here to change its settings."
+                : "Drag widgets in (press and hold on touch screens). Drag to move, pull the corner to resize. Changes save themselves."}
             </span>
             <span className="ml-auto flex gap-1">
               <Button size="sm" variant="ghost" onClick={revertAll} disabled={!past.length}><RotateCcw size={13} /> Back to how it was</Button>
@@ -463,7 +475,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
 
         <div className={cn("mx-auto w-full", view.max, editing && selected && "max-md:pb-[60dvh]")}>
           <div ref={containerRef}
-            className={cn("relative min-h-[60dvh] rounded-2xl", editing && "dash-edit border border-dashed border-line bg-[linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)]")}
+            className={cn("relative min-h-[60dvh] rounded-2xl", editing && "dash-edit outline-1 outline-offset-4 outline-dashed outline-line bg-[linear-gradient(90deg,rgba(255,255,255,.025)_1px,transparent_1px)]")}
             style={editing && mounted ? { backgroundSize: `${(width - MARGIN[0]) / view.cols}px 100%`, backgroundPosition: `${MARGIN[0] / 2}px 0` } : undefined}
             onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
             {mounted && (
@@ -472,11 +484,11 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
                 width={width}
                 layout={gridLayout}
                 gridConfig={{ cols: view.cols, rowHeight: ROW_H, margin: MARGIN, containerPadding: editing ? [PAD, PAD] : [0, 0] }}
-                dragConfig={{ enabled: editing, threshold: 4, cancel: ".no-drag" }}
-                resizeConfig={{ enabled: editing, handles: ["se"] }}
-                dropConfig={{ enabled: editing, defaultItem: dragDef ? sizeFor(dragDef, kind, colW) : { w: 3, h: 3 } }}
+                dragConfig={{ enabled: canArrange, threshold: 4, cancel: ".no-drag" }}
+                resizeConfig={{ enabled: canArrange, handles: ["se"] }}
+                dropConfig={{ enabled: canArrange, defaultItem: dragDef ? sizeFor(dragDef, kind, colW) : { w: 3, h: 3 } }}
                 droppingItem={{ i: "__drop__", x: 0, y: 0, ...(dragDef ? sizeFor(dragDef, kind, colW) : { w: 3, h: 3 }) }}
-                onLayoutChange={editing ? onLayout : undefined}
+                onLayoutChange={canArrange ? onLayout : undefined}
                 onDragStop={() => (gesture.current = true)}
                 onResizeStop={() => (gesture.current = true)}
                 onDrop={(_l, item) => {

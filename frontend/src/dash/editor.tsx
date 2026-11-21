@@ -23,12 +23,17 @@ function measureNeed(root: HTMLElement): number | null {
   const scrollers = [...root.querySelectorAll<HTMLElement>("*")].filter((el) => {
     if (el.closest("[data-feed]") || el.tagName === "TEXTAREA") return false;
     const oy = getComputedStyle(el).overflowY;
-    return oy === "auto" || oy === "scroll";
+    // A strip that scrolls sideways also computes overflow-y:auto; it isn't
+    // cut off below, so it never asks for more height.
+    const sideways = el.scrollWidth > el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1;
+    return (oy === "auto" || oy === "scroll") && !sideways;
   });
   if (!scrollers.length) return null;
   let extra = -Infinity;
   for (const el of scrollers) {
-    const shown = el.clientHeight;
+    // Outer heights on both sides: clientHeight leaves out the border, so a
+    // bordered box looked 2px short on every pass and the widget grew forever.
+    const shown = el.offsetHeight;
     const { height, maxHeight, flex } = el.style;
     // Lay it out at its natural height for a moment (no paint happens).
     el.style.height = "max-content";
