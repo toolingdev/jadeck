@@ -147,3 +147,43 @@ func (h *Harness) TryCall(conn, method string, params, out any) error {
 	b, _ := json.Marshal(params)
 	return h.TryRequest("call", addon.CallParams{Conn: conn, Method: method, Params: b}, out)
 }
+
+// Resource fetches a resource the way the controller does for
+// "res:<path>" state values (addon.resource).
+func (h *Harness) Resource(conn, path string) (contentType string, data []byte, err error) {
+	var r addon.ResourceResult
+	if err := h.TryCall(conn, "addon.resource", addon.ResourceParams{Path: path}, &r); err != nil {
+		return "", nil, err
+	}
+	return r.ContentType, r.Data, nil
+}
+
+// ResourceResult is Resource with the whole answer (maxAge included).
+func (h *Harness) ResourceResult(conn, path string) (addon.ResourceResult, error) {
+	var r addon.ResourceResult
+	err := h.TryCall(conn, "addon.resource", addon.ResourceParams{Path: path}, &r)
+	return r, err
+}
+
+// Options asks for a live option list the way the controller does: conn
+// empty for a connection settings form, a connection id for a widget
+// field (the connection's Optioner answers first).
+func (h *Harness) Options(name, conn string) []addon.Option {
+	h.t.Helper()
+	var o []addon.Option
+	h.Request("options", addon.OptionsParams{Name: name, Conn: conn}, &o)
+	return o
+}
+
+// State reads addon.state for a widget with these settings (nil: no
+// widget, as for a plain state request).
+func (h *Harness) State(conn string, settings map[string]any) map[string]any {
+	h.t.Helper()
+	var st map[string]any
+	var params any
+	if settings != nil {
+		params = addon.StateParams{Settings: settings}
+	}
+	h.Call(conn, "addon.state", params, &st)
+	return st
+}

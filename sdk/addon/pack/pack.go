@@ -30,6 +30,8 @@ import (
 //	addon.json                      the manifest
 //	bin/<goos>-<goarch>/addon[.exe] the program, one per platform it supports
 //	README.md, icon.svg             optional
+//	ui/...                          optional (apiVersion 2): files for frame widgets;
+//	                                html/js/css/svg/png/woff2/json, at most 2 MB in all
 //	SHA256SUMS                      sha256 of every other file ("<hex>  <path>")
 //	SHA256SUMS.sig                  optional: base64 ed25519 signature of SHA256SUMS
 //
@@ -48,7 +50,47 @@ type Package struct {
 	Manifest addon.Manifest
 	Verified bool
 	Program  []byte            // the program for this platform
-	Files    map[string][]byte // every file in the package
+	Files    map[string][]byte // every file in the package (ui/ files under "ui/...")
+	// Dropped are widgets whose kind this controller doesn't know; they
+	// are not in Manifest.Widgets (addon.json in Files still has them).
+	Dropped []addon.WidgetDef
+}
+
+// UI returns the package's ui/ files (path → content).
+func (p *Package) UI() map[string][]byte {
+	out := map[string][]byte{}
+	for n, b := range p.Files {
+		if strings.HasPrefix(n, "ui/") {
+			out[n] = b
+		}
+	}
+	return out
+}
+
+// checkUI checks the ui/ folder: allowed file types only, at most
+// addon.MaxUISize in all, and every frame widget's entry present.
+func checkUI(files map[string][]byte, m addon.Manifest) error {
+	var total int
+	for n, b := range files {
+		if !strings.HasPrefix(n, "ui/") {
+			continue
+		}
+		if !addon.UIFileAllowed(n) {
+			return fmt.Errorf("add-on package: ui file %s is not allowed (only %s)", n, strings.Join(addon.UIExtensions, " "))
+		}
+		total += len(b)
+	}
+	if total > addon.MaxUISize {
+		return fmt.Errorf("add-on package: ui/ holds %d KB; the most is %d KB", total>>10, addon.MaxUISize>>10)
+	}
+	for _, w := range m.Widgets {
+		if w.Kind == addon.KindFrame {
+			if _, ok := files[w.Entry]; !ok {
+				return fmt.Errorf("add-on package: widget %s loads %s, which is not in the package", w.Type, w.Entry)
+			}
+		}
+	}
+	return nil
 }
 
 const maxPackage = 200 << 20
@@ -95,6 +137,9 @@ func Read(data []byte, pub ed25519.PublicKey) (*Package, error) {
 	if err := json.Unmarshal(mb, &m); err != nil {
 		return nil, fmt.Errorf("addon.json: %w", err)
 	}
+	// Widgets of kinds this controller doesn't know are left out (see
+	// Package.Dropped), so an add-on made for a newer controller installs.
+	dropped := m.DropUnknownWidgets()
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}
@@ -119,7 +164,10 @@ func Read(data []byte, pub ed25519.PublicKey) (*Package, error) {
 			return nil, fmt.Errorf("add-on package file %s does not match SHA256SUMS", name)
 		}
 	}
-	p := &Package{Manifest: m, Files: files}
+	if err := checkUI(files, m); err != nil {
+		return nil, err
+	}
+	p := &Package{Manifest: m, Files: files, Dropped: dropped}
 	if sig, ok := files["SHA256SUMS.sig"]; ok && len(pub) == ed25519.PublicKeySize {
 		if raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sig))); err == nil && ed25519.Verify(pub, sums, raw) {
 			p.Verified = true
@@ -140,7 +188,7 @@ func Read(data []byte, pub ed25519.PublicKey) (*Package, error) {
 
 // Build builds a .ptzaddon from a folder holding addon.json and
 // bin/<goos>-<goarch>/addon[.exe] (and optional README.md, icon.svg,
-// CHANGELOG.md). priv signs it (nil = unsigned).
+// CHANGELOG.md, ui/). priv signs it (nil = unsigned).
 func Build(dir string, priv ed25519.PrivateKey) ([]byte, addon.Manifest, error) {
 	m, err := ReadManifest(dir)
 	if err != nil {
@@ -165,6 +213,12 @@ func Build(dir string, priv ed25519.PrivateKey) ([]byte, addon.Manifest, error) 
 		if b, err := os.ReadFile(filepath.Join(dir, extra)); err == nil {
 			files[extra] = b
 		}
+	}
+	if err := readUI(dir, files); err != nil {
+		return nil, m, err
+	}
+	if err := checkUI(files, m); err != nil {
+		return nil, m, err
 	}
 	var sums strings.Builder
 	names := make([]string, 0, len(files))
@@ -205,6 +259,43 @@ func Build(dir string, priv ed25519.PrivateKey) ([]byte, addon.Manifest, error) 
 		return nil, m, err
 	}
 	return buf.Bytes(), m, nil
+}
+
+// readUI adds dir/ui/** to files as "ui/...". Hidden files (.DS_Store)
+// are skipped; anything else not allowed is an error.
+func readUI(dir string, files map[string][]byte) error {
+	root := filepath.Join(dir, "ui")
+	if st, err := os.Stat(root); err != nil || !st.IsDir() {
+		return nil
+	}
+	return filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(d.Name(), ".") && p != root {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, p)
+		name := filepath.ToSlash(rel)
+		if !d.Type().IsRegular() {
+			return fmt.Errorf("%s: ui/ may hold only plain files", name)
+		}
+		if !addon.UIFileAllowed(name) {
+			return fmt.Errorf("%s: ui/ may hold only %s files", name, strings.Join(addon.UIExtensions, " "))
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		files[name] = b
+		return nil
+	})
 }
 
 // ExeName is the program's file name on this platform.

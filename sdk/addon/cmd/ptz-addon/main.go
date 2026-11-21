@@ -5,6 +5,10 @@
 //	ptz-addon build [dir] [--key KEY] [--platforms ...]       build every platform + .ptzaddon
 //	ptz-addon keygen <file>                                   make a signing key (for your own add-ons)
 //
+// build packs addon.json, the programs, README.md / icon.svg /
+// CHANGELOG.md and a ui/ folder (frame widgets' files: html, js, css,
+// svg, png, woff2, json; at most 2 MB) when there is one.
+//
 // KEY is a base64 ed25519 seed or a file holding one (default: the
 // PTZ_SIGNING_KEY environment variable). Unsigned packages install with
 // a "not verified" warning.
@@ -148,6 +152,11 @@ func cmdBuild(args []string) {
 	data, _, err := pack.Build(dir, priv)
 	if err != nil {
 		die("%v", err)
+	}
+	if p, err := pack.Read(data, nil); err == nil {
+		if n := len(p.UI()); n > 0 {
+			fmt.Printf("ui/: %d file(s)\n", n)
+		}
 	}
 	os.MkdirAll(filepath.Join(dir, *out), 0o755)
 	file := filepath.Join(dir, *out, m.ID+".ptzaddon")

@@ -11,7 +11,7 @@ import (
 )
 
 // SDKVersion is the SDK release new projects require.
-const SDKVersion = "v0.1.0"
+const SDKVersion = "v0.3.0"
 
 var files = map[string]string{
 	"go.mod": `module {{.Module}}

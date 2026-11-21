@@ -27,6 +27,7 @@ type Spec struct {
 // Serve runs the add-on over stdin/stdout until the controller closes
 // the pipe or says shutdown. "--manifest" prints addon.json and exits.
 func Serve(spec Spec) {
+	spec.Manifest = spec.Manifest.LowestAPIVersion()
 	if len(os.Args) > 1 && os.Args[1] == "--manifest" {
 		b, _ := json.MarshalIndent(spec.Manifest, "", "  ")
 		os.Stdout.Write(append(b, '\n'))
@@ -44,6 +45,7 @@ func Serve(spec Spec) {
 
 // ServeIO is Serve over any pipe (tests, embedding).
 func ServeIO(ctx context.Context, spec Spec, in io.Reader, out io.Writer) error {
+	spec.Manifest = spec.Manifest.LowestAPIVersion()
 	s := &server{spec: spec, conns: map[string]any{}, out: out}
 	if spec.OnInit != nil {
 		spec.OnInit(s.log)
@@ -108,6 +110,10 @@ func (s *server) reply(id *int64, res any, err error) {
 			code = CodeUnknownAction
 		case errors.Is(err, errNoConn):
 			code = CodeNoConnection
+		case errors.Is(err, ErrNoResources):
+			code = CodeNoResources
+		case errors.Is(err, ErrNotFound):
+			code = CodeNotFound
 		}
 		s.write(Message{ID: id, Error: &RPCError{Code: code, Message: err.Error()}})
 		return
@@ -210,10 +216,25 @@ func (s *server) handle(ctx context.Context, m Message) (any, error) {
 		}
 		return struct{}{}, nil
 	case "options":
-		var p struct {
-			Name string `json:"name"`
-		}
+		var p OptionsParams
 		json.Unmarshal(m.Params, &p)
+		if p.Conn != "" {
+			// A widget field: the connection's own list first (live
+			// channel names...), then the add-on-wide source.
+			if c, err := s.conn(p.Conn); err == nil {
+				if o, ok := c.(Optioner); ok {
+					cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+					opts, err := o.AddonOptions(cctx, p.Name)
+					cancel()
+					if err != nil {
+						return nil, err
+					}
+					if opts != nil {
+						return opts, nil
+					}
+				}
+			}
+		}
 		if f := s.spec.Options[p.Name]; f != nil {
 			if o := f(); o != nil {
 				return o, nil
@@ -248,6 +269,7 @@ func Dispatch(ctx context.Context, c any, method string, params json.RawMessage)
 		Muted      bool            `json:"muted"`
 		Name       string          `json:"name"`
 		Params     json.RawMessage `json:"params"`
+		Path       string          `json:"path"`
 	}
 	if len(params) > 0 {
 		if err := json.Unmarshal(params, &p); err != nil {
@@ -308,6 +330,15 @@ func Dispatch(ctx context.Context, c any, method string, params json.RawMessage)
 			return ok, mx.SetMute(ctx, p.Channel, p.Muted)
 		}
 	case "addon.state":
+		var sp StateParams
+		if len(params) > 0 {
+			json.Unmarshal(params, &sp)
+		}
+		if ss, is := c.(SettingsStater); is {
+			if _, plain := c.(Stater); !plain || sp.Settings != nil {
+				return ss.AddonStateFor(ctx, sp.Settings)
+			}
+		}
 		st, is := c.(Stater)
 		if !is {
 			return map[string]any{}, nil
@@ -319,6 +350,33 @@ func Dispatch(ctx context.Context, c any, method string, params json.RawMessage)
 			return nil, fmt.Errorf("%w: %s", ErrUnknownAction, p.Name)
 		}
 		return ac.AddonAction(ctx, p.Name, p.Params)
+	case "addon.resource":
+		var res ResourceResult
+		if rr, is := c.(ResultResourcer); is {
+			r, err := rr.ResourceResult(ctx, p.Path)
+			if err != nil {
+				return nil, err
+			}
+			res = r
+		} else if rs, is := c.(Resourcer); is {
+			ct, data, err := rs.Resource(ctx, p.Path)
+			if err != nil {
+				return nil, err
+			}
+			res = ResourceResult{ContentType: ct, Data: data}
+		} else {
+			return nil, ErrNoResources
+		}
+		if len(res.Data) > MaxResource {
+			return nil, fmt.Errorf("resource %s is %d bytes; the most is %d", p.Path, len(res.Data), MaxResource)
+		}
+		if res.ContentType == "" {
+			res.ContentType = "application/octet-stream"
+		}
+		if res.MaxAge != nil && *res.MaxAge < 0 {
+			res.MaxAge = Age(0)
+		}
+		return res, nil
 	}
 	return nil, fmt.Errorf("unknown call method %q", method)
 }
