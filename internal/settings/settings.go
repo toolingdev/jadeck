@@ -51,12 +51,58 @@ type Video struct {
 }
 
 // Feed is one video feed. ID is its gateway path (and the SRT stream id
-// "publish:<id>" senders use), so it never changes after creation.
+// "publish:<id>:<id>:<key>" senders use), so it never changes after
+// creation.
 type Feed struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Source string `json:"source"`        // push | pull
 	URL    string `json:"url,omitempty"` // pull: rtsp://… or srt://…
+	// Key is a push feed's publish key: a sender must give it (user
+	// <id>, password <key>) or the gateway refuses the stream. Secret:
+	// never logged, shown only to callers allowed to manage feeds.
+	Key string `json:"key,omitempty"`
+	// Owner is the add-on connection that created the feed ("" when a
+	// person or an API key did). An add-on may change only its own.
+	Owner string `json:"owner,omitempty"`
+}
+
+// NewFeedKey returns a fresh random publish key (32 hex characters:
+// safe in an RTSP URL and an SRT stream id).
+func NewFeedKey() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
+}
+
+// EnsureKeys gives every push feed without a publish key a new one
+// (feeds made before keys existed) and drops keys from pull feeds.
+// It reports whether anything changed.
+func (v *Video) EnsureKeys() bool {
+	changed := false
+	for i := range v.Feeds {
+		f := &v.Feeds[i]
+		switch {
+		case f.Source == "push" && f.Key == "":
+			f.Key, changed = NewFeedKey(), true
+		case f.Source != "push" && f.Key != "":
+			f.Key, changed = "", true
+		}
+	}
+	return changed
+}
+
+// Redacted is v without publish keys, for logs and diagnostics.
+func (v Video) Redacted() Video {
+	v.Feeds = append([]Feed(nil), v.Feeds...)
+	for i := range v.Feeds {
+		if v.Feeds[i].Key != "" {
+			v.Feeds[i].Key = "(hidden)"
+		}
+	}
+	return v
 }
 
 // MigrateFeeds turns the old Program / Confidence switches into feeds
@@ -131,6 +177,9 @@ func (s *Settings) Camera(id string) *Camera {
 func (s Settings) clone() Settings {
 	c := s
 	c.Cameras = append([]Camera(nil), s.Cameras...)
+	if s.Video.Feeds != nil {
+		c.Video.Feeds = append([]Feed{}, s.Video.Feeds...)
+	}
 	c.System.TrustedCIDRs = append([]string(nil), s.System.TrustedCIDRs...)
 	return c
 }
@@ -285,6 +334,11 @@ func Open(path string, seed func() Settings) (*Store, error) {
 		st.s.Cameras[i].Defaults()
 	}
 	st.s.Video.MigrateFeeds()
+	if st.s.Video.EnsureKeys() { // upgrade: push feeds get publish keys
+		if err := st.save(); err != nil {
+			return nil, err
+		}
+	}
 	if st.s.System.Port == 0 {
 		st.s.System.Port = 8080
 	}
@@ -325,6 +379,7 @@ func (st *Store) Update(fn func(*Settings) error) (Settings, error) {
 		st.mu.Unlock()
 		return old, err
 	}
+	next.Video.EnsureKeys() // no push feed is ever left open to anyone
 	st.s = next
 	if err := st.save(); err != nil {
 		st.s = old

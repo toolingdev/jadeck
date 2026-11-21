@@ -49,9 +49,22 @@ func testAddon() addon.Spec {
 					{Key: "password", Label: "Password", Type: "password"},
 				}},
 				{ID: "mixer", Label: "Test mixer", Capabilities: []string{addon.CapMixer}, Fields: []addon.Field{}},
+				{ID: "pics", Label: "Test slides with pictures", Capabilities: []string{addon.CapSlides}, Fields: []addon.Field{}},
+				{ID: "console", Label: "Test console (v2.1)", Capabilities: []string{addon.CapSlides}, Fields: []addon.Field{}},
+				{ID: "tool", Label: "Test tool", Capabilities: []string{addon.CapTool}, Fields: []addon.Field{}},
+				{ID: "picky", Label: "Test required lists", Capabilities: []string{addon.CapTool}, Fields: []addon.Field{
+					{Key: "scopes", Label: "Permissions", Type: "scopes", Required: true},
+					{Key: "rooms", Label: "Rooms", Type: "select", Multiple: true, Required: true,
+						Options: []addon.Option{{Value: "a", Label: "A"}, {Value: "b", Label: "B"}}},
+				}},
 			},
 			Actions: []addon.ActionDef{{ID: "go_to_item", Label: "Go to item", MacroStep: true}},
-			Widgets: []addon.WidgetDef{{Kind: "list", Type: "items", Label: "Items", Sample: map[string]any{"items": []any{}}}},
+			Widgets: []addon.WidgetDef{{Kind: "list", Type: "items", Label: "Items", Sample: map[string]any{"items": []any{}}},
+				{Kind: "buttons", Type: "mutes", Label: "Mutes", Sample: map[string]any{}, Bind: map[string]any{"items": "$settings.channels", "action": "go_to_item"},
+					Fields: []addon.Field{
+						{Key: "channels", Label: "Channels", Type: "order", OptionsFrom: "channels"},
+						{Key: "size", Label: "Size", Type: "select", Options: []addon.Option{{Value: "s", Label: "S"}, {Value: "l", Label: "L"}}, Default: "s"},
+					}}},
 		},
 		Open: map[string]addon.OpenFunc{
 			"sw": func(json.RawMessage) (any, error) { return fake.NewSwitcher(), nil },
@@ -64,7 +77,92 @@ func testAddon() addon.Spec {
 				return &gearSlides{Presentation: fake.NewPresentation(nil), pw: c.Password}, nil
 			},
 			"mixer": func(json.RawMessage) (any, error) { return fake.NewMixer(48), nil },
+			"pics": func(json.RawMessage) (any, error) {
+				return &picSlides{gearSlides{Presentation: fake.NewPresentation(nil)}, 0}, nil
+			},
+			"console": func(json.RawMessage) (any, error) {
+				return &console{gearSlides: gearSlides{Presentation: fake.NewPresentation(nil)}}, nil
+			},
+			"tool":  func(json.RawMessage) (any, error) { return &toolGear{}, nil },
+			"picky": func(json.RawMessage) (any, error) { return &toolGear{}, nil },
 		},
+		Options: map[string]func() []addon.Option{"channels": func() []addon.Option { return []addon.Option{{Value: "x", Label: "generic"}} }},
+	}
+}
+
+// toolGear is a general ("tool") add-on connection: state and actions only.
+type toolGear struct{ n int }
+
+func (g *toolGear) AddonState(context.Context) (map[string]any, error) {
+	return map[string]any{"count": g.n, "detail": "Counting"}, nil
+}
+
+func (g *toolGear) AddonAction(_ context.Context, name string, _ json.RawMessage) (any, error) {
+	if name != "go_to_item" {
+		return nil, fmt.Errorf("%w %q", addon.ErrUnknownAction, name)
+	}
+	g.n++
+	return map[string]any{"count": g.n}, nil
+}
+
+func TestToolConnection(t *testing.T) {
+	e := setup(t)
+	e.srv.DevicesPath = filepath.Join(t.TempDir(), "devices.json")
+	code, r, _ := e.do(t, "POST", "/api/connections/test", map[string]any{"addon": "testgear", "type": "tool", "name": "Counter", "config": map[string]any{}})
+	if code != 200 || r["ok"] != true || r["detail"] != "Counting" {
+		t.Fatalf("test a tool connection: %d %v", code, r)
+	}
+	code, r, _ = e.do(t, "POST", "/api/connections", map[string]any{"addon": "testgear", "type": "tool", "name": "Counter", "config": map[string]any{}})
+	if code != 201 || r["ready"] != true {
+		t.Fatalf("add a tool connection: %d %v", code, r)
+	}
+	caps, _ := r["capabilities"].([]any)
+	if len(caps) != 1 || caps[0] != "tool" {
+		t.Fatalf("a tool connection's capabilities: %v", r["capabilities"])
+	}
+	id := r["id"].(string)
+	code, r, _ = e.do(t, "POST", "/api/connections/"+id+"/actions/go_to_item", map[string]any{})
+	if code != 200 {
+		t.Fatalf("tool action: %d %v", code, r)
+	}
+	_, r, _ = e.do(t, "GET", "/api/connections/"+id+"/state", nil)
+	if fmt.Sprint(r["count"]) != "1" {
+		t.Fatalf("tool state: %v", r)
+	}
+}
+
+// A required list field (scopes, multi-select) with nothing picked is missing.
+func TestRequiredListFields(t *testing.T) {
+	e := setup(t)
+	e.srv.DevicesPath = filepath.Join(t.TempDir(), "devices.json")
+	for _, c := range []struct {
+		cfg  map[string]any
+		want string // field named in the error; "" = accepted
+	}{
+		{map[string]any{"rooms": []any{"a"}}, "Permissions"},
+		{map[string]any{"scopes": []any{}, "rooms": []any{"a"}}, "Permissions"},
+		{map[string]any{"scopes": nil, "rooms": []any{"a"}}, "Permissions"},
+		{map[string]any{"scopes": []any{"feeds"}, "rooms": []any{}}, "Rooms"},
+		{map[string]any{"scopes": []any{"feeds"}, "rooms": []any{"a"}}, ""},
+	} {
+		code, r, _ := e.do(t, "POST", "/api/connections", map[string]any{"addon": "testgear", "type": "picky", "name": "Picky", "config": c.cfg})
+		if c.want == "" {
+			if code != 201 {
+				t.Errorf("%v: %d %v", c.cfg, code, r)
+			}
+			continue
+		}
+		if detail, _ := r["detail"].(string); code != 422 || !strings.Contains(detail, c.want+" is required") {
+			t.Errorf("%v: want 422 %q, got %d %v", c.cfg, c.want, code, r)
+		}
+	}
+	for v, want := range map[any]bool{"": true, "x": false, 0.0: false, false: false} {
+		if emptyValue(v) != want {
+			t.Errorf("emptyValue(%#v) = %v", v, !want)
+		}
+	}
+	if !emptyValue(map[string]any{}) || emptyValue(map[string]any{"a": 1.0}) || !emptyValue([]any{}) || emptyValue([]any{""}) {
+		t.Error("emptyValue on lists / objects")
 	}
 }
 

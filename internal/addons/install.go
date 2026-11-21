@@ -34,16 +34,37 @@ func (h *Host) Install(p *pack.Package, allowUnverified bool) error {
 	write := func(name string, b []byte, mode os.FileMode) error {
 		return os.WriteFile(filepath.Join(stage, name), b, mode)
 	}
-	mb, _ := json.MarshalIndent(p.Manifest, "", "  ")
+	// The package's own addon.json (it may name widgets this controller
+	// doesn't know yet; they are left out when read, and come back after
+	// a controller update).
+	mb := p.Files["addon.json"]
+	if mb == nil {
+		mb, _ = json.MarshalIndent(p.Manifest, "", "  ")
+	}
 	if err := write("addon.json", mb, 0o644); err != nil {
 		return err
 	}
+	h.warnDropped(id, p.Manifest.Version, p.Dropped)
 	if err := write(exeName(), p.Program, 0o755); err != nil {
 		return err
 	}
 	for _, extra := range []string{"README.md", "icon.svg", "CHANGELOG.md"} {
 		if b, ok := p.Files[extra]; ok {
 			write(extra, b, 0o644)
+		}
+	}
+	for name, b := range p.UI() { // frame widgets' files (pack.Read checked names and size)
+		if !addon.UIFileAllowed(name) {
+			continue
+		}
+		dst := filepath.Join(stage, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			os.RemoveAll(stage)
+			return err
+		}
+		if err := os.WriteFile(dst, b, 0o644); err != nil {
+			os.RemoveAll(stage)
+			return err
 		}
 	}
 	// Health check: it must start and answer initialize with the same manifest.

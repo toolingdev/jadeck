@@ -13,6 +13,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -94,6 +95,7 @@ type Gateway struct {
 	Dir    string // <data>/video: config, downloaded binary, pid
 	ExeDir string // beside the ptz binary (a bundled mediamtx wins)
 	Log    *slog.Logger
+	API    string // control API host:port (default 127.0.0.1:9997)
 
 	mu         sync.Mutex
 	want       bool
@@ -196,12 +198,105 @@ func (g *Gateway) configPath() string { return filepath.Join(g.Dir, "mediamtx.ym
 
 func q(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 
+// Push feeds take a stream only from a sender that gives the feed's
+// publish key: user <feed id>, password <key>. Reading stays open to
+// every viewer (browsers over WebRTC / HLS, the controller itself).
+
+// PublishUser is the user name a sender gives for push feed id.
+func PublishUser(id string) string { return id }
+
+func bracket(host string) string {
+	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+		return "[" + host + "]"
+	}
+	return host
+}
+
+// RTSPPublishURL is where an RTSP sender publishes push feed id.
+func RTSPPublishURL(host, id, key string) string {
+	return fmt.Sprintf("rtsp://%s:%s@%s:%d/%s", PublishUser(id), key, bracket(host), PortRTSP, id)
+}
+
+// SRTStreamID is the SRT stream id a sender uses for push feed id.
+func SRTStreamID(id, key string) string { return "publish:" + id + ":" + PublishUser(id) + ":" + key }
+
+// SRTPublishURL is where an SRT sender publishes push feed id.
+func SRTPublishURL(host, id, key string) string {
+	return fmt.Sprintf("srt://%s:%d?streamid=%s", bracket(host), PortSRT, SRTStreamID(id, key))
+}
+
+// hashed is MediaMTX's sha256 form of a credential, so the config
+// file never holds a publish key itself.
+func hashed(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return "sha256:" + base64.StdEncoding.EncodeToString(h[:])
+}
+
+// writeAuth writes who may do what: anyone may read (and use the API
+// from this PC); each push feed is published only with its own key.
+// A push feed without a key (never saved by the app) takes no sender.
+func writeAuth(b *strings.Builder, s settings.Settings) {
+	b.WriteString("authMethod: internal\nauthInternalUsers:\n")
+	for _, u := range authUsers(s) {
+		ips := make([]string, len(u.IPs))
+		for i, ip := range u.IPs {
+			ips[i] = q(ip)
+		}
+		user, pass := u.User, u.Pass
+		if user != "any" {
+			user = q(user)
+		}
+		if pass == "" {
+			pass = "''"
+		} else {
+			pass = q(pass)
+		}
+		fmt.Fprintf(b, "- user: %s\n  pass: %s\n  ips: [%s]\n  permissions:\n", user, pass, strings.Join(ips, ", "))
+		for _, p := range u.Permissions {
+			fmt.Fprintf(b, "  - action: %s\n", p.Action)
+			if p.Path != "" {
+				fmt.Fprintf(b, "    path: %s\n", q(p.Path))
+			}
+		}
+	}
+}
+
+type authPerm struct {
+	Action string `json:"action"`
+	Path   string `json:"path"`
+}
+
+type authUser struct {
+	User        string     `json:"user"`
+	Pass        string     `json:"pass"`
+	IPs         []string   `json:"ips"`
+	Permissions []authPerm `json:"permissions"`
+}
+
+// authUsers is the gateway's user list for s (written to the config
+// file, and pushed through the control API when a key changes).
+func authUsers(s settings.Settings) []authUser {
+	out := []authUser{
+		{User: "any", IPs: []string{}, Permissions: []authPerm{{Action: "read"}, {Action: "playback"}}},
+		{User: "any", IPs: []string{"127.0.0.1", "::1"}, Permissions: []authPerm{{Action: "api"}, {Action: "metrics"}, {Action: "pprof"}}},
+	}
+	for _, f := range s.Video.Feeds {
+		if f.Source != "push" || f.Key == "" {
+			continue
+		}
+		out = append(out, authUser{User: PublishUser(f.ID), Pass: hashed(f.Key), IPs: []string{},
+			Permissions: []authPerm{{Action: "publish", Path: f.ID}}})
+	}
+	return out
+}
+
 // Config renders the gateway config for s.
 func Config(s settings.Settings) string {
 	var b strings.Builder
 	b.WriteString("# Written by jadeck from Settings → Video. Changes here are overwritten.\n")
 	b.WriteString("logLevel: info\nlogDestinations: [stdout]\n")
 	fmt.Fprintf(&b, "api: yes\napiAddress: %s\n", apiAddr)
+	writeAuth(&b, s)
 	fmt.Fprintf(&b, "rtsp: yes\nrtspAddress: :%d\nrtspTransports: [tcp]\n", PortRTSP)
 	b.WriteString("rtmp: no\nmoq: no\n")
 	fmt.Fprintf(&b, "webrtc: yes\nwebrtcAddress: :%d\nwebrtcAllowOrigins: ['*']\nwebrtcICEServers2: []\n", PortWebRTC)

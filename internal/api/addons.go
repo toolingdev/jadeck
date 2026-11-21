@@ -34,6 +34,7 @@ func (s *Server) addonRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/addons/{id}/rollback", s.addonDo(s.Addons.RollBack, "rolled back"))
 	mux.HandleFunc("POST /api/addons/{id}/update", s.updateAddon)
 	mux.HandleFunc("DELETE /api/addons/{id}", s.addonDo(s.Addons.Remove, "removed"))
+	mux.HandleFunc("GET /api/addons/{id}/ui/{path...}", s.addonUI)
 	mux.HandleFunc("GET /api/addons/{id}/log", func(w http.ResponseWriter, r *http.Request) {
 		entries := s.Logs.Query(0, slog.LevelDebug, "addon="+r.PathValue("id"), 200)
 		writeJSON(w, 200, map[string]any{"entries": entries})

@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -34,6 +35,8 @@ func buildCounter(t *testing.T, version string) string {
 		t.Fatal(err)
 	}
 	os.WriteFile(filepath.Join(dir, "addon.json"), out, 0o644)
+	os.MkdirAll(filepath.Join(dir, "ui"), 0o755)
+	os.WriteFile(filepath.Join(dir, "ui", "panel.html"), []byte("<p>v"+version), 0o644)
 	return dir
 }
 
@@ -81,6 +84,38 @@ func TestHostRunsAddonProcess(t *testing.T) {
 	st, err := set.Switcher.State(ctx)
 	if err != nil || st.Active != 1 {
 		t.Fatalf("state %+v %v", st, err)
+	}
+
+	// Resources come through the process; ui/ files were installed.
+	impl := set.Conns[0].Impl
+	rs := impl.(addon.ResultResourcer)
+	if r, err := rs.ResourceResult(ctx, "pic.png?w=2"); err != nil || r.ContentType != "image/png" || string(r.Data) != "PNG!" || r.MaxAge != nil {
+		t.Fatalf("resource %+v %v", r, err)
+	}
+	if _, err := rs.ResourceResult(ctx, "nope.png"); !errors.Is(err, addon.ErrNotFound) {
+		t.Fatalf("missing resource: %v", err)
+	}
+	if r, err := rs.ResourceResult(ctx, "meters"); err != nil || r.MaxAge == nil || *r.MaxAge != 0 {
+		t.Fatalf("meters %+v %v", r, err)
+	}
+	// v2.1: options for this connection (generic ones without it), state
+	// for one widget.
+	if o, err := impl.(addon.Optioner).AddonOptions(ctx, "inputs"); err != nil || len(o) != 1 || o[0].Label != "In 1 · One" {
+		t.Fatalf("conn options %v %v", o, err)
+	}
+	if o := h.Options("counter", "inputs"); len(o) != 1 || o[0].Value != "g" {
+		t.Fatalf("options %v", o)
+	}
+	st2, err := addon.Dispatch(ctx, impl, "addon.state", json.RawMessage(`{"settings":{"ch":["a","b"]}}`))
+	if m, _ := st2.(map[string]any); err != nil || m["settings"] == nil {
+		t.Fatalf("state for widget %v %v", st2, err)
+	}
+	st2, _ = addon.Dispatch(ctx, impl, "addon.state", nil)
+	if m, _ := st2.(map[string]any); m["settings"] != nil || m["active"] == nil {
+		t.Fatalf("plain state %v", st2)
+	}
+	if b, _, err := h.UIFile("counter", "panel.html"); err != nil || string(b) != "<p>v1.0.0" {
+		t.Fatalf("ui file %q %v", b, err)
 	}
 
 	// It crashes: the host restarts it and reopens the connection.
@@ -152,5 +187,74 @@ func TestReadRejectsTampering(t *testing.T) {
 	p, err := pack.Read(data, other)
 	if err != nil || p.Verified {
 		t.Fatalf("other key: %v verified=%v", err, p != nil && p.Verified)
+	}
+}
+
+// fakeInstalled writes an installed add-on folder (no real program: the
+// manifest and files are all that's read until it runs).
+func fakeInstalled(t *testing.T, dir string, manifest string, files map[string]string) {
+	t.Helper()
+	d := filepath.Join(dir, "x")
+	os.MkdirAll(filepath.Join(d, "ui", "img"), 0o755)
+	os.WriteFile(filepath.Join(d, "addon.json"), []byte(manifest), 0o644)
+	os.WriteFile(filepath.Join(d, exeName()), []byte("program"), 0o755)
+	for n, b := range files {
+		os.WriteFile(filepath.Join(d, filepath.FromSlash(n)), []byte(b), 0o644)
+	}
+}
+
+const v2Manifest = `{"id":"x","name":"X","version":"1.0.0","apiVersion":2,
+ "connectionTypes":[{"id":"s","label":"S","capabilities":["slides"],"fields":[]}],
+ "actions":[{"id":"go","label":"Go"}],
+ "widgets":[
+  {"kind":"frame","type":"live","label":"Live","entry":"ui/live.html","sample":{}},
+  {"kind":"buttons","type":"b","label":"B","bind":{"items":"btns","action":"go"},"sample":{}},
+  {"kind":"hologram","type":"h","label":"H","sample":{}}]}`
+
+func TestHostDropsUnknownWidgetKinds(t *testing.T) {
+	var logs strings.Builder
+	dir := t.TempDir()
+	fakeInstalled(t, dir, v2Manifest, nil)
+	h := New(dir, slog.New(slog.NewTextHandler(&logs, nil)))
+	m, ok := h.Manifest("x")
+	if !ok {
+		t.Fatal("v2 add-on with an unknown widget kind was refused")
+	}
+	if len(m.Widgets) != 2 || m.Widgets[0].Kind != "frame" || m.Widgets[1].Kind != "buttons" {
+		t.Fatalf("widgets %+v", m.Widgets)
+	}
+	h.Manifest("x")
+	if n := strings.Count(logs.String(), "widget left out"); n != 1 {
+		t.Fatalf("want one warning, got %d:\n%s", n, logs.String())
+	}
+	// apiVersion 3 is still refused.
+	fakeInstalled(t, dir, strings.Replace(v2Manifest, `"apiVersion":2`, `"apiVersion":3`, 1), nil)
+	if _, ok := h.Manifest("x"); ok {
+		t.Fatal("apiVersion 3 accepted")
+	}
+}
+
+func TestHostUIFiles(t *testing.T) {
+	dir := t.TempDir()
+	fakeInstalled(t, dir, v2Manifest, map[string]string{"ui/live.html": "<p>hi", "ui/img/a.png": "png", "ui/run.sh": "rm -rf", "secret.txt": "no"})
+	os.Symlink(filepath.Join(dir, "x", "secret.txt"), filepath.Join(dir, "x", "ui", "link.js"))
+	h := New(dir, slog.New(slog.DiscardHandler))
+	if b, _, err := h.UIFile("x", "live.html"); err != nil || string(b) != "<p>hi" {
+		t.Fatalf("live.html %q %v", b, err)
+	}
+	if b, _, err := h.UIFile("x", "img/a.png"); err != nil || string(b) != "png" {
+		t.Fatalf("img/a.png %q %v", b, err)
+	}
+	for _, bad := range []string{"../secret.txt", "../addon.json", "img", "", ".", "run.sh", "/live.html", "img/../live.html", "link.js", "missing.js"} {
+		if _, _, err := h.UIFile("x", bad); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%q: %v", bad, err)
+		}
+	}
+	if _, _, err := h.UIFile("nope", "live.html"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown add-on: %v", err)
+	}
+	h.SetEnabled("x", false)
+	if _, _, err := h.UIFile("x", "live.html"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("turned-off add-on served ui: %v", err)
 	}
 }

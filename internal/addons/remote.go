@@ -3,6 +3,7 @@ package addons
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -131,10 +132,44 @@ func (r *remote) AddonState(ctx context.Context) (map[string]any, error) {
 	err := r.call(ctx, "addon.state", nil, &st)
 	return st, err
 }
+
+// AddonStateFor asks for state tailored to one widget (v2.1): the add-on
+// gets {settings}; one built before v2.1 ignores them.
+func (r *remote) AddonStateFor(ctx context.Context, settings map[string]any) (map[string]any, error) {
+	if settings == nil {
+		settings = map[string]any{}
+	}
+	var st map[string]any
+	err := r.call(ctx, "addon.state", addon.StateParams{Settings: settings}, &st)
+	return st, err
+}
+
+// AddonOptions asks the add-on for a live option list for this
+// connection (options {name, conn}); the add-on falls back to its
+// add-on-wide source, and one built before v2.1 ignores conn.
+func (r *remote) AddonOptions(ctx context.Context, name string) ([]addon.Option, error) {
+	var out []addon.Option
+	err := r.p.call(ctx, "options", addon.OptionsParams{Name: name, Conn: r.conn}, &out)
+	return out, err
+}
 func (r *remote) AddonAction(ctx context.Context, name string, params json.RawMessage) (any, error) {
 	var out any
 	err := r.call(ctx, "addon.action", map[string]any{"name": name, "params": params}, &out)
 	return out, err
+}
+
+// ResourceResult fetches a file the connection's state refers to as
+// "res:<path>", with how long it may be cached. addon.ErrNoResources when
+// the add-on serves none, addon.ErrNotFound when it doesn't have that path.
+func (r *remote) ResourceResult(ctx context.Context, path string) (addon.ResourceResult, error) {
+	var out addon.ResourceResult
+	if err := r.call(ctx, "addon.resource", addon.ResourceParams{Path: path}, &out); err != nil {
+		return addon.ResourceResult{}, err
+	}
+	if len(out.Data) > addon.MaxResource {
+		return addon.ResourceResult{}, fmt.Errorf("add-on sent a %d-byte resource; the most is %d", len(out.Data), addon.MaxResource)
+	}
+	return out, nil
 }
 
 // Close tells the add-on to drop the connection.

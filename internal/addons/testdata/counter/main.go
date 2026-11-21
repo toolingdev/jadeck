@@ -27,10 +27,43 @@ func (s *sw) AddonAction(_ context.Context, name string, _ json.RawMessage) (any
 	return nil, addon.ErrUnknownAction
 }
 
+func (s *sw) Resource(_ context.Context, path string) (string, []byte, error) {
+	if path == "pic.png?w=2" {
+		return "image/png", []byte("PNG!"), nil
+	}
+	return "", nil, addon.ErrNotFound
+}
+
+// v2.1: a fast resource that must not be cached, options for this
+// connection, and state for one widget.
+func (s *sw) ResourceResult(ctx context.Context, path string) (addon.ResourceResult, error) {
+	if path == "meters" {
+		return addon.ResourceResult{ContentType: "application/octet-stream", Data: []byte{byte(s.active)}, MaxAge: addon.Age(0)}, nil
+	}
+	ct, b, err := s.Resource(ctx, path)
+	return addon.ResourceResult{ContentType: ct, Data: b}, err
+}
+
+func (s *sw) AddonOptions(_ context.Context, name string) ([]addon.Option, error) {
+	if name == "inputs" {
+		return []addon.Option{{Value: "1", Label: "In 1 · One"}}, nil
+	}
+	return nil, nil
+}
+
+func (s *sw) AddonState(context.Context) (map[string]any, error) {
+	return map[string]any{"active": s.active}, nil
+}
+
+func (s *sw) AddonStateFor(_ context.Context, settings map[string]any) (map[string]any, error) {
+	return map[string]any{"active": s.active, "settings": settings}, nil
+}
+
 func main() {
 	addon.Serve(addon.Spec{
 		Manifest: addon.Manifest{ID: "counter", Name: "Counter", Version: Version, Publisher: "tests", APIVersion: addon.APIVersion,
 			ConnectionTypes: []addon.ConnectionType{{ID: "sw", Label: "Counter", Capabilities: []string{addon.CapSwitcher}, Fields: []addon.Field{}}}},
-		Open: map[string]addon.OpenFunc{"sw": func(json.RawMessage) (any, error) { return &sw{}, nil }},
+		Open:    map[string]addon.OpenFunc{"sw": func(json.RawMessage) (any, error) { return &sw{}, nil }},
+		Options: map[string]func() []addon.Option{"inputs": func() []addon.Option { return []addon.Option{{Value: "g", Label: "generic"}} }},
 	})
 }

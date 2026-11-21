@@ -365,7 +365,10 @@ func lanIP() string {
 func (s *Server) videoInfo(r *http.Request) map[string]any {
 	set := s.Settings.Get()
 	ip := lanIP()
-	srt := func(path string) string {
+	srt := func(path string) string { // trusted network only: carries the publish key
+		if f, ok := set.Video.Feed(path); ok && f.Source == "push" && f.Key != "" {
+			return video.SRTPublishURL(ip, path, f.Key)
+		}
 		return fmt.Sprintf("srt://%s:%d?streamid=publish:%s", ip, video.PortSRT, path)
 	}
 	camsOut := []map[string]any{}
@@ -373,7 +376,7 @@ func (s *Server) videoInfo(r *http.Request) map[string]any {
 		camsOut = append(camsOut, map[string]any{"id": c.ID, "name": c.Name, "video": c.Video,
 			"hd": video.PathHD(c.ID), "sd": video.PathSD(c.ID)})
 	}
-	return map[string]any{"settings": set.Video, "status": s.Video.Status(), "cameras": camsOut,
+	return map[string]any{"settings": set.Video.Redacted(), "status": s.Video.Status(), "cameras": camsOut,
 		"programSrt": srt("program"), "confidenceSrt": srt("confidence")}
 }
 

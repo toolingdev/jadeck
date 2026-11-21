@@ -35,10 +35,15 @@ func scopeFor(method, path string) string {
 	case path == "/" || path == "/dashboard" || has("/dashboard/") || path == "/settings" || has("/settings/") || path == "/setup" || has("/static/") || has("/assets/") ||
 		has("/legacy") || path == "/api/version" || path == "/sw.js" || path == "/manifest.webmanifest" || path == "/icon.svg":
 		return scopePublic
-	case (has("/api/connections/") && (strings.HasSuffix(path, "/state") || strings.Contains(path, "/actions/"))):
-		return "addons" // add-on state and actions (a capability's own routes keep their scopes)
+	case (has("/api/connections/") && (strings.HasSuffix(path, "/state") || strings.Contains(path, "/actions/") ||
+		(read && strings.Contains(path, "/res/")))):
+		return "addons" // add-on state, its pictures and actions (a capability's own routes keep their scopes)
+	case has("/api/addons/") && strings.Contains(path, "/ui/") && read:
+		return scopeAny // frame widgets' files: as readable as the dashboards that show them
 	case (path == "/api/connections" || path == "/api/addons" || path == "/api/feeds") && read:
 		return scopeAny // lists for widget pickers and previews; secrets are masked
+	case path == "/api/feeds" || has("/api/feeds/"):
+		return "feeds" // add, change, remove feeds (an add-on: only its own)
 	case has("/api/keys") || has("/api/audit") || has("/api/connections") || has("/api/addons") || has("/api/feeds") ||
 		has("/api/video") || has("/api/system") || has("/api/cameras/"):
 		return scopeTrusted
@@ -149,11 +154,17 @@ func (s *Server) access(next http.Handler) http.Handler {
 		}
 		if g := s.grantFor(secret); g != nil { // a Controller add-on's connection
 			if need != scopeAny && !g.Has(need) {
+				if r.Method != http.MethodGet && !mcp {
+					s.Keys.Audit(g, clientIP(r), r.Method+" "+r.URL.Path, "denied: needs "+need)
+				}
 				fail(w, 403, "this add-on connection does not have the "+need+" permission")
 				return
 			}
 			if r.Method != http.MethodGet && !mcp {
-				s.Keys.Audit(g, clientIP(r), r.Method+" "+r.URL.Path, "ok")
+				sw := &statusWriter{ResponseWriter: w, code: 200}
+				next.ServeHTTP(sw, r.WithContext(context.WithValue(r.Context(), keyCtx, g)))
+				s.Keys.Audit(g, clientIP(r), r.Method+" "+r.URL.Path, http.StatusText(sw.code))
+				return
 			}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), keyCtx, g)))
 			return

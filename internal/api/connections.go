@@ -25,16 +25,19 @@ func (s *Server) connectionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/connections/{id}", s.updateConnection)
 	mux.HandleFunc("DELETE /api/connections/{id}", s.deleteConnection)
 	mux.HandleFunc("POST /api/connections/test", s.testConnection)
+	// ?conn=<id>: a widget field's options, asked of that connection
+	// first (WIDGETS-V2.md v2.1); without it, the add-on-wide source.
 	mux.HandleFunc("GET /api/connections/options/{addon}/{name}", func(w http.ResponseWriter, r *http.Request) {
 		o := []addon.Option{}
-		if s.Addons != nil {
-			if got := s.Addons.Options(r.PathValue("addon"), r.PathValue("name")); got != nil {
-				o = got
-			}
+		if got := s.options(r, r.PathValue("addon"), r.PathValue("name"), r.URL.Query().Get("conn")); got != nil {
+			o = got
 		}
 		writeJSON(w, 200, o)
 	})
 	mux.HandleFunc("GET /api/connections/{id}/state", s.connectionState)
+	// GET /api/connections/{id}/res/{path...}, registered as a catch-all
+	// because that pattern would collide with options/{addon}/{name}.
+	mux.HandleFunc("GET /api/connections/{id}/{rest...}", s.connectionResource)
 	mux.HandleFunc("POST /api/connections/{id}/actions/{action}", s.connectionAction)
 }
 
@@ -168,7 +171,7 @@ func (s *Server) toConnection(b connBody, prev *devices.Connection) (devices.Con
 	}
 	for _, f := range t.Fields {
 		if f.Required {
-			if v, ok := cfg[f.Key]; !ok || v == nil || v == "" {
+			if v, ok := cfg[f.Key]; !ok || emptyValue(v) {
 				return c, fmt.Errorf("%s is required", f.Label)
 			}
 		}
@@ -184,6 +187,23 @@ func (s *Server) toConnection(b connBody, prev *devices.Connection) (devices.Con
 	}
 	c.Config = raw
 	return c, nil
+}
+
+// emptyValue reports whether a field value counts as not given: null,
+// "", or an empty list / object (a required scopes, multi-select, order
+// or notes field with nothing picked is missing).
+func emptyValue(v any) bool {
+	switch v := v.(type) {
+	case nil:
+		return true
+	case string:
+		return v == ""
+	case []any:
+		return len(v) == 0
+	case map[string]any:
+		return len(v) == 0
+	}
+	return false
 }
 
 // apply saves the file and swaps the live set.
@@ -371,6 +391,18 @@ func (s *Server) testConnection(w http.ResponseWriter, r *http.Request) {
 			if m, ok := out.(map[string]any); ok && m["detail"] != nil {
 				res["detail"] = m["detail"]
 			}
+		case addon.CapTool: // a general add-on: it answers when asked for its state
+			res["ok"], res["detail"] = true, "Connected"
+			if st, ok := impl.(addon.Stater); ok {
+				m, err := st.AddonState(ctx)
+				if err != nil {
+					res["ok"], res["error"] = false, err.Error()
+					break
+				}
+				if d, ok := m["detail"].(string); ok && d != "" {
+					res["detail"] = d
+				}
+			}
 		case addon.CapMixer:
 			id, err := impl.(devices.Mixer).Probe(ctx)
 			if err != nil {
@@ -401,7 +433,18 @@ func (s *Server) connectionState(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := short(r)
 	defer cancel()
-	st, err := addon.Dispatch(ctx, l.Impl, "addon.state", nil)
+	// ?widget=<dashboard widget id>[&dash=<dashboard id>]: that widget's
+	// settings go to the add-on (v2.1), so it can send only what it shows.
+	var params json.RawMessage
+	if wid := r.URL.Query().Get("widget"); wid != "" {
+		if set, ok := s.widgetSettings(l, wid, r.URL.Query().Get("dash")); ok {
+			params = mustJSON(addon.StateParams{Settings: set})
+		}
+	}
+	st, err := addon.Dispatch(ctx, l.Impl, "addon.state", params)
+	if err == nil {
+		st, err = rewriteRes(l.ID, st) // "res:…" → this connection's res route
+	}
 	if err != nil {
 		writeJSON(w, 200, map[string]any{"error": err.Error()})
 		return

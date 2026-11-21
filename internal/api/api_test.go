@@ -72,7 +72,8 @@ func setup(t *testing.T) *env {
 	}
 	reg := cams.New(ctx, dataDir, quiet)
 	t.Cleanup(reg.Close)
-	gw := &video.Gateway{Dir: filepath.Join(dataDir, "video"), Log: quiet}
+	// API: never the real gateway port (a running jadeck's MediaMTX may own it).
+	gw := &video.Gateway{Dir: filepath.Join(dataDir, "video"), Log: quiet, API: "127.0.0.1:1"}
 	ms, err := macros.OpenStore(filepath.Join(t.TempDir(), "m.db"))
 	if err != nil {
 		t.Fatal(err)

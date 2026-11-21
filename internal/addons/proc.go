@@ -218,6 +218,10 @@ func (p *proc) call(ctx context.Context, method string, params, out any) error {
 				return fmt.Errorf("%s: %w", m.Error.Message, addon.ErrNotConfigured)
 			case addon.CodeUnknownAction:
 				return fmt.Errorf("%s: %w", m.Error.Message, addon.ErrUnknownAction)
+			case addon.CodeNoResources:
+				return addon.ErrNoResources
+			case addon.CodeNotFound:
+				return fmt.Errorf("%s: %w", m.Error.Message, addon.ErrNotFound)
 			}
 			return errors.New(m.Error.Message)
 		}

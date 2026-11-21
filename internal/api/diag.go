@@ -113,7 +113,7 @@ func (s *Server) diagSnapshot(r *http.Request) map[string]any {
 	out["bandwidth"] = s.videoStats()
 	if s.Video != nil {
 		vs := s.Video.Status()
-		out["video"] = map[string]any{"settings": set.Video, "state": vs.State, "error": vs.Error, "version": vs.Version, "paths": vs.Paths, "log": vs.Log}
+		out["video"] = map[string]any{"settings": set.Video.Redacted(), "state": vs.State, "error": vs.Error, "version": vs.Version, "paths": vs.Paths, "log": vs.Log}
 	}
 	out["system"] = map[string]any{"port": set.System.Port, "portLocked": s.PortLocked, "name": set.System.Name,
 		"trustLan": set.System.TrustLAN, "trustedCidrs": set.System.TrustedCIDRs, "channel": set.System.Channel,

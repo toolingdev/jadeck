@@ -47,7 +47,7 @@ func (s *Server) GrantAddon(c devices.Connection, scopes []string) addon.Control
 	if old, ok := s.grants.byConn[c.ID]; ok {
 		delete(s.grants.byToken, old)
 	}
-	s.grants.byToken[token] = &auth.Key{Name: c.Name + " (add-on)", Scopes: can, Enabled: true}
+	s.grants.byToken[token] = &auth.Key{Name: c.Name + " (add-on)", Scopes: can, Enabled: true, Conn: c.ID}
 	s.grants.byConn[c.ID] = token
 	s.grants.mu.Unlock()
 	port := 8080

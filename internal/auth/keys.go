@@ -39,6 +39,7 @@ var Scopes = []Scope{
 	{"macros.edit", "Edit macros", "Create, change, import and delete macros."},
 	{"stage", "Stage messages", "Read and send stage messages, replies and timers."},
 	{"schedule", "Schedule actions", "See, add and cancel scheduled actions (each step still needs its own permission)."},
+	{"feeds", "Manage video feeds", "Add, change and remove video feeds and see their sender keys. An add-on can change only the feeds it added."},
 	{"addons", "Add-on actions", "Read add-on state and run add-on actions (e.g. Proclaim service items)."},
 	{"addons.admin", "Manage add-ons", "List add-ons and connections, read add-on logs, load an add-on folder in dev mode, restart add-ons (for agents that build add-ons)."},
 	{"update.apply", "Apply updates", "Check for and apply signed app updates."},
@@ -64,6 +65,9 @@ type Key struct {
 	LastUsedAt *string  `json:"lastUsedAt"`
 	LastIP     *string  `json:"lastIp"`
 	RevokedAt  *string  `json:"revokedAt"`
+	// Conn is the add-on connection a Controller add-on's token belongs
+	// to ("" for API keys).
+	Conn string `json:"-"`
 }
 
 // Active is enabled and not revoked.

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -54,9 +55,10 @@ type state struct {
 
 // Host runs add-ons.
 type Host struct {
-	log       *slog.Logger
-	dir       string                // DataDir/addons
-	inProcess map[string]addon.Spec // tests: add-ons run inside this process
+	log         *slog.Logger
+	dir         string                // DataDir/addons
+	inProcess   map[string]addon.Spec // tests: add-ons run inside this process
+	inProcessUI map[string]fs.FS      // tests: their ui/ files
 
 	mu    sync.Mutex
 	procs map[string]*proc
@@ -72,6 +74,8 @@ type Host struct {
 
 	// OnChanged is called when an add-on says a connection's state changed.
 	OnChanged func(conn string)
+
+	warned sync.Map // "id@version/type" → widgets of unknown kinds already logged
 }
 
 // New makes a host. dir holds installed add-ons and the host's state.
@@ -130,8 +134,8 @@ func (h *Host) installed(id string) (addon.Manifest, string, bool) {
 	if err != nil {
 		return addon.Manifest{}, "", false
 	}
-	var m addon.Manifest
-	if json.Unmarshal(b, &m) != nil || m.ID != id || m.Validate() != nil {
+	m, err := h.parseManifest(b)
+	if err != nil || m.ID != id {
 		return addon.Manifest{}, "", false
 	}
 	if _, err := os.Stat(filepath.Join(d, exeName())); err != nil {
@@ -148,7 +152,7 @@ func (h *Host) resolve(id string) (resolved, bool) {
 	devs := append([]devAddon(nil), h.st.Dev...)
 	h.mu.Unlock()
 	for _, d := range devs {
-		if m, err := readManifest(d.Path); err == nil && m.ID == id {
+		if m, err := h.readManifest(d.Path); err == nil && m.ID == id {
 			return resolved{m: m, source: "dev", argv: d.Command, dir: d.Path}, true
 		}
 	}
@@ -158,16 +162,33 @@ func (h *Host) resolve(id string) (resolved, bool) {
 	return resolved{}, false
 }
 
-func readManifest(dir string) (addon.Manifest, error) {
-	var m addon.Manifest
+func (h *Host) readManifest(dir string) (addon.Manifest, error) {
 	b, err := os.ReadFile(filepath.Join(dir, "addon.json"))
 	if err != nil {
-		return m, err
+		return addon.Manifest{}, err
 	}
+	return h.parseManifest(b)
+}
+
+// parseManifest reads addon.json. Widgets of kinds this controller
+// doesn't know (an add-on made for a newer one) are left out with a
+// warning instead of refusing the add-on; apiVersion 1 and 2 are accepted.
+func (h *Host) parseManifest(b []byte) (addon.Manifest, error) {
+	var m addon.Manifest
 	if err := json.Unmarshal(b, &m); err != nil {
 		return m, err
 	}
+	h.warnDropped(m.ID, m.Version, m.DropUnknownWidgets())
 	return m, m.Validate()
+}
+
+func (h *Host) warnDropped(id, version string, dropped []addon.WidgetDef) {
+	for _, w := range dropped {
+		if _, seen := h.warned.LoadOrStore(id+"@"+version+"/"+w.Type, true); seen || h.log == nil {
+			continue
+		}
+		h.log.Warn("add-on widget left out: this controller doesn't know its kind", "addon", id, "version", version, "widget", w.Type, "kind", w.Kind)
+	}
 }
 
 // ids lists every known add-on id.
@@ -189,7 +210,7 @@ func (h *Host) ids() []string {
 	}
 	h.mu.Lock()
 	for _, d := range h.st.Dev {
-		if m, err := readManifest(d.Path); err == nil {
+		if m, err := h.readManifest(d.Path); err == nil {
 			set[m.ID] = true
 		}
 	}
@@ -467,7 +488,7 @@ func (h *Host) LoadDev(path string, command []string) (addon.Manifest, error) {
 	if err != nil {
 		return addon.Manifest{}, err
 	}
-	m, err := readManifest(path)
+	m, err := h.readManifest(path)
 	if err != nil {
 		return m, fmt.Errorf("%s: %w", path, err)
 	}
@@ -477,7 +498,7 @@ func (h *Host) LoadDev(path string, command []string) (addon.Manifest, error) {
 	h.mu.Lock()
 	var keep []devAddon
 	for _, d := range h.st.Dev {
-		if dm, err := readManifest(d.Path); d.Path != path && (err != nil || dm.ID != m.ID) {
+		if dm, err := h.readManifest(d.Path); d.Path != path && (err != nil || dm.ID != m.ID) {
 			keep = append(keep, d)
 		}
 	}
@@ -493,7 +514,7 @@ func (h *Host) UnloadDev(id string) error {
 	h.mu.Lock()
 	var keep []devAddon
 	for _, d := range h.st.Dev {
-		if m, err := readManifest(d.Path); err != nil || m.ID != id {
+		if m, err := h.readManifest(d.Path); err != nil || m.ID != id {
 			keep = append(keep, d)
 		}
 	}
