@@ -131,6 +131,7 @@ func TestOldMessageWidgetsBecomeCue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s.Close() // Windows can't delete the temp dir while the file is open
 	got, _ := s.Get(d.ID)
 	if len(got.Widgets) != 2 || len(got.Layout) != 2 {
 		t.Fatalf("display + reply pad merged into one: %+v", got.Widgets)
