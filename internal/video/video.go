@@ -107,6 +107,18 @@ type Gateway struct {
 	cmd        *exec.Cmd
 	stats      statsState
 	repeats    map[string]*repeat
+
+	// verify-and-repair (verify.go): the settings last applied, and a
+	// nudge for the checker
+	writeMu  sync.Mutex // one config writer at a time (Apply, the verifier)
+	expect   *settings.Settings
+	verifyCh chan struct{}
+	settle   time.Duration                  // wait after a write before checking (default verifySettle)
+	render   func(settings.Settings) string // tests: the config file's text (default Config)
+
+	// refused publishers (refused.go)
+	refused   []Refusal
+	senderIPs map[string]senderSeen
 }
 
 type repeat struct {
@@ -146,6 +158,16 @@ func (g *Gateway) init() {
 	if g.kick == nil {
 		g.kick = make(chan struct{}, 1)
 	}
+	if g.verifyCh == nil {
+		g.verifyCh = make(chan struct{}, 1)
+	}
+}
+
+func (g *Gateway) logger() *slog.Logger {
+	if g.Log == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+	return g.Log
 }
 
 func (g *Gateway) poke() {
@@ -337,24 +359,46 @@ func Config(s settings.Settings) string {
 }
 
 // Apply writes the config and starts/stops the gateway to match s.
-// A running MediaMTX reloads its config file on its own.
+// A running MediaMTX reloads its config file on its own, but its file
+// watcher ignores a change within a second of the last one it acted on
+// (two feeds added back to back), so the running config is checked
+// afterwards and repaired when it missed one (verify.go).
 func (g *Gateway) Apply(s settings.Settings) error {
+	g.writeMu.Lock()
 	g.mu.Lock()
 	g.init()
 	g.want = s.Video.Managed
+	cp := s
+	g.expect = &cp
 	g.mu.Unlock()
+	err := g.writeConfig(s)
+	g.writeMu.Unlock()
+	if err != nil {
+		return err
+	}
+	g.poke()
+	g.pokeVerify()
+	return nil
+}
+
+// configText is the config file's text for s.
+func (g *Gateway) configText(s settings.Settings) string {
+	if g.render != nil {
+		return g.render(s)
+	}
+	return Config(s)
+}
+
+// writeConfig writes s's gateway config file (atomically).
+func (g *Gateway) writeConfig(s settings.Settings) error {
 	if err := os.MkdirAll(g.Dir, 0o755); err != nil {
 		return err
 	}
 	tmp := g.configPath() + ".tmp"
-	if err := os.WriteFile(tmp, []byte(Config(s)), 0o600); err != nil { // may hold camera logins
+	if err := os.WriteFile(tmp, []byte(g.configText(s)), 0o600); err != nil { // may hold camera logins
 		return err
 	}
-	if err := os.Rename(tmp, g.configPath()); err != nil {
-		return err
-	}
-	g.poke()
-	return nil
+	return os.Rename(tmp, g.configPath())
 }
 
 func (g *Gateway) setState(st, err string) {
@@ -364,6 +408,7 @@ func (g *Gateway) setState(st, err string) {
 }
 
 func (g *Gateway) addLog(line string) {
+	g.NoteLogLine(line) // a sender refused (refused.go)
 	// Into the app's log too: problems as warnings, the rest at debug.
 	// The same message repeating (a camera that's off, retried every few
 	// seconds) is written once a minute with a count, not every time.
@@ -438,6 +483,7 @@ func (g *Gateway) Run(ctx context.Context) {
 	g.mu.Unlock()
 	g.killOrphan()
 	g.unpack()
+	go g.verifyLoop(ctx)
 	backoff := time.Second
 	for ctx.Err() == nil {
 		g.mu.Lock()
@@ -520,11 +566,15 @@ func (g *Gateway) runOnce(ctx context.Context, bin string) error {
 		case <-ready.C:
 			if _, err := g.apiPaths(); err == nil {
 				g.mu.Lock()
-				if g.state == "starting" {
+				started := g.state == "starting"
+				if started {
 					g.state = "running"
 					g.Log.Info("stream gateway running", "version", Version)
 				}
 				g.mu.Unlock()
+				if started {
+					g.pokeVerify() // a change written while it was starting may have been missed
+				}
 			}
 		}
 	}

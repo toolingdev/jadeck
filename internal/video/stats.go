@@ -89,6 +89,7 @@ func (g *Gateway) sampleStats(ctx context.Context) {
 		case <-t.C:
 			if s, err := collect(); err == nil {
 				g.stats.apply(s)
+				g.noteSenders(g.Stats().Senders, s.at)
 			}
 		}
 	}

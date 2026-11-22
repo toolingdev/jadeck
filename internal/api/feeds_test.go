@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"ptz/internal/devices"
 	"ptz/internal/settings"
@@ -204,5 +205,31 @@ func TestFeedKeysMigrate(t *testing.T) {
 	}
 	if strings.Contains(js(st.Get().Video.Redacted()), p.Key) {
 		t.Fatal("Redacted shows a key")
+	}
+}
+
+// A sender the gateway turned away shows on the feed it was meant for.
+func TestFeedsLastRefused(t *testing.T) {
+	e := setup(t)
+	if code, r, _ := e.do(t, "POST", "/api/feeds", map[string]any{"name": "Program", "source": "push"}); code != 200 {
+		t.Fatalf("add: %d %v", code, r)
+	}
+	if code, r, _ := e.do(t, "POST", "/api/feeds", map[string]any{"name": "Lobby", "source": "pull", "url": "rtsp://10.0.0.5/1"}); code != 200 {
+		t.Fatalf("add: %d %v", code, r)
+	}
+	_, l, _ := e.do(t, "GET", "/api/feeds", nil)
+	if st, _ := feedByID(l, "program")["status"].(map[string]any); st != nil && st["lastRefused"] != nil {
+		t.Fatalf("refused before any sender: %v", st)
+	}
+	at := time.Now().Add(-time.Minute).Format("2006/01/02 15:04:05")
+	e.srv.Video.NoteLogLine(at + " INF [SRT] [conn 192.168.1.50:61000] closed: failed to authenticate: authentication failed")
+	_, l, _ = e.do(t, "GET", "/api/feeds", nil)
+	st, _ := feedByID(l, "program")["status"].(map[string]any)
+	rf, _ := st["lastRefused"].(map[string]any)
+	if rf == nil || rf["reason"] != "key" || rf["remote"] != "192.168.1.50" || rf["at"] == nil {
+		t.Fatalf("program status: %v", st)
+	}
+	if st, _ := feedByID(l, "lobby")["status"].(map[string]any); st != nil && st["lastRefused"] != nil {
+		t.Fatalf("a pulled feed shows a refused sender: %v", st)
 	}
 }

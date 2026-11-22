@@ -114,10 +114,31 @@ func (s *Server) listFeeds(w http.ResponseWriter, r *http.Request) {
 		out = append(out, map[string]any{"id": "cam:" + c.ID, "name": c.Name, "source": "camera", "enabled": c.Video,
 			"detail": "RTSP pull from the camera · HD + SD, chosen per screen", "status": stats[video.PathHD(c.ID)]})
 	}
+	// senders the gateway turned away (wrong key, unknown path), per push feed
+	var refused map[string]video.Refusal
+	if s.Video != nil {
+		var push []string
+		online := map[string]bool{}
+		for _, f := range set.Video.Feeds {
+			if f.Source == "push" {
+				push = append(push, f.ID)
+				online[f.ID], _ = stats[f.ID]["online"].(bool)
+			}
+		}
+		refused = s.Video.Refused(push, online)
+	}
 	for _, f := range set.Video.Feeds {
 		var st map[string]any
 		if m, ok := stats[f.ID]; ok {
 			st = m
+		}
+		if rf, ok := refused[f.ID]; ok {
+			if on, _ := st["online"].(bool); !on {
+				if st == nil {
+					st = map[string]any{"online": false}
+				}
+				st["lastRefused"] = rf
+			}
 		}
 		out = append(out, s.feedView(r, f, st))
 	}
