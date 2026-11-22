@@ -4,9 +4,10 @@
   "type": "module",
   "description": "Multi-device tests against a running jadeck + ptzsim (see README.md)",
   "scripts": {
-    "test": "playwright test; s=$?; node make-report.mjs; exit $s",
+    "test": "playwright test --grep-invert \"widget sizes\"; s=$?; node make-report.mjs; exit $s",
     "flow": "playwright test service.spec.ts",
     "sweep": "playwright test sweep.spec.ts",
+    "sizes": "playwright test sizes.spec.ts --workers 8",
     "report": "node make-report.mjs"
   },
   "devDependencies": {

@@ -29,3 +29,4 @@ auto.key
 e2e/node_modules/
 e2e/report/
 e2e/results/
+e2e/out/
