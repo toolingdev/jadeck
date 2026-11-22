@@ -242,8 +242,74 @@ confirm pop-ups and no second tap. Mock: `design/hold-button-mock.png`.
   colour, sub line "HOLD n S · <sub>"; held: `holdLabel` or "Keep holding…"
   and "STOPS IN n S" / "STARTS IN n S" / "SENDS IN n S"). Settings →
   Add-ons has a "Try it" card that sends nothing.
-- **Frames:** frames use the same pattern. Each add-on's ui kit gets a
-  `holdButton()` helper that follows these timings and visuals.
+- **Frames:** frames use the same pattern. The shared frame kit (below)
+  has `JK.holdButton()` and `JK.hold()` with these timings and visuals; a
+  frame that doesn't use the kit should follow them by hand.
 - **The add-on still decides:** the host never sends a held action early.
   Add-ons may also require a `confirmed: true` param for these actions as
   a second safety.
+
+## Shared frame kit (recommended, optional)
+
+jadeck serves a small set of standard controls for frame widgets, so add-ons
+that use them look and behave like jadeck's own widgets and like each other
+(WIDGETS.md §6): the same buttons, hold-to-confirm, faders, knobs and meters
+in every add-on, without each one carrying its own copy.
+
+**It's optional.** Nothing requires it: the frame CSP, the bridge and the
+manifest are the same with or without it, and a frame that doesn't load it
+works exactly as before. Third-party add-ons may use it, copy from it, or
+ignore it. jadeck's own add-ons (vMix, Behringer WING, Proclaim and later
+ones) use it.
+
+**Loading it.** Two files, served by the host, embedded in the binary:
+
+```html
+<link rel="stylesheet" href="/api/kit/v1/kit.css">
+<!-- your own CSS after it -->
+<body class="jk">
+  <header></header>
+  …
+  <script src="/api/kit/v1/kit.js"></script>
+  <!-- your scripts after it -->
+</body>
+```
+
+- Route `GET /api/kit/{path}` (`internal/api/framekit.go`, files in
+  `internal/api/kit/v1/`). Same origin as the frame's own files, so the
+  frame CSP (`script-src 'self'`, `style-src 'self'`) already allows it.
+  No data in it, so no key is needed.
+- Cache: `public, max-age=3600` plus an ETag; a jadeck update reaches
+  frames within the hour.
+- Versioned by path. `v1` only changes compatibly (new functions, new
+  options, visual fixes). A breaking change is `/api/kit/v2/`, served next
+  to v1. `JK.version` says which build you got.
+- Needs jadeck 0.6 or later. On an older jadeck the files 404; a frame can
+  check `window.JK` and say "needs a newer jadeck" (our add-ons do).
+
+**What it is.** Plain ES5-style JS (no framework, no build step) that adds
+`window.JK`, and CSS whose classes all start with `jk-`. It does not talk
+to the host: keep your own bridge (postMessage) and pass callbacks in.
+From the bridge, call `JK.theme(init.theme)` (and on `theme`) and
+`JK.setEditing(init.editing)`.
+
+| API | What it draws |
+|-----|---------------|
+| `body.jk` | The frame as a column (8 px padding, 8 px gap), dark, the core font stack and colours. Before init the core theme defaults apply. |
+| `JK.header({title, status, source, note, right})` → `{el, set(o), note(text, bad), right}` | The core widget header: 13 px bold title · status dot (`live` pulses: on air only; `on`, `ok`, `warn`, `bad`) · SOURCE in small caps · a note (dim, or red when bad) · right context in small caps or any node. `title` may be a node (e.g. a picker). Uses the page's first `<header>`. |
+| `JK.button({label, sub, tone, active, disabled, title, onClick})` | Raised button; colour is state only: `tone` `pgm` red, `pvw` green, `accent` / `active` amber, `disabled` flat and dim. Optional second line. `onClick` may return a promise (busy until it settles). `btn.set({...})` changes it. Ignored while editing. |
+| `JK.holdButton({label, sub, holdLabel, seconds = 5, tone = "pgm", verb, active, disabled, onFire})` | Hold to confirm, as the core HoldButton: fill + shimmer, countdown ("STOPS IN 3 S", verb from the label's first word or `verb`), drains on let-go or slide-off, fires once, vibrates, Space/Enter held. |
+| `JK.hold(el, {seconds, tone, onProgress, onCancel, onFire})` | The same behaviour on any element (e.g. a picture tile). `JK.holds` counts holds in progress; `JK.onIdle()` runs when it drops to 0, so a frame can put off redrawing under a finger. |
+| `JK.grid(parent, {columns})` → `{el, layout()}` and `JK.fitGrid(n, w, h, cols, longest)` | Auto-fit button grid, the core buttons widget's rules: near-square buttons, rows 48–160 px, labels 13.5–19 px; shrinks (34 px rows) before it scrolls. |
+| `JK.segmented({options: [{value, label}], value, onChange})` | Segmented control / tabs; `el.set(value, options)`. |
+| `JK.lock({relockMs = 30000, onChange})` → `{el, locked, set, touch}` | "LOCKED · TAP TO EDIT" chip for fine controls; locks again after the last touch and whenever the board goes into edit mode. |
+| `new JK.Knob(parent, {size, color, bipolar, label, def})` | 270° ring knob (WIDGETS.md §6). Drag or wheel; Shift / two fingers fine; double-tap resets to `def`. `onTurn(pos, final)`, `set(pos, text)`, `show(text)`, `setDisabled(d)`. Colours `JK.knobColors.gain/filter/freq`. Pair with `JK.lock`. |
+| `new JK.Strip(parent, opts)` | The console fader strip (design/wing-polished.svg): colour band, tag + ST chip, name, optional gain knob (or NO PREAMP), dB scale, recessed rail, metallic cap, LED meter hugging the cap (L/R for stereo), level pill, MUTE (and "MUTED BY …") + S. Options: `law`, `width`/`height` (narrow / short / compact variants), `fader`, `scale`, `meter`, `readout`, `mute`, `solo`, `gain {min, max, step, edit, title}`, `canWrite()`, `onLevel(db, final)`, `onMute()`, `onSolo()`, `onGain(db, final)`. `strip.set({tag, name, color, stereo, db, edb, muted, emuted, mutedBy, solo, soloable, gain, l, r})`; `strip.fit()` after a resize. Fader: relative drag, fine with Shift / two fingers, double-tap = 0 dB, arrow keys; at most ~7 sends a second plus one on release; keeps the finger's value 1.5 s. |
+| `JK.stripLayout(w, h, n, opts)` → `{rows, cols, shown, rowH, colW}`, `JK.stripGrid(box, L)` | Lays strips out: one row when it fits, rows when tall, 56–160 px wide, the rest counted as "more" (never squeezed or scrolled). Container class `jk-strips`. |
+| `JK.law(points, ticks, {hot, warm})`, `JK.laws.console` | Fader laws (dB ↔ travel). `console` is +10 at the top, 0 dB at 78 %. Any `{toPos, toDb, ticks, hot, warm}` object works (vMix uses its own volume law). |
+| `JK.led(canvas, [{level, peak}], {segs, law})`, `JK.peaks()` | Segmented LED meter along the fader scale (green / amber from `warm` / red from `hot`, peak-hold square, unlit `#1C2128`); peak hold 1.5 s. |
+| `jk-ro`, `jk-tag pgm/pvw`, `jk-dot`, `jk-smallcaps`, `jk-card`, `jk-empty`, `jk-fill`, `jk-live` | Readout pill, PGM/PVW tags, status dot, small caps, card surface, empty message, flex filler, and "not while editing" (`jk-live` stops taking the pointer in edit mode). |
+
+Not in the kit: the camera joystick (it's jadeck core's and stays there)
+and anything device-specific (protocols, parameter names, layouts beyond
+the strip grid).

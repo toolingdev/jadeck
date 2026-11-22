@@ -33,7 +33,7 @@ func scopeFor(method, path string) string {
 	has := func(p string) bool { return strings.HasPrefix(path, p) }
 	switch {
 	case path == "/" || path == "/dashboard" || has("/dashboard/") || path == "/settings" || has("/settings/") || path == "/setup" || has("/static/") || has("/assets/") ||
-		has("/legacy") || path == "/api/version" || path == "/sw.js" || path == "/manifest.webmanifest" || path == "/icon.svg":
+		has("/legacy") || has("/api/kit/") || path == "/api/version" || path == "/sw.js" || path == "/manifest.webmanifest" || path == "/icon.svg":
 		return scopePublic
 	case (has("/api/connections/") && (strings.HasSuffix(path, "/state") || strings.Contains(path, "/actions/") ||
 		(read && strings.Contains(path, "/res/")))):

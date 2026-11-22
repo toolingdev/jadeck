@@ -49,6 +49,7 @@ func TestScopeMapCoversEveryRoute(t *testing.T) {
 		"GET /api/addons/proclaim/ui/live.html":    scopeAny,
 		"POST /api/addons/proclaim/ui/live.html":   scopeTrusted,
 		"GET /api/addons/proclaim/log":             scopeTrusted,
+		"GET /api/kit/v1/kit.js":                   scopePublic,
 	}
 	for route, want := range cases {
 		m, p, _ := strings.Cut(route, " ")

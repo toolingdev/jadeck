@@ -172,6 +172,14 @@ Risky buttons can ask for **hold to confirm** (`hold` seconds on a
 button). The full reference is `design/WIDGETS-V2.md`; an add-on that
 needs `apiVersion` 2 refuses to start on an older controller.
 
+**Shared frame kit (recommended, optional).** A `frame` widget can load
+jadeck's standard controls from `/api/kit/v1/kit.css` and
+`/api/kit/v1/kit.js` (jadeck 0.6+): header, buttons, hold to confirm,
+segmented control, fader strip, knob with a tap-to-edit lock, LED meters
+and an auto-fit button grid that look and behave like jadeck's own
+widgets. Nothing requires it, and frames that don't load it work as
+before. See "Shared frame kit" in `design/WIDGETS-V2.md`.
+
 Every widget needs `sample` data. That's what the Add-ons screen draws as
 its preview, and `build` refuses a widget without it.
 
