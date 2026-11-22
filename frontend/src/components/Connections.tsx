@@ -111,11 +111,11 @@ function Row({ c, active, onEdit }: { c: Connection; active: boolean; onEdit: ()
 
 function Catalog({ addons, caps, onPick, bare }: { addons: Manifest[]; caps: Capability[]; onPick: (m: Manifest, t: ConnectionType) => void; bare?: boolean }) {
   const [q, setQ] = useState("");
-  const types = useMemo(() => addons.flatMap((m) => m.connectionTypes.map((t) => ({ m, t }))), [addons]);
+  const types = useMemo(() => addons.flatMap((m) => m.connectionTypes.filter((t) => !t.auto).map((t) => ({ m, t }))), [addons]);
   const match = ({ m, t }: { m: Manifest; t: ConnectionType }) => !q || `${m.name} ${t.label} ${t.description}`.toLowerCase().includes(q.toLowerCase());
   // An add-on with several tool types (Live chat: one per platform) gets
   // its own group, named after it.
-  const own = (m: Manifest) => m.connectionTypes.filter((t) => t.capabilities.includes("tool")).length > 1;
+  const own = (m: Manifest) => m.connectionTypes.filter((t) => !t.auto && t.capabilities.includes("tool")).length > 1;
   const groups = [
     ...caps.map((k) => ({ title: CAP_LABEL[k], items: types.filter((x) => !x.m.generic && x.t.capabilities.includes(k) && !(k === "tool" && own(x.m)) && match(x)) })),
     ...(caps.includes("tool") ? addons.filter(own).map((m) => ({ title: m.name, items: types.filter((x) => x.m === m && x.t.capabilities.includes("tool") && match(x)) })) : []),

@@ -6,7 +6,9 @@
 //               or the widget's settings change), {t:"state", state},
 //               {t:"size", size}, {t:"theme", theme},
 //               {t:"result", id, ok, error?, result?, blob?}
-// frame → host: {t:"action", id, name, params}, {t:"resource", id, path},
+// frame → host: {t:"action", id, name, params, via?}, {t:"resource", id, path},
+//               (via: the key of one of the widget's "connection" fields;
+//               the action then runs on that connection, e.g. vMix)
 //               {t:"log", text}, {t:"ready"}
 //
 // Pure helpers here (no React) so the checks are easy to read and reuse.
@@ -22,7 +24,7 @@ export type ReqId = string | number;
 export type FromFrame =
   | { t: "ready" }
   | { t: "log"; text: string }
-  | { t: "action"; id: ReqId; name: string; params: Record<string, unknown> }
+  | { t: "action"; id: ReqId; name: string; params: Record<string, unknown>; via?: string }
   | { t: "resource"; id: ReqId; path: string };
 
 const isId = (v: unknown): v is ReqId => (typeof v === "string" && v.length > 0 && v.length <= 64) || (typeof v === "number" && Number.isFinite(v));
@@ -45,7 +47,8 @@ export function parseFromFrame(data: unknown): FromFrame | { bad: string; id?: R
       let size = 0;
       try { size = JSON.stringify(params).length; } catch { return { bad: "params must be plain JSON", id: data.id }; }
       if (size > MAX_PARAMS_BYTES) return { bad: "params too big", id: data.id };
-      return { t: "action", id: data.id, name: data.name, params };
+      if (data.via !== undefined && (typeof data.via !== "string" || !data.via || data.via.length > 64)) return { bad: "via must be a field key", id: data.id };
+      return { t: "action", id: data.id, name: data.name, params, ...(data.via ? { via: data.via as string } : {}) };
     }
     case "resource":
       if (!isId(data.id)) return { bad: "resource needs an id" };

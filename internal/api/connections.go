@@ -111,8 +111,12 @@ func (s *Server) connView(l *devices.Live) map[string]any {
 }
 
 func (s *Server) listConnections(w http.ResponseWriter, r *http.Request) {
+	s.ensureAutoConnections()
 	out := []map[string]any{}
 	for _, l := range s.Devs().Conns {
+		if s.isAuto(l.Connection) {
+			continue // the controller's own (auto types): not shown in Settings
+		}
 		out = append(out, s.connView(l))
 	}
 	writeJSON(w, 200, map[string]any{"connections": out, "path": s.DevicesPath})
@@ -213,10 +217,18 @@ func emptyValue(v any) bool {
 
 // apply saves the file and swaps the live set.
 func (s *Server) applyConnections(w http.ResponseWriter, f *devices.File, what string) bool {
+	if err := s.saveAndOpen(f, what); err != nil {
+		fail(w, 500, "could not save: "+err.Error())
+		return false
+	}
+	return true
+}
+
+// saveAndOpen writes the connections file and opens the new set.
+func (s *Server) saveAndOpen(f *devices.File, what string) error {
 	if s.DevicesPath != "" {
 		if err := WriteDevices(s.DevicesPath, f); err != nil {
-			fail(w, 500, "could not save: "+err.Error())
-			return false
+			return err
 		}
 	}
 	// Close the old set first (a MIDI port can only be open once).
@@ -233,7 +245,7 @@ func (s *Server) applyConnections(w http.ResponseWriter, f *devices.File, what s
 	s.devMu.Unlock()
 	s.pruneGrants(f)
 	s.Log.Info("connections "+what, "count", len(f.Connections))
-	return true
+	return nil
 }
 
 func (s *Server) createConnection(w http.ResponseWriter, r *http.Request) {

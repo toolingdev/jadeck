@@ -4,13 +4,17 @@ import { useShared } from "@/lib/hooks";
 
 export type Opt = { value: string; label: string };
 export type Field = {
-  key: string; label: string; type: "text" | "number" | "select" | "bool" | "notes" | "json" | "password" | "scopes" | "textarea" | "order" | "action";
+  key: string; label: string; type: "text" | "number" | "select" | "bool" | "notes" | "json" | "password" | "scopes" | "textarea" | "order" | "action" | "connection";
   default?: unknown; placeholder?: string; help?: string; required?: boolean; advanced?: boolean;
   min?: number; max?: number; options?: Opt[]; optionsFrom?: string; keys?: string[];
   /** select only (v2.1): pick several; the value is a string array. "order" is always a string array. */
   multiple?: boolean;
   /** "action" fields (connection forms): the connection action the button runs. */
   action?: string;
+  /** "connection" fields (widget settings): which connections to offer. */
+  addon?: string; capability?: string;
+  /** Widget fields: the key of a "connection" field whose connection answers optionsFrom. */
+  optionsConn?: string;
 };
 /** What an action field's action answers (SDK ActionFieldResult). */
 export type ActionResult = { text?: string; code?: string; url?: string; ok?: boolean; poll?: boolean; error?: string; button?: string };
@@ -23,6 +27,8 @@ export type ConnectionType = {
   needs?: string;
   /** The "How to set up" card above the fields. */
   guide?: Guide;
+  /** Made by the controller itself (one per add-on); never listed in Settings. */
+  auto?: boolean;
 };
 export type Guide = { minutes?: number; steps: { text: string; code?: string; link?: { label: string; url: string } }[]; note?: string };
 export type ActionDef = { id: string; label: string; description?: string; params?: Field[]; macroStep?: boolean };

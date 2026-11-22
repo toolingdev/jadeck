@@ -53,6 +53,7 @@ func testAddon() addon.Spec {
 				{ID: "pics", Label: "Test slides with pictures", Capabilities: []string{addon.CapSlides}, Fields: []addon.Field{}},
 				{ID: "console", Label: "Test console (v2.1)", Capabilities: []string{addon.CapSlides}, Fields: []addon.Field{}},
 				{ID: "tool", Label: "Test tool", Capabilities: []string{addon.CapTool}, Fields: []addon.Field{}},
+				{ID: "hub", Label: "Test hub", Capabilities: []string{addon.CapTool}, Auto: true},
 				{ID: "picky", Label: "Test required lists", Capabilities: []string{addon.CapTool}, Fields: []addon.Field{
 					{Key: "scopes", Label: "Permissions", Type: "scopes", Required: true},
 					{Key: "rooms", Label: "Rooms", Type: "select", Multiple: true, Required: true,
@@ -68,7 +69,8 @@ func testAddon() addon.Spec {
 					}}},
 		},
 		Open: map[string]addon.OpenFunc{
-			"sw": func(json.RawMessage) (any, error) { return fake.NewSwitcher(), nil },
+			"sw":  func(json.RawMessage) (any, error) { return fake.NewSwitcher(), nil },
+			"hub": func(json.RawMessage) (any, error) { return &toolGear{}, nil },
 			"slides": func(raw json.RawMessage) (any, error) {
 				var c struct{ Host, Password string }
 				json.Unmarshal(raw, &c)
@@ -299,5 +301,40 @@ func TestDevicesV1Migrates(t *testing.T) {
 	}
 	if f.Connections[2].Favorites[0].Label != "Main" || !strings.Contains(string(f.Connections[0].Config), "10.0.0.5") {
 		t.Fatalf("favorites/config lost: %+v", f.Connections)
+	}
+}
+
+// An auto connection type: the controller makes one by itself, lists it
+// for widgets (/api/devices) but not in Settings → Connections.
+func TestAutoConnection(t *testing.T) {
+	e := setup(t)
+	e.srv.DevicesPath = filepath.Join(t.TempDir(), "devices.json")
+	e.srv.SetDevices(&devices.File{Version: 2}, devices.Open(&devices.File{Version: 2}, e.srv.Addons.Open))
+	_, d, _ := e.do(t, "GET", "/api/devices", nil)
+	hubs := 0
+	for _, c := range d["connections"].([]any) {
+		if m := c.(map[string]any); m["addon"] == "testgear" && m["type"] == "hub" {
+			hubs++
+		}
+	}
+	if hubs != 1 {
+		t.Fatalf("want one auto hub connection in /api/devices, got %d: %v", hubs, d["connections"])
+	}
+	e.do(t, "GET", "/api/devices", nil) // asking again adds no second one
+	_, l, _ := e.do(t, "GET", "/api/connections", nil)
+	for _, c := range l["connections"].([]any) {
+		if c.(map[string]any)["type"] == "hub" {
+			t.Fatalf("an auto connection is listed in Settings: %v", c)
+		}
+	}
+	_, d, _ = e.do(t, "GET", "/api/devices", nil)
+	hubs = 0
+	for _, c := range d["connections"].([]any) {
+		if c.(map[string]any)["type"] == "hub" {
+			hubs++
+		}
+	}
+	if hubs != 1 {
+		t.Fatalf("auto connection duplicated: %d", hubs)
 	}
 }

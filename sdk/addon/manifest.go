@@ -56,6 +56,12 @@ type ConnectionType struct {
 	Needs string `json:"needs,omitempty"`
 	// Guide is the "How to set up" card above the connection's fields.
 	Guide *Guide `json:"guide,omitempty"`
+	// Auto (v0.5 SDK): the controller makes one connection of this type by
+	// itself while the add-on is on, and keeps it out of Settings →
+	// Connections and Add connection. For an add-on's own widgets that
+	// need no setup (they read the add-on's other connections). An Auto
+	// type has no fields.
+	Auto bool `json:"auto,omitempty"`
 }
 
 // Guide walks someone through what a connection needs, in plain steps,
@@ -371,6 +377,24 @@ func checkWidgetFields(w WidgetDef, bad func(string, ...any)) {
 		if (f.Type == FieldSelect || f.Type == FieldOrder) && len(f.Options) == 0 && f.OptionsFrom == "" {
 			bad("widget %s: field %s: a %s field needs options or optionsFrom", name, f.Key, f.Type)
 		}
+		if f.Type == FieldConnection && f.Addon == "" && f.Capability == "" {
+			bad("widget %s: field %s: a connection field needs addon or capability", name, f.Key)
+		}
+		if f.Type == FieldAction {
+			bad("widget %s: field %s: action fields are for connection forms", name, f.Key)
+		}
+	}
+	for _, f := range w.Fields {
+		if f.OptionsConn == "" {
+			continue
+		}
+		ok := false
+		for _, g := range w.Fields {
+			ok = ok || (g.Key == f.OptionsConn && g.Type == FieldConnection)
+		}
+		if !ok {
+			bad("widget %s: field %s: optionsConn %q names no connection field", name, f.Key, f.OptionsConn)
+		}
 	}
 	var walk func(where string, v any)
 	walk = func(where string, v any) {
@@ -410,6 +434,11 @@ const (
 	FieldScopes   = "scopes"
 	FieldTextarea = "textarea"
 	FieldOrder    = "order" // v2.1: an ordered pick from the options (a list of values)
+	// FieldConnection (widget fields only) picks one of the controller's
+	// connections, filtered by Field.Addon and/or Field.Capability; the
+	// value is its id. The widget's frame can run that connection's
+	// actions (bridge message "action" with "via": the field's key).
+	FieldConnection = "connection"
 	// FieldAction (connection forms only) is a button that runs the
 	// connection action named in Field.Action on the saved connection:
 	// a sign-in, a pairing. See ActionFieldResult.
@@ -435,7 +464,7 @@ type ActionFieldResult struct {
 }
 
 // FieldTypes lists every field type.
-var FieldTypes = []string{FieldText, FieldNumber, FieldSelect, FieldBool, FieldPassword, FieldNotes, FieldJSON, FieldScopes, FieldTextarea, FieldOrder, FieldAction}
+var FieldTypes = []string{FieldText, FieldNumber, FieldSelect, FieldBool, FieldPassword, FieldNotes, FieldJSON, FieldScopes, FieldTextarea, FieldOrder, FieldAction, FieldConnection}
 
 // KnownFieldType reports whether t is a field type.
 func KnownFieldType(t string) bool { return slices.Contains(FieldTypes, t) }
@@ -472,6 +501,14 @@ type Field struct {
 	Multiple bool `json:"multiple,omitempty"`
 	// Action (type "action" only): the connection action the button runs.
 	Action string `json:"action,omitempty"`
+	// Addon and Capability filter a "connection" field's choices (an
+	// add-on id such as "vmix"; a capability such as "switcher").
+	Addon      string `json:"addon,omitempty"`
+	Capability string `json:"capability,omitempty"`
+	// OptionsConn (widget fields): the key of a "connection" field whose
+	// connection answers OptionsFrom, instead of the widget's own one
+	// ("vmix.titles" from the vMix connection picked in field "vmix").
+	OptionsConn string `json:"optionsConn,omitempty"`
 }
 
 // Num is a helper for Field.Min / Max.
@@ -514,6 +551,9 @@ func (m Manifest) Validate() error {
 		seen[t.ID] = true
 		if len(t.Capabilities) == 0 {
 			bad("connection type %s has no capabilities", t.ID)
+		}
+		if t.Auto && len(t.Fields) > 0 {
+			bad("connection type %s: an auto type has no fields", t.ID)
 		}
 		for _, f := range t.Fields {
 			if f.Type == FieldAction && !actionRe.MatchString(f.Action) {

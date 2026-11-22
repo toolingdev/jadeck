@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { api } from "@/lib/api";
 import { refreshSharedAll } from "@/lib/hooks";
-import { fieldSettings } from "@/lib/addons";
+import { fieldSettings, useAddons } from "@/lib/addons";
+import { useShared } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { encodeResPath, statePath, str, type ShapeProps } from "./common";
 import {
@@ -28,8 +29,15 @@ export function FrameShape({ def, state, conn, s, editing, preview, manifest }: 
   // defaults, then what's saved with the widget (v2.1).
   const settings = useMemo(() => ({ ...(def.settings ?? {}), ...fieldSettings(def.fields, {}), ...s }), [def.settings, def.fields, s]);
   const declared = useMemo(() => new Map((manifest?.actions ?? []).map((a) => [a.id, a.label || a.id])), [manifest]);
-  const live = useRef({ state, settings, editing, conn, preview, declared, label: def.label });
-  live.current = { state, settings, editing, conn, preview, declared, label: def.label };
+  // "via": the widget's connection fields may point at other add-ons'
+  // connections (Live chat → vMix); their actions are checked against
+  // that add-on's own list.
+  const viaKeys = useMemo(() => new Set((def.fields ?? []).filter((f) => f.type === "connection").map((f) => f.key)), [def.fields]);
+  const { data: addonList } = useAddons();
+  const { data: devs } = useShared<{ connections: { id: string; name: string; addon: string }[] }>(viaKeys.size ? "/api/devices" : null, 10000);
+  const others = { addons: addonList?.addons ?? [], conns: devs?.connections ?? [] };
+  const live = useRef({ state, settings, editing, conn, preview, declared, label: def.label, viaKeys, others });
+  live.current = { state, settings, editing, conn, preview, declared, label: def.label, viaKeys, others };
 
   const io = useRef({ ready: false, state: "", size: "", theme: "", limits: {
     action: new RateLimit(MAX_ACTIONS_PER_SEC), resource: new RateLimit(MAX_RESOURCES_PER_SEC), log: new RateLimit(MAX_LOGS_PER_SEC),
@@ -76,6 +84,27 @@ export function FrameShape({ def, state, conn, s, editing, preview, manifest }: 
           if (!L.preview && io.current.limits.log.take()) log(who, `${L.label}: ${m.text}`);
           return;
         case "action": {
+          if (m.via) {
+            if (!L.viaKeys.has(m.via)) return reply(m.id, { ok: false, error: `“${m.via}” isn't a connection setting of this widget` });
+            const id = typeof L.settings[m.via] === "string" ? (L.settings[m.via] as string) : "";
+            const target = L.others.conns.find((c) => c.id === id);
+            if (!target) return reply(m.id, { ok: false, error: id ? "that connection was removed" : "no connection picked in this widget's settings" });
+            const acts = L.others.addons.find((a) => a.info.manifest.id === target.addon)?.info.manifest.actions ?? [];
+            const act = acts.find((a) => a.id === m.name);
+            if (!act) return reply(m.id, { ok: false, error: `“${m.name}” isn't one of ${target.name}'s actions` });
+            if (!io.current.limits.action.take()) return reply(m.id, { ok: false, error: "too many actions (10 a second at most)" });
+            if (L.editing) return reply(m.id, { ok: false, error: "the dashboard is being edited" });
+            if (L.preview) return reply(m.id, { ok: false, error: "preview: actions don't run" });
+            try {
+              const r = await api<unknown>(`/api/connections/${encodeURIComponent(target.id)}/actions/${encodeURIComponent(m.name)}`, "POST", m.params);
+              reply(m.id, { ok: true, result: r && typeof r === "object" && "result" in r ? (r as { result: unknown }).result : r });
+            } catch (err) {
+              const msg = (err as Error).message;
+              log(target.name, `${L.label}: ${act.label || act.id} failed — ${msg}`, false);
+              reply(m.id, { ok: false, error: msg });
+            }
+            return;
+          }
           if (!L.declared.has(m.name)) return reply(m.id, { ok: false, error: `“${m.name}” isn't one of this add-on's actions` });
           if (!io.current.limits.action.take()) return reply(m.id, { ok: false, error: "too many actions (10 a second at most)" });
           if (L.editing) return reply(m.id, { ok: false, error: "the dashboard is being edited" });

@@ -54,6 +54,7 @@ func errText(err error) string {
 }
 
 func (s *Server) devicesInfo(w http.ResponseWriter, r *http.Request) {
+	s.ensureAutoConnections()
 	d := s.Devs()
 	kind := func(cfg devices.DeviceConfig, live bool, err error) map[string]any {
 		return map[string]any{"driver": cfg.Driver, "label": cfg.Label, "configured": cfg.Driver != "", "ready": live, "error": errText(err)}

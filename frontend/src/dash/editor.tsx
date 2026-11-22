@@ -231,7 +231,7 @@ function FieldInput({ f, value, onChange, all }: { f: Field; value: unknown; onC
     return <ConnectionField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
   }
   if (f.type === "addon" && f.addonField) {
-    return <AddonFieldInput f={f} value={value} onChange={onChange} conn={typeof all.connection === "string" ? all.connection : ""} />;
+    return <AddonFieldInput f={f} value={value} onChange={onChange} conn={typeof all.connection === "string" ? all.connection : ""} all={all} />;
   }
   if (f.type === "camera") {
     return <CameraField f={f} value={typeof value === "string" ? value : ""} onChange={onChange} />;
@@ -422,11 +422,35 @@ function ConnectionField({ f, value, onChange }: { f: Field; value: string; onCh
 /** A setting an add-on declared for its widget (v2.1), drawn like a
  *  connection setting. Live options come from the widget's connection
  *  (its own, else the add-on's first). */
-function AddonFieldInput({ f, value, onChange, conn }: { f: Field; value: unknown; onChange: (v: unknown) => void; conn: string }) {
-  const { data } = useShared<{ connections: { id: string; addon: string }[] }>("/api/devices", 10000);
-  const mine = (data?.connections ?? []).filter((c) => c.addon === f.addon);
+function AddonFieldInput({ f, value, onChange, conn, all }: { f: Field; value: unknown; onChange: (v: unknown) => void; conn: string; all: Settings }) {
+  const { data } = useShared<{ connections: { id: string; name: string; addon: string; capabilities: string[]; ready: boolean }[] }>("/api/devices", 10000);
+  const af = f.addonField!;
+  const conns = data?.connections ?? [];
+  if (af.type === "connection") {
+    // Another add-on's connection (Live chat's vMix for Show on screen):
+    // always shown, blank = off.
+    const list = conns.filter((c) => (af.addon ? c.addon === af.addon : true) && (af.capability ? c.capabilities?.includes(af.capability) : true));
+    const v = typeof value === "string" ? value : "";
+    const options = [{ value: "", label: "None (off)" }, ...list.map((c) => ({ value: c.id, label: c.name + (c.ready ? "" : " — not connected") }))];
+    if (v && !list.some((c) => c.id === v)) options.push({ value: v, label: "(removed connection)" });
+    return (
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium text-muted">{af.label}</span>
+        <Select value={v} onChange={onChange} options={options} />
+        {af.help && <span className="mt-1 block text-[11px] text-dim">{af.help}</span>}
+        {!list.length && <span className="mt-1 block text-[11px] text-dim">No {af.addon ?? af.capability} connection yet (Settings → Connections).</span>}
+      </label>
+    );
+  }
+  if (af.optionsConn) {
+    // Options from the connection picked in another field of this widget.
+    const picked = conns.find((c) => c.id === all[af.optionsConn!]);
+    if (!picked) return null; // nothing to list until that connection is picked
+    return <FieldRow f={af} value={value} onChange={onChange} addon={picked.addon} conn={picked.id} widget />;
+  }
+  const mine = conns.filter((c) => c.addon === f.addon);
   const id = mine.find((c) => c.id === conn)?.id ?? mine[0]?.id ?? "";
-  return <FieldRow f={f.addonField!} value={value} onChange={onChange} addon={f.addon} conn={id} widget />;
+  return <FieldRow f={af} value={value} onChange={onChange} addon={f.addon} conn={id} widget />;
 }
 
 /** Which video feed a Video widget shows: cameras plus Settings → Video feeds. */
