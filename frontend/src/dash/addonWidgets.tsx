@@ -4,7 +4,8 @@ import { cn } from "@/lib/cn";
 import { useMemo } from "react";
 import { WIDGET_KINDS, fieldSettings, resolveBind, type Manifest, type WidgetDef as AddonWidgetDef, type WidgetKind } from "@/lib/addons";
 import { registerWidgets, type Settings, type WidgetDef } from "./widgets";
-import { AddonSample, bound, str, useAddonAction, useAddonState, type ShapeProps } from "./addon/common";
+import { AddonSample, bound, connHead, str, useAddonAction, useAddonState, type ShapeProps } from "./addon/common";
+import { Frame, Ctx } from "./header";
 import { Chat } from "./addon/chat";
 import { ImageShape } from "./addon/image";
 import { ButtonsShape } from "./addon/buttons";
@@ -44,12 +45,7 @@ export function AddonWidget({ def: raw, s, manifest, editing = false, widgetId, 
     [raw, settingsKey]);
   const widget = raw.fields?.length && widgetId ? { id: widgetId, dash, settingsKey } : undefined;
   const { state, conn, none, preview } = useAddonState(addonId, str(s.connection), widget);
-  const shell = (body: React.ReactNode) => (
-    <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
-      <div className="shrink-0 truncate px-3 pt-2.5 pb-1.5 text-[13px] font-bold leading-[18px]">{def.label}</div>
-      <div className="min-h-0 flex-1 px-3 pb-3">{body}</div>
-    </div>
-  );
+  const shell = (body: React.ReactNode) => <Frame title={def.label} {...connHead(conn)}>{body}</Frame>;
   const Shape = def.kind === "chat" ? null : SHAPES[def.kind];
   if (def.kind !== "chat" && !Shape) return shell(<p className="text-xs text-dim">Needs a newer jadeck (widget kind “{String(def.kind)}”).</p>);
   if (none) return shell(<p className="text-xs text-dim">Add a connection for this add-on (Settings → Connections).</p>);
@@ -62,20 +58,22 @@ export function AddonWidget({ def: raw, s, manifest, editing = false, widgetId, 
 
 // ------------------------------------------------------------- v1 shapes
 
-function StatusShape({ def, state }: ShapeProps) {
+function StatusShape({ def, state, conn }: ShapeProps) {
   const b = def.bind ?? {};
   const on = !!bound(state, b, "on", "on");
   const title = str(bound(state, b, "title", "title"));
   const slide = bound(state, b, "slide") as number | undefined, slides = bound(state, b, "slides") as number | undefined;
   return (
-    <div className={cn("card-surface flex h-full flex-col justify-center gap-1 rounded-[var(--radius-card)] border-2 px-4 transition-[border-color,box-shadow]",
-      on ? "border-pgm shadow-[inset_0_0_18px_color-mix(in_srgb,var(--color-pgm)_18%,transparent)]" : "border-line")}>
+    <Frame title={def.label} {...connHead(conn)} bleed
+      className={cn("border-2 transition-[border-color,box-shadow]", on ? "border-pgm shadow-[inset_0_0_18px_color-mix(in_srgb,var(--color-pgm)_18%,transparent)]" : "border-line")}>
+    <div className="flex h-full flex-col justify-center gap-1 px-1">
       <span className={cn("flex items-center gap-2 text-sm font-bold tracking-[0.12em]", on ? "text-bad" : "text-dim")}>
         {/* 12px dot; the pulse is for on air only (WIDGETS.md §6) */}
         <span className={cn("h-3 w-3 shrink-0 rounded-full", on ? "animate-pulse bg-pgm shadow-[0_0_8px_var(--color-pgm)]" : "bg-unlit border border-line-strong")} />{on ? "ON AIR" : "OFF AIR"}
       </span>
       {on && title && <span className="truncate text-base font-semibold">{title}{slide ? ` · slide ${slide}${slides ? ` of ${slides}` : ""}` : ""}</span>}
     </div>
+    </Frame>
   );
 }
 
@@ -85,10 +83,9 @@ function ListShape({ def, state, conn, preview, editing }: ShapeProps) {
   const cur = Number(bound(state, b, "current", "current")) || 0;
   const action = str(b.action);
   const { run, busy } = useAddonAction(conn, preview);
+  const curTitle = items.find((it) => it.index === cur)?.title;
   return (
-    <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
-      <div className="shrink-0 truncate px-3 pt-2.5 pb-1.5 text-[13px] font-bold leading-[18px]">{def.label}</div>
-      <div className="min-h-0 flex-1 px-3 pb-3">
+    <Frame title={def.label} {...connHead(conn)} right={curTitle ? <Ctx>{`${cur} of ${items.length}`}</Ctx> : undefined}>
         {items.length === 0 ? <p className="text-xs text-dim">{state.onAir === false ? "Not on air." : "Nothing in the list."}</p> : (
           <div className="h-full space-y-1 overflow-y-auto" data-feed>
             {items.map((it) => (
@@ -103,8 +100,7 @@ function ListShape({ def, state, conn, preview, editing }: ShapeProps) {
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </Frame>
   );
 }
 

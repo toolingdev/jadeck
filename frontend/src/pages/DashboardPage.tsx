@@ -755,11 +755,12 @@ function FeedSwitch({ value, onPick }: { value: string; onPick: (v: string) => v
   }, [open]);
   const name = value === "cam:" ? "Main camera" : feeds.find((f) => f.id === value)?.name ?? "Feed";
   if (feeds.length < 2) return null;
-  // top-left, the same amber chip as the camera picker on Move / Presets / Picture
+  // in the header row, right (the title and source are on the left), the
+  // same amber chip as the camera picker on Move / Presets / Picture
   return (
-    <div ref={ref} className="no-drag absolute left-2 top-2 z-20">
+    <div ref={ref} className="no-drag absolute right-2 top-[3px] z-20 max-w-[min(12rem,50%)]">
       <button type="button" onClick={(e) => setOpen(open ? null : e.currentTarget.getBoundingClientRect())}
-        className="flex min-h-8 max-w-[12rem] items-center gap-1.5 rounded-lg border border-accent/60 bg-panel/85 px-2 py-1 text-[12px] font-semibold text-accent backdrop-blur">
+        className="flex min-h-8 max-w-full items-center gap-1.5 rounded-lg border border-accent/60 bg-panel/85 px-2 py-1 text-[12px] font-semibold text-accent backdrop-blur">
         <Video size={13} className="shrink-0" />
         <span className="truncate">{name}</span>
         <ChevronDown size={13} className="shrink-0" />

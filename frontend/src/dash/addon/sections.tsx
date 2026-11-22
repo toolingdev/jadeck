@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Clock, Image, Megaphone, Music, Play, Presentation, Text, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Frame } from "../widgets";
-import { bound, ConnChip, objs, str, useAddonAction, type ShapeProps } from "./common";
+import { Frame } from "../header";
+import { bound, connHead, objs, str, useAddonAction, type ShapeProps } from "./common";
 
 // kind "sections": a list folded into sections (a rundown). The current row
 // is amber and shows its `sub` line. Tap a row to go there; tap a section
@@ -35,7 +35,7 @@ export function SectionsShape({ def, state, conn, preview, editing }: ShapeProps
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const isCur = (it: Record<string, unknown>) => it.active === true || (!!cur && str(it.id) === cur);
   return (
-    <Frame title={def.label} right={<ConnChip conn={conn} />}>
+    <Frame title={def.label} {...connHead(conn)}>
       {sections.length === 0 ? <p className="text-xs text-dim">Nothing in the list.</p> : (
         // Grows to fit (no inner scrollbar); folding keeps it short.
         <div className="h-full space-y-1 overflow-y-auto">

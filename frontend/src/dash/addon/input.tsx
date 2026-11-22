@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Frame } from "../widgets";
-import { ConnChip, label, listOf, stateClass, str, useAddonAction, type ShapeProps } from "./common";
+import { Frame } from "../header";
+import { connHead, label, listOf, stateClass, str, useAddonAction, type ShapeProps } from "./common";
 
 // kind "input": a text box, optional chips and a send button.
 // bind: action, param (where the text goes), placeholder?, choices? (state key
@@ -29,7 +29,7 @@ export function InputShape({ def, state, conn, preview, editing }: ShapeProps) {
   };
   const btn = label(state, b, "button") || "Send";
   return (
-    <Frame title={def.label} right={<ConnChip conn={conn} />}>
+    <Frame title={def.label} {...connHead(conn)}>
       <form className="flex h-full flex-col gap-2 overflow-y-auto" onSubmit={(e) => { e.preventDefault(); send(text); }}>
         <input value={text} onChange={(e) => setText(e.target.value)} disabled={off || !!busy} maxLength={500}
           placeholder={label(state, b, "placeholder") || "Type here…"} aria-label={def.label}

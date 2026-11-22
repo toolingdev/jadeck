@@ -233,3 +233,28 @@ func TestFeedsLastRefused(t *testing.T) {
 		t.Fatalf("a pulled feed shows a refused sender: %v", st)
 	}
 }
+
+// /api/config tells the Video widget's header where a feed comes from: a
+// pull feed's protocol, never its URL (it can carry a password).
+func TestConfigFeedSource(t *testing.T) {
+	e := setup(t)
+	if code, r, _ := e.do(t, "POST", "/api/feeds", map[string]any{"name": "Lobby", "source": "pull", "url": "srt://user:secret@10.0.0.9:9000"}); code != 200 {
+		t.Fatalf("add feed: %d %v", code, r)
+	}
+	e.do(t, "POST", "/api/feeds", map[string]any{"name": "Program", "source": "push"})
+	_, cfg, _ := e.do(t, "GET", "/api/config", nil)
+	if strings.Contains(js(cfg), "secret") {
+		t.Fatalf("a pull URL leaked into /api/config: %v", cfg)
+	}
+	got := map[string]map[string]any{}
+	for _, f := range cfg["feeds"].([]any) {
+		m := f.(map[string]any)
+		got[m["id"].(string)] = m
+	}
+	if got["lobby"]["proto"] != "srt" || got["lobby"]["via"] != nil {
+		t.Fatalf("pull feed: %v", got["lobby"])
+	}
+	if got["program"]["proto"] != nil || got["program"]["source"] != "push" {
+		t.Fatalf("push feed: %v", got["program"])
+	}
+}

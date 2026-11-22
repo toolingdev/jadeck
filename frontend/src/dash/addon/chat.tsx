@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { AddonSample } from "./common";
+import { WidgetHeader, Ctx } from "../header";
 
 // kind "chat": a conversation with an assistant add-on (the AI controller).
 
@@ -21,7 +22,7 @@ function chatSession() {
   }
 }
 
-export function Chat({ label, state, conn }: { label: string; state: Record<string, unknown>; conn?: { id: string; name: string } }) {
+export function Chat({ label, state, conn }: { label: string; state: Record<string, unknown>; conn?: { id: string; name: string; ready?: boolean } }) {
   const sid = useRef(chatSession()).current;
   const preview = useContext(AddonSample);
   const saved = ((state.sessions as Record<string, { lines: Line[]; pending: boolean }> | undefined)?.[sid]);
@@ -53,11 +54,11 @@ export function Chat({ label, state, conn }: { label: string; state: Record<stri
   const lastPending = pending ? [...lines].reverse().find((l) => l.pending?.length) : undefined;
   return (
     <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
-      <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
-        <span className="text-[13px] font-bold leading-[18px]">✦ {label}</span>
-        <span className="smallcaps ml-auto truncate leading-[18px]">{conn?.name ?? ""}{state.askFirst === false ? " · acts right away" : " · asks before acting"}</span>
-        {lines.length > 0 && !preview && <button type="button" className="text-[11px] text-muted hover:text-fg" onClick={() => send("reset")}>New</button>}
-      </div>
+      <WidgetHeader title={`✦ ${label}`} source={conn?.name} online={conn && "ready" in conn ? !!conn.ready : undefined}
+        right={<>
+          <Ctx>{state.askFirst === false ? "acts right away" : "asks before acting"}</Ctx>
+          {lines.length > 0 && !preview && <button type="button" className="text-[11px] text-muted hover:text-fg" onClick={() => send("reset")}>New</button>}
+        </>} />
       <div ref={list} data-feed className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-2">
         {lines.length === 0 && <p className="pt-2 text-xs text-dim">Tell the booth what to do — “go to the pulpit shot”, “next slide”, “in 5 minutes cut to camera 2”.</p>}
         {lines.map((l, i) => (

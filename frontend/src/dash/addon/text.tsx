@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from "react";
-import { Frame } from "../widgets";
-import { bound, ConnChip, label, str, type ShapeProps } from "./common";
+import { Frame, Ctx } from "../header";
+import { bound, connHead, label, str, type ShapeProps } from "./common";
 
 // kind "text": notes and readouts. bind: title?, body (plain text or the
 // small safe HTML subset p, br, b, i, ul, ol, li).
@@ -39,7 +39,7 @@ export function TextShape({ def, state, conn }: ShapeProps) {
   const body = str(bound(state, b, "body"));
   const title = label(state, b, "title");
   return (
-    <Frame title={title ? `${def.label} · ${title}` : def.label} right={<ConnChip conn={conn} />}>
+    <Frame title={def.label} {...connHead(conn)} right={title ? <Ctx>{title}</Ctx> : undefined}>
       {/* Grows to fit rather than scrolling inside. */}
       <div className="h-full overflow-y-auto break-words text-[15px] leading-snug [&_b]:font-semibold [&_li]:my-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p+p]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
         {!body ? <span className="text-xs text-dim">Nothing here right now.</span>

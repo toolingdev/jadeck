@@ -4,6 +4,7 @@ import { useShared, refreshShared } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import type { Settings } from "./widgets";
+import { WidgetHeader, Ctx } from "./header";
 
 // Coming up: scheduled actions (from the Assistant, macros, agents). Anyone
 // can run one now or cancel it.
@@ -39,7 +40,7 @@ export function ComingUp({ s }: { s: Settings }) {
   };
   return (
     <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
-      <div className="shrink-0 px-3 pt-2.5 pb-1.5 text-[13px] font-bold leading-[18px]">Coming up</div>
+      <WidgetHeader title="Coming up" source="Schedule" right={pending.length ? <Ctx>{pending.length} waiting</Ctx> : undefined} />
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3" data-feed>
         {pending.length === 0 && <p className="text-xs text-dim">Nothing scheduled. Ask the Assistant (“in 5 minutes cut to camera 2”) or an agent.</p>}
         {pending.map((j, i) => {

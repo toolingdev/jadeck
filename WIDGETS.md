@@ -98,9 +98,23 @@ Reference renders: `design/wing-polished-mock.png` and
 and add-on widgets, both the shared shapes and frames, follow these:
 
 - **Cards:** a subtle vertical gradient (`#181C22` → `#111418`), a 1px
-  border (`line`), radius `--radius-card`. The title is 13px bold. The
-  connection or context goes top-right in 9.5px letter-spaced small caps,
-  in the dim colour.
+  border (`line`), radius `--radius-card`.
+- **Source header** (`design/widget-source-headers-mock.png`, one
+  component for built-in and add-on widgets: `Frame` / `WidgetHeader` in
+  `frontend/src/dash/header.tsx`). Every widget says what it is tied to:
+  - left: the title (12px bold), a 6px status dot (green connected, grey
+    offline) and the SOURCE in 10px semibold caps, 1px letter-spacing,
+    muted: the connection (VMIX, PROCLAIM, WING, an add-on connection's
+    name), the camera's name, a video feed's sender (CAMERA, the add-on
+    connection, SRT / RTSP pulled, PUSH) or the stage channel;
+  - right, optional: live context, muted (`John 11:28–44 · 3 of 7`,
+    `PGM 1 · PVW 2`, `streaming`);
+  - offline: the dot goes grey, the source reads `PROCLAIM · OFFLINE` and
+    the controls dim;
+  - on a box shorter than ~84px the header folds away so the controls
+    keep their room; a widget that is one big control (a button, the
+    on-air pill, a tally light) then fills the whole box again.
+  - Widgets tied to nothing (clock, countdown, a text note) have none.
 - **Buttons:** a raised look, made of a gentle top-to-bottom gradient
   (`#262C35` → `#1D2229`), a 1px border and a 1px top highlight at 6%
   white. Labels are 13.5px bold, with an optional second line in 9px

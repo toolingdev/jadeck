@@ -3,7 +3,7 @@ import { ChevronUp, ChevronDown, Trash2, Save, Plus, Pencil, Check } from "lucid
 import { api, type Preset } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
 import { useCam, withCam } from "@/lib/camera";
-import { CamChip } from "@/components/CamChip";
+import { CamSource } from "@/dash/header";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { Button, Card, CardBody, CardHeader, Dialog, Empty, Input } from "@/components/ui";
@@ -80,7 +80,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
 
   return (
     <Card>
-      <CardHeader title={<span className="flex items-center gap-2">Presets <CamChip /></span>} meta={`${list.length} saved`}>
+      <CardHeader title={<span className="flex items-center gap-2">Presets <CamSource /></span>} meta={`${list.length} saved`}>
         {editable && (
           <Button size="sm" variant={edit ? "accent" : "ghost"} onClick={() => setEdit(!edit)}>
             {edit ? <><Check size={14} /> Done</> : <><Pencil size={14} /> Edit</>}

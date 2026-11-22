@@ -200,6 +200,24 @@ body {
   .live-dot { animation: none; }
 }
 
+/* Widget frames: the source header (dash/header.tsx) folds away on boxes
+   too short for it and the controls, which then get the top padding back. */
+.wframe { container-type: size; }
+@container (max-height: 83px) {
+  .wframe-head { display: none; }
+  .wframe-body { padding-top: 0.75rem; }
+  /* one big control: it is the whole box again, no card around it */
+  .wframe-body.wframe-bleed { padding: 0; }
+  .wframe-card:has(> .wframe-bleed) { background: none; border-color: transparent; box-shadow: none; }
+}
+/* Offline: the controls dim (the header says so). */
+.wframe-off > .wframe-body, .wframe-off > .wframe-flush { opacity: 0.5; }
+/* A big button's icon gives way on a short button; the word stays. */
+.bigbtn { container-type: size; }
+@container (max-height: 56px) {
+  .bigbtn > svg { display: none; }
+}
+
 /* Hold to confirm: a soft light sweeping across the fill while held. */
 @keyframes hold-shimmer {
   from { transform: translateX(-100%); }

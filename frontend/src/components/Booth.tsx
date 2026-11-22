@@ -4,6 +4,7 @@ import { api, type SwitcherStatus, type PresentationStatus, type MixerStatus } f
 import { usePoll, useWidgetConn } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
+import { Source } from "@/dash/header";
 import { Badge, Button, Card, CardBody, CardHeader, Dot, Empty } from "@/components/ui";
 
 function useAct() {
@@ -123,7 +124,8 @@ export function Mixer() {
   const name = st?.label || "Audio";
   return (
     <Card>
-      <CardHeader title={`${name} · favorites`} meta={st?.simulated ? "simulated" : st?.console ?? undefined}><Dot on={st?.connected} /></CardHeader>
+      <CardHeader title={<span className="flex items-center gap-2">Favorites <Source source={st?.label || st?.driver || "Mixer"} online={st ? st.connected : undefined} /></span>}
+        meta={st?.simulated ? "simulated" : st?.console ?? undefined} />
       <CardBody>
         {!st?.configured && <p className="mb-2 text-xs text-muted">{st?.error ?? "Mixer not set up."}</p>}
         {st?.configured && !st.connected && <p className="mb-2 text-xs text-bad">{st.error}</p>}

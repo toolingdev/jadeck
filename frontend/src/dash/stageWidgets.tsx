@@ -6,6 +6,7 @@ import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { StreamView } from "@/components/StreamView";
 import { useAutoSD } from "./videoCount";
+import { Frame, Ctx, useCamHead } from "./header";
 import {
   useStage, useScreenName, stageApi, timerLeft, fmtClock, parseTimerPreset, ago, MAX_TEXT,
   type ChannelState, type Message,
@@ -247,14 +248,17 @@ export function StageCue({ s, editing }: { s: Settings; editing: boolean }) {
   const outgoing = bool(s.outgoing, false);
   if (!ids.length) return <Note>Pick a channel in this widget's settings.</Note>;
   if (loaded && live.length === 0) return <ChannelMissing id={ids[0]} />;
+  const names = live.length ? live.map((c) => c.name).join(" · ") : ids.join(" · ");
   return (
-    <Box className={cn("bg-panel-2 transition", !online && "opacity-60 grayscale")}>
+    <Frame title="Cue" source={names} online={loaded ? online : undefined}
+      className={cn("bg-panel-2 transition", !online && "grayscale")} flush>
+      {/* flush: the cue pads itself (its arrival ring runs to the edge) */}
       <div className="flex h-full min-h-0 flex-col">
         {incoming && <CueIn live={live} me={me} offset={offset} s={s} editing={editing} fill={!outgoing} />}
         {incoming && outgoing && <div className="mx-3 shrink-0 border-t border-line" />}
         {outgoing && <CueOut live={live} me={me} s={s} editing={editing} online={online} />}
       </div>
-    </Box>
+    </Frame>
   );
 }
 
@@ -307,7 +311,7 @@ function CueIn({ live, me, offset, s, editing, fill }: { live: ChannelState[]; m
             <span className="truncate">{cur.m.from || "Booth"} · {hhmm(cur.m.at)}</span>
             {Date.now() + offset - new Date(cur.m.at).getTime() > 90_000 && <span className="normal-case tracking-normal text-dim">({ago(cur.m.at, offset)})</span>}
           </>
-        ) : <span className="truncate">{live.map((c) => c.name).join(" · ")}</span>}
+        ) : null /* the channel is in the header */}
       </div>
       {cur ? (
         <div className="flex min-h-[3rem] flex-1 flex-col" style={{ color }}><FitText text={cur.m.text} /></div>
@@ -604,15 +608,15 @@ export function StageTimer({ s, editing }: { s: Settings; editing: boolean }) {
   const controls = bool(s.controls, false);
   const op = (o: string, sec = 0) => !editing && ch && stageApi.timer(ch.id, o, sec).catch(() => {});
   return (
-    <Box className="justify-center">
-      <div className="flex h-full items-center gap-3 px-4">
+    <Frame title="Timer" source={ch?.name ?? id}>
+      <div className="flex h-full items-center gap-3 px-1 [container-type:size]">
         <div className="min-w-0 flex-1">
           {t ? (
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-[11px] font-bold uppercase tracking-[0.08em] text-muted">
                 {t.label || "Timer"} · {left < 0 ? "over" : t.running ? "left" : "paused"}
               </span>
-              <span className={cn("font-mono text-[clamp(22px,4.5vw,44px)] font-bold leading-none tabular", left < 0 ? "text-bad" : left <= 120 ? "text-accent" : "text-fg", !t.running && "opacity-60")}>
+              <span className={cn("font-mono text-[clamp(18px,min(4.5vw,62cqh),44px)] font-bold leading-none tabular", left < 0 ? "text-bad" : left <= 120 ? "text-accent" : "text-fg", !t.running && "opacity-60")}>
                 {fmtClock(left)}
               </span>
             </div>
@@ -626,7 +630,7 @@ export function StageTimer({ s, editing }: { s: Settings; editing: boolean }) {
           </div>
         )}
       </div>
-    </Box>
+    </Frame>
   );
 }
 
@@ -650,26 +654,35 @@ export function useTally(cameraId: string, input: number) {
   }, [sw, cams, cameraId, input]);
 }
 
-/** On air: are we streaming? Big red WE ARE LIVE, grey OFF AIR. The
- *  text follows the box, down to a small "● LIVE" pill. (An old Live
- *  status widget set to "camera tally only" shows as a Tally light.) */
+/** On air: is the switcher (vMix) streaming? Big red WE ARE LIVE, grey
+ *  OFF AIR. The header says whose stream it is (Stream · ● VMIX); on a
+ *  short box it folds away and the text follows the box, down to a small
+ *  "● LIVE" pill. (An old Live status widget set to "camera tally only"
+ *  shows as a Tally light.) */
 export function StageLive({ s }: { s: Settings }) {
   const { data: sw } = useShared<SwitcherStatus>("/api/switcher/status", 1000);
   if (str(s.mode) === "tally") return <TallyLight s={s} />;
-  if (!sw) return <Note>Reading the switcher…</Note>;
-  if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected — on-air state unknown.</Note>;
+  const head = { title: "Stream", source: sw?.label || sw?.driver || "Switcher", online: sw ? sw.connected : undefined };
+  if (!sw) return <Frame {...head}><Center>Reading the switcher…</Center></Frame>;
+  if (!sw.connected) return <Frame {...head}><Center>Stream state unknown — {sw.label || "the switcher"} isn't answering.</Center></Frame>;
   const live = sw.streaming;
   return (
-    <div className={cn("@container flex h-full items-center justify-center rounded-full border-2 px-2 text-center font-bold transition-colors",
-      live ? "btn-pgm" : "recess border-line-strong text-dim")}>
-      {/* The size comes from the box, so the words always fit — never cut
-          off: "WE ARE LIVE" needs ~6.6em of width, "OFF AIR" / "● LIVE" ~4.6em. */}
-      <span className={cn("whitespace-nowrap leading-none",
-        live ? "text-[min(42cqh,13cqw,48px)] @max-[15rem]:text-[min(42cqh,17cqw,48px)]" : "text-[min(42cqh,17cqw,48px)]")}>
-        {live ? <><span className="live-dot">●</span> <span className="@max-[15rem]:hidden">WE ARE </span>LIVE</> : "OFF AIR"}
-      </span>
-    </div>
+    <Frame {...head} bleed right={<Ctx>{live ? "streaming" : "not streaming"}{sw.recording ? " · recording" : ""}</Ctx>}>
+      <div className={cn("@container flex h-full items-center justify-center rounded-full border-2 px-2 text-center font-bold transition-colors",
+        live ? "btn-pgm" : "recess border-line-strong text-dim")}>
+        {/* The size comes from the box, so the words always fit — never cut
+            off: "WE ARE LIVE" needs ~6.6em of width, "OFF AIR" / "● LIVE" ~4.6em. */}
+        <span className={cn("whitespace-nowrap leading-none",
+          live ? "text-[min(42cqh,13cqw,48px)] @max-[15rem]:text-[min(42cqh,17cqw,48px)]" : "text-[min(42cqh,17cqw,48px)]")}>
+          {live ? <><span className="live-dot">●</span> <span className="@max-[15rem]:hidden">WE ARE </span>LIVE</> : "OFF AIR"}
+        </span>
+      </div>
+    </Frame>
   );
+}
+
+function Center({ children }: { children: ReactNode }) {
+  return <div className="flex h-full items-center justify-center text-center text-xs text-dim">{children}</div>;
 }
 
 /** Tally light: is this camera on program (ON, red) or in preview
@@ -679,23 +692,26 @@ export function TallyLight({ s }: { s: Settings }) {
   const { sw, state } = useTally(str(s.camera), Number(s.input) || 0);
   const { data: cams } = useShared<CameraInfo[]>("/api/cameras", 10000);
   const cam = cams?.find((c) => c.id === str(s.camera)) ?? cams?.find((c) => c.main);
-  if (!sw) return <Note>Reading the switcher…</Note>;
-  if (!sw.connected) return <Note>{sw.label || "Switcher"} not connected.</Note>;
+  const head = { title: "Tally", source: [cam?.name, sw?.label].filter(Boolean).join(" · ") || "Switcher", online: sw ? sw.connected : undefined };
+  if (!sw) return <Frame {...head}><Center>Reading the switcher…</Center></Frame>;
+  if (!sw.connected) return <Frame {...head}><Center>{sw.label || "Switcher"} not connected.</Center></Frame>;
   const cls = state === "pgm" ? "btn-pgm" : state === "pvw" ? "btn-pvw" : "recess border-line-strong text-dim";
   const word = state === "pgm" ? "ON" : state === "pvw" ? "NEXT" : state === null ? "?" : "—";
   return (
+    <Frame {...head} bleed>
     <div className={cn("@container flex h-full flex-col items-center justify-center rounded-[var(--radius-card)] border-2 px-2 text-center font-bold transition-colors", cls)}>
       <span className="text-[clamp(14px,min(45cqh,22cqw),64px)] leading-none">{word}</span>
       <span className="mt-1 max-w-full truncate text-[clamp(10px,min(14cqh,9cqw),20px)] font-semibold opacity-90">
         {state === null ? `${cam?.name ?? "Camera"} isn't on the switcher` : cam?.name}
       </span>
     </div>
+    </Frame>
   );
 }
 
 // ----------------------------------------------------- camera live view
 
-export function LiveCamPinned({ s, badges }: { s: Settings; editing: boolean; badges?: "top" | "bottom" }) {
+export function LiveCamPinned({ s }: { s: Settings; editing: boolean }) {
   const pin = str(s.camera);
   const cfg = useShared<StreamConfig>(pin ? `/api/config?cam=${encodeURIComponent(pin)}` : "/api/config", 0).data;
   const { data: cams } = useShared<CameraInfo[]>("/api/cameras", 10000);
@@ -704,13 +720,19 @@ export function LiveCamPinned({ s, badges }: { s: Settings; editing: boolean; ba
   const { state } = useTally(pin, Number(s.input) || 0);
   const tally = bool(s.tally, false) ? state : null;
   const cam = cams?.find((c) => c.id === pin) ?? cams?.find((c) => c.main);
-  const title = str(s.title) || cam?.name;
+  const title = str(s.title) || cam?.name || "Camera";
+  const { online } = useCamHead(pin || undefined);
+  // "Camera" when the title is the camera's name; "Camera · PTZ 1" when it's been renamed
+  const source = cam && title !== cam.name ? `Camera · ${cam.name}` : "Camera";
   return (
-    <div className={cn("relative h-full rounded-[var(--radius-card)]", tally === "pgm" && "ring-[3px] ring-pgm", tally === "pvw" && "ring-[3px] ring-pvw")}>
-      <StreamView key={`${pin}-${sd ? "sd" : "hd"}`} aspect="h-full" badges={badges}
-        title={(title || quality === "auto") && <span className="flex items-center gap-1.5">{tally === "pgm" && <b className="text-pgm">● LIVE</b>}{tally === "pvw" && <b className="text-pvw">● NEXT</b>}{title}{quality === "auto" && <span className="text-dim">{title ? " · " : ""}{sd ? "SD" : "HD"} auto</span>}</span>}
-        whep={cfg ? (sd ? cfg.whepSd : cfg.whep) : undefined} hls={cfg ? (sd ? cfg.hlsSd : cfg.hls) : undefined} snapshot={cfg?.snapshot} />
-    </div>
+    <Frame title={title} source={source} online={online}>
+      {/* tally and quality stay on the picture: the header's right is where the feed picker sits */}
+      <div className={cn("relative h-full rounded-xl", tally === "pgm" && "ring-[3px] ring-pgm", tally === "pvw" && "ring-[3px] ring-pvw")}>
+        <StreamView key={`${pin}-${sd ? "sd" : "hd"}`} aspect="h-full"
+          title={(tally === "pgm" || tally === "pvw" || quality === "auto") && <span className="flex items-center gap-1.5">{tally === "pgm" && <b className="text-pgm">● LIVE</b>}{tally === "pvw" && <b className="text-pvw">● NEXT</b>}{quality === "auto" && <span className="text-dim">{sd ? "SD" : "HD"} auto</span>}</span>}
+          whep={cfg ? (sd ? cfg.whepSd : cfg.whep) : undefined} hls={cfg ? (sd ? cfg.hlsSd : cfg.hls) : undefined} snapshot={cfg?.snapshot} />
+      </div>
+    </Frame>
   );
 }
 

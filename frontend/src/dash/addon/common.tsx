@@ -133,11 +133,12 @@ export function useAddonAction(conn: Conn | undefined, preview: boolean) {
   return { run, busy };
 }
 
-/** The connection-name chip beside a widget's title (WIDGETS.md §3): the
- *  context, top-right, in letter-spaced small caps (§6). */
-export function ConnChip({ conn }: { conn?: Conn }) {
-  if (!conn) return null;
-  return <span className="smallcaps truncate leading-[18px]">{conn.name}</span>;
+/** An add-on widget's source for the shared header (dash/header.tsx):
+ *  the connection's name, green dot when it's open, grey + OFFLINE when
+ *  not. Spread into <Frame>. No connection (a preview) = no source. */
+export function connHead(conn?: Conn): { source?: string; online?: boolean } {
+  if (!conn) return {};
+  return { source: conn.name, online: conn.ready };
 }
 
 /** Status pill (e.g. LIVE). Red when the tone is program, green for preview. */

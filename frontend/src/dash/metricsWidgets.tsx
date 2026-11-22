@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useShared } from "@/lib/hooks";
 import { cn } from "@/lib/cn";
 import { openFeeds } from "@/lib/stream";
+import { WidgetHeader, Ctx } from "./header";
 
 type Settings = Record<string, unknown>;
 const bool = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
@@ -25,10 +26,8 @@ export function rate(kbps: number) {
 function Box({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
     <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
-      <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
-        <span className="truncate text-[13px] font-bold leading-[18px]">{title}</span>
-        <span className="smallcaps ml-auto leading-[18px]">{right}</span>
-      </div>
+      {/* source: what the numbers come from */}
+      <WidgetHeader title={title} source={title === "Video bandwidth" ? "Stream gateway" : "jadeck"} right={right ? <Ctx>{right}</Ctx> : undefined} />
       <div data-feed className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
     </div>
   );

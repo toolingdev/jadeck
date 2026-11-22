@@ -14,7 +14,6 @@ import { withConn, type Field as AddonField } from "@/lib/addons";
 import { useLog } from "@/lib/log";
 import { setDrive, stopDrive } from "@/lib/control";
 import { useCam } from "@/lib/camera";
-import { CamChip } from "@/components/CamChip";
 import { cn } from "@/lib/cn";
 import { Button, Dialog, Segmented } from "@/components/ui";
 import { StreamView } from "@/components/StreamView";
@@ -24,6 +23,9 @@ import { PresetGrid } from "@/components/Presets";
 import { ImageSettings } from "@/components/ImageSettings";
 import { Mixer } from "@/components/Booth";
 import { Macros } from "@/components/Macros";
+import { Frame, Ctx, CamSource, useCamHead, feedSource } from "./header";
+export { Frame };
+import type { Conn as AddonConn } from "./addon/common";
 
 // ----------------------------------------------------------------- types
 
@@ -67,26 +69,13 @@ const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
 const list = (v: unknown, d: string[] = []) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : d);
 const bool = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
 
-/** Chrome for widgets that aren't already a card. */
-export function Frame({ title, children, className, right }: { title?: ReactNode; children: ReactNode; className?: string; right?: ReactNode }) {
-  return (
-    <div className={cn("card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line", className)}>
-      {title !== undefined && (
-        // 13px bold title (WIDGETS.md §6), on the same 18px line as before so
-        // nothing below it moves; the context sits right in small caps.
-        <div className="flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5">
-          <span className="min-w-0 truncate text-[13px] font-bold leading-[18px] tracking-[-0.005em] text-fg [&:has(.no-drag)]:overflow-visible">{title}</span>
-          <div className="ml-auto flex items-center gap-2">{right}</div>
-        </div>
-      )}
-      <div className={cn("min-h-0 flex-1", title !== undefined ? "px-3 pb-3" : "p-3")}>{children}</div>
-    </div>
-  );
-}
-
 function Fill({ children }: { children: ReactNode }) {
   // Existing card components: make them fill the cell and scroll inside.
   return <div className="h-full overflow-auto rounded-[var(--radius-card)] [&>section]:min-h-full">{children}</div>;
+}
+
+function Note({ text }: { text: string }) {
+  return <div className="flex h-full items-center justify-center text-center text-xs text-dim">{text}</div>;
 }
 
 function Unset({ what }: { what: string }) {
@@ -111,7 +100,7 @@ function MoveWidget({ s }: { s: Settings }) {
   const home = bool(s.home, true), zoom = bool(s.zoom, true), showSpeed = bool(s.speed, true);
   const act = useCamAction();
   return (
-    <Frame title={<span className="flex items-center gap-2">Move <CamChip /></span>} right={controls === "switchable" && (
+    <Frame title="Move" source={<CamSource />} right={controls === "switchable" && (
       <Segmented value={mode} onChange={setSaved} options={[{ value: "buttons", label: "Buttons" }, { value: "joystick", label: "Joystick" }]} />
     )}>
       <div className="flex h-full flex-col gap-3">
@@ -160,17 +149,19 @@ function ZoomCol({ home }: { home: boolean }) {
 }
 
 function OnePreset({ s }: { s: Settings }) {
-  const cam = str(s.camera);
-  const { data } = usePinnedPresets(cam) as { data: Preset[] | null };
+  const cam = useCamHead();
+  const pin = str(s.camera);
+  const { data } = usePinnedPresets(pin) as { data: Preset[] | null };
   const { log } = useLog();
   const name = str(s.preset);
   const p = data?.find((x) => x.name === name);
   if (!name) return <Unset what="Pick a preset in this widget's settings." />;
   return (
+    <Frame title="Preset" {...cam} bleed>
     <button
       onClick={async () => {
         if (!p) return log("Camera", `No preset named “${name}”`, false);
-        try { await recallPinned(cam, p.id); log("Camera", `Preset “${p.name}”`); }
+        try { await recallPinned(pin, p.id); log("Camera", `Preset “${p.name}”`); }
         catch (e) { log("Camera", `Preset “${p.name}” failed — ${(e as Error).message}`, false); }
       }}
       className="btn-raised flex h-full w-full flex-col items-start justify-center rounded-[var(--radius-card)] border px-4 text-left transition hover:brightness-125 active:scale-[0.98]"
@@ -178,13 +169,14 @@ function OnePreset({ s }: { s: Settings }) {
       <span className="w-full truncate text-lg font-bold">{str(s.label) || name}</span>
       <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-dim">{p ? `PRESET · SLOT ${p.slot}` : "PRESET NOT FOUND"}</span>
     </button>
+    </Frame>
   );
 }
 
 function BigButton({ onClick, className, children, label }: { onClick: () => void; className?: string; children: ReactNode; label: string }) {
   return (
     <button type="button" aria-label={label} onClick={onClick}
-      className={cn("flex h-full w-full flex-col items-center justify-center gap-1 rounded-[var(--radius-card)] border text-base font-bold transition active:scale-[0.98]", className)}>
+      className={cn("bigbtn flex h-full w-full flex-col items-center justify-center gap-1 rounded-[var(--radius-card)] border text-base font-bold transition active:scale-[0.98]", className)}>
       {children}
     </button>
   );
@@ -192,22 +184,24 @@ function BigButton({ onClick, className, children, label }: { onClick: () => voi
 
 function HomeWidget() {
   const act = useCamAction();
-  return <BigButton label="Home" onClick={() => act("Home", "/api/ptz/home")} className="btn-sel hover:brightness-125"><HomeIcon size={26} />Home</BigButton>;
+  return <Frame title="Home" {...useCamHead()} bleed><BigButton label="Home" onClick={() => act("Home", "/api/ptz/home")} className="btn-sel hover:brightness-125"><HomeIcon size={26} />Home</BigButton></Frame>;
 }
 
 function StopWidget() {
   const act = useCamAction();
   const cam = useCam();
   return (
+    <Frame title="Stop" {...useCamHead()} bleed>
     <BigButton label="Stop camera" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }} className="btn-pgm tracking-[0.1em] hover:brightness-110">
       <Square size={24} fill="currentColor" />STOP CAMERA
     </BigButton>
+    </Frame>
   );
 }
 
 function ZoomWidget() {
   return (
-    <Frame>
+    <Frame title="Zoom" {...useCamHead()}>
       <div className="grid h-full grid-rows-2 gap-2">
         <HoldButton vec={{ zoom: 1 }} label="Zoom in" className="h-full w-full flex-col gap-1 text-sm font-bold">+<span>TELE</span></HoldButton>
         <HoldButton vec={{ zoom: -1 }} label="Zoom out" className="h-full w-full flex-col gap-1 text-sm font-bold">−<span>WIDE</span></HoldButton>
@@ -219,7 +213,7 @@ function ZoomWidget() {
 function SpeedWidget() {
   const [speed, setSpeed] = useLocal("ptz.speed", 40);
   const [fine, setFine] = useLocal("ptz.fine", false);
-  return <Frame title="Speed"><SpeedControl speed={speed} onChange={setSpeed} fine={fine} onFine={setFine} /></Frame>;
+  return <Frame title="Speed" {...useCamHead()}><SpeedControl speed={speed} onChange={setSpeed} fine={fine} onFine={setFine} /></Frame>;
 }
 
 // -------------------------------------------------------------- switcher
@@ -228,8 +222,8 @@ function Feed({ kind }: { kind: "program" | "confidence" | "camera"; s: Settings
   const cfg = useCfg();
   const refused = useFeedRefused(kind === "camera" ? undefined : kind);
   const alert = refused ? refusedText(refused, kind) : undefined;
-  if (kind === "program") return <StreamView title="Program" whep={cfg?.programWhep} hls={cfg?.programHls} aspect="h-full" noSignalText="The program feed isn't reaching the stream gateway yet." noSignalAlert={alert} />;
-  return <StreamView title="Confidence" whep={cfg?.confidenceWhep} hls={cfg?.confidenceHls} aspect="h-full" noSignalText="The confidence feed isn't reaching the gateway yet." noSignalAlert={alert} />;
+  if (kind === "program") return <Frame title="Program" source={feedSource("program", cfg)}><StreamView whep={cfg?.programWhep} hls={cfg?.programHls} aspect="h-full" noSignalText="The program feed isn't reaching the stream gateway yet." noSignalAlert={alert} /></Frame>;
+  return <Frame title="Confidence" source={feedSource("confidence", cfg)}><StreamView whep={cfg?.confidenceWhep} hls={cfg?.confidenceHls} aspect="h-full" noSignalText="The confidence feed isn't reaching the gateway yet." noSignalAlert={alert} /></Frame>;
 }
 
 function VideoWidget({ s, editing }: { s: Settings; editing: boolean }) {
@@ -237,19 +231,30 @@ function VideoWidget({ s, editing }: { s: Settings; editing: boolean }) {
   const feed = str(s.feed);
   const refused = useFeedRefused(feed && !feed.startsWith("cam:") ? feed : undefined);
   if (!feed) return <Unset what="Pick a feed in this widget's settings." />;
-  // the feed picker sits top-left (where every widget's picker is), so the badges go bottom-left;
-  // decided by the setting, not by whether the picker shows, so edit mode looks the same as after Done
-  const badges = s.switchHere !== false ? "bottom" : "top";
-  if (feed.startsWith("cam:")) return <LiveCamPinned s={{ ...s, camera: feed.slice(4) }} editing={editing} badges={badges} />;
+  // The header names the feed and where it comes from; the feed picker
+  // sits at the header's right (DashboardPage FeedSwitch), off the picture.
+  if (feed.startsWith("cam:")) return <LiveCamPinned s={{ ...s, camera: feed.slice(4) }} editing={editing} />;
   const f = cfg?.feeds?.find((x) => x.id === feed);
   if (cfg && !f) return <Unset what="That feed was removed — pick another in this widget's settings." />;
-  return <StreamView title={str(s.title) || f?.name || ""} whep={f?.whep} hls={f?.hls} aspect="h-full" badges={badges}
-    noSignalText={f?.source === "push" ? `Nothing is sending ${f?.name} yet (Settings → Video feeds shows how).` : `${f?.name ?? "This feed"} isn't answering.`}
-    noSignalAlert={refused ? refusedText(refused, feed) : undefined} />;
+  const title = str(s.title) || f?.name || "Video";
+  // "NDI · PROCLAIM - LIVESTREAM": who sends it, then the feed's own name when the title differs
+  const src = [feedSource(feed, cfg), f && title !== f.name ? f.name : ""].filter(Boolean).join(" · ");
+  return (
+    <Frame title={title} source={src}>
+      <StreamView whep={f?.whep} hls={f?.hls} aspect="h-full"
+        noSignalText={f?.source === "push" ? `Nothing is sending ${f?.name} yet (Settings → Video feeds shows how).` : `${f?.name ?? "This feed"} isn't answering.`}
+        noSignalAlert={refused ? refusedText(refused, feed) : undefined} />
+    </Frame>
+  );
 }
 
 function useSwitcher() {
   return useShared<SwitcherStatus>(withConn("/api/switcher/status", useWidgetConn()), 2000);
+}
+
+/** Switcher widgets' header: the connection (VMIX), connected or not. */
+function switcherHead(st: SwitcherStatus | null | undefined) {
+  return { source: st?.label || st?.driver || "Switcher", online: st ? st.connected : undefined };
 }
 
 function switchAct(log: ReturnType<typeof useLog>["log"], conn: string) {
@@ -263,9 +268,9 @@ function switchAct(log: ReturnType<typeof useLog>["log"], conn: string) {
 function Inputs() {
   const { data: st } = useSwitcher();
   const run = switchAct(useLog().log, useWidgetConn());
-  if (!st?.connected) return <Unset what={st?.error || "Switcher not answering."} />;
+  if (!st?.connected) return <Frame title="Inputs" {...switcherHead(st)}><Note text={st?.error || "Switcher not answering."} /></Frame>;
   return (
-    <Frame title={<>Inputs{st.label && <span className="smallcaps ml-2">{st.label}</span>}</>}>
+    <Frame title="Inputs" {...switcherHead(st)} right={<Ctx>PGM {st.active} · PVW {st.preview}</Ctx>}>
       {/* tiles keep their own height; a big widget leaves room below instead of stretching them tall */}
       <div className="grid h-full auto-rows-[minmax(56px,72px)] content-start grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 overflow-auto">
         {st.inputs.map((i) => {
@@ -291,7 +296,7 @@ function CutFade({ s }: { s: Settings }) {
   const run = switchAct(useLog().log, useWidgetConn());
   const ms = Number(s.fadeMs) || 1000;
   return (
-    <Frame>
+    <Frame title="Cut / Fade" {...switcherHead(st)} right={st?.connected ? <Ctx>PVW {st.preview} → PGM</Ctx> : undefined}>
       <div className="grid h-full grid-cols-2 gap-2">
         <Button variant="pgm" className="h-full text-xl" disabled={!st?.connected} onClick={() => run(`CUT — input ${st?.preview} to program`, "/api/switcher/cut")}>CUT</Button>
         <Button className="h-full text-lg" disabled={!st?.connected} onClick={() => run(`FADE — input ${st?.preview} to program`, "/api/switcher/fade", { durationMs: ms })}>FADE {ms / 1000}s</Button>
@@ -306,6 +311,27 @@ function useSlides() {
   return useShared<PresentationStatus>(withConn("/api/presentation/status", useWidgetConn()), 5000);
 }
 
+/** Slides widgets' header: the connection (PROCLAIM), reachable or not. */
+function slidesHead(st: PresentationStatus | null | undefined) {
+  return { source: st?.label || st?.driver || "Slides", online: st ? st.available : undefined };
+}
+
+/** What's on screen, when the slides connection says (an add-on's state,
+ *  e.g. Proclaim: itemTitle, slide, slides): "John 11:28–44 · 3 of 7". */
+function useSlideContext(st: PresentationStatus | null | undefined): string {
+  const pick = useWidgetConn();
+  const { data } = useShared<{ connections: (AddonConn & { capabilities?: string[] })[] }>("/api/devices", 10000);
+  const conns = data?.connections ?? [];
+  const c = pick ? conns.find((x) => x.id === pick)
+    : conns.find((x) => x.capabilities?.includes("slides") && x.name === st?.label) ?? conns.find((x) => x.capabilities?.includes("slides"));
+  const { data: state } = useShared<Record<string, unknown>>(c?.addon && st?.available ? `/api/connections/${c.id}/state` : null, 2000);
+  if (!state) return "";
+  const item = typeof state.itemTitle === "string" ? state.itemTitle : "";
+  const n = Number(state.slide), m = Number(state.slides);
+  const pos = n > 0 && m > 0 ? `${n} of ${m}` : n > 0 ? `slide ${n}` : "";
+  return [item, pos].filter(Boolean).join(" · ");
+}
+
 function slideAct(log: ReturnType<typeof useLog>["log"], name: string, conn: string) {
   return async (action: string, label: string) => {
     try { await api(withConn(`/api/presentation/${action}`, conn), "POST"); log(name, label); }
@@ -316,11 +342,12 @@ function slideAct(log: ReturnType<typeof useLog>["log"], name: string, conn: str
 function PrevNext() {
   const { data: st } = useSlides();
   const act = slideAct(useLog().log, st?.label || "Slides", useWidgetConn());
+  const ctx = useSlideContext(st);
   return (
-    <Frame>
+    <Frame title="Slides" {...slidesHead(st)} right={ctx ? <Ctx>{ctx}</Ctx> : undefined}>
       <div className="grid h-full grid-cols-2 gap-2">
-        <Button className="h-full text-base" disabled={!st?.available} onClick={() => act("prev", "Previous slide")}><ChevronLeft size={20} />Prev</Button>
-        <Button className="h-full text-base" disabled={!st?.available} onClick={() => act("next", "Next slide")}>Next<ChevronRight size={20} /></Button>
+        <Button className="h-full text-base" disabled={!st?.available} onClick={() => act("prev", "Previous slide")}><ChevronLeft size={20} />Prev slide</Button>
+        <Button className="h-full text-base" disabled={!st?.available} onClick={() => act("next", "Next slide")}>Next slide<ChevronRight size={20} /></Button>
       </div>
     </Frame>
   );
@@ -331,8 +358,12 @@ function SlideButton({ s }: { s: Settings }) {
   const act = slideAct(useLog().log, st?.label || "Slides", useWidgetConn());
   const action = str(s.action);
   if (!action) return <Unset what="Pick a slide action in this widget's settings." />;
-  const label = str(s.label) || { black: "Black screen", logo: "Logo", clear: "Clear text", next: "Next", prev: "Prev" }[action] || action;
-  return <BigButton label={label} onClick={() => act(action, label)} className="btn-raised hover:brightness-125">{label}</BigButton>;
+  const label = str(s.label) || { black: "Black screen", logo: "Logo", clear: "Clear text", next: "Next slide", prev: "Prev slide" }[action] || action;
+  return (
+    <Frame title="Slides" {...slidesHead(st)} bleed>
+      <BigButton label={label} onClick={() => act(action, label)} className="btn-raised hover:brightness-125 disabled:btn-off">{label}</BigButton>
+    </Frame>
+  );
 }
 
 // ----------------------------------------------------------------- audio
@@ -345,8 +376,9 @@ function MuteButton({ s }: { s: Settings }) {
   const [busy, setBusy] = useState(false);
   const slot = Number(s.slot);
   const ch = st?.channels.find((c) => c.slot === slot);
+  const head = { source: st?.label || st?.driver || "Mixer", online: st ? st.connected : undefined };
   if (!slot) return <Unset what="Pick a favorite channel in this widget's settings." />;
-  if (!ch) return <Unset what={st ? "That favorite no longer exists." : "Reading the mixer…"} />;
+  if (!ch) return <Frame title="Mute" {...head}><Note text={st ? "That favorite no longer exists." : "Reading the mixer…"} /></Frame>;
   const label = str(s.label) || ch.label;
   const toggle = async (muted: boolean) => {
     setBusy(true);
@@ -362,7 +394,7 @@ function MuteButton({ s }: { s: Settings }) {
   };
   const press = () => (ch.muted && bool(s.askUnmute) ? setAsk(true) : toggle(!ch.muted));
   return (
-    <>
+    <Frame title="Mute" {...head} bleed>
       <button type="button" onClick={press} disabled={busy || ch.channel == null || !st?.connected}
         className={cn("flex h-full w-full flex-col justify-between rounded-[var(--radius-card)] border-2 p-3 text-left transition active:scale-[0.98] disabled:opacity-50",
           // muted = red filled (WIDGETS.md §6)
@@ -384,7 +416,7 @@ function MuteButton({ s }: { s: Settings }) {
           <Button variant="accent" onClick={() => { setAsk(false); toggle(false); }}>Unmute</Button>
         </div>
       </Dialog>
-    </>
+    </Frame>
   );
 }
 
@@ -411,6 +443,7 @@ function MacroButton({ s }: { s: Settings }) {
     }
   };
   return (
+    <Frame title="Macro" bleed>
     <button type="button" onClick={run} disabled={busy}
       className="btn-raised flex h-full w-full flex-col items-start justify-between rounded-[var(--radius-card)] border p-3 text-left transition hover:brightness-125 active:scale-[0.98]">
       <span className="btn-sel flex h-10 w-10 items-center justify-center rounded-full border">
@@ -423,6 +456,7 @@ function MacroButton({ s }: { s: Settings }) {
         </span>
       </span>
     </button>
+    </Frame>
   );
 }
 
@@ -486,7 +520,7 @@ function TextWidget({ s }: { s: Settings }) {
 function LogWidget() {
   const { entries } = useLog();
   return (
-    <Frame title="What just happened">
+    <Frame title="What just happened" source="This screen">
       {entries.length === 0 ? <p className="text-sm text-dim">Nothing yet this session.</p> : (
         <ul data-feed className="h-full space-y-1 overflow-y-auto font-mono text-xs">
           {entries.map((e) => (
@@ -517,7 +551,7 @@ export const WIDGETS: WidgetDef[] = [
     size: { w: 6, h: 9, pw: 4, ph: 8 },
     minPx: (s) => {
       const inc = bool(s.incoming, true), out = bool(s.outgoing, false);
-      let h = 24;
+      let h = 58; // header 34 + padding
       if (inc) h += 130 + (list(s.replies, DEFAULT_REPLIES).length ? 52 : 0);
       if (out) h += 34 + Math.ceil(list(s.quick, DEFAULT_QUICK).length / 2) * 50 + (bool(s.textBox, false) ? 64 : 0) + 44;
       return { w: 220, h };
@@ -550,7 +584,7 @@ export const WIDGETS: WidgetDef[] = [
     fields: [{ key: "channel", label: "Channel", type: "channel" }, { key: "controls", label: "Pause / +1 / stop buttons", type: "bool", help: "For the booth; leave off on stage screens." }],
     Render: ({ s, editing }) => <StageTimer s={s} editing={editing} /> },
   { type: "stage.live", label: "On air", group: "stage", icon: Radio,
-    description: "WE ARE LIVE while the switcher is streaming, OFF AIR when it isn't. Any size — down to a small pill.",
+    description: "The stream: WE ARE LIVE while the switcher (vMix) is streaming, OFF AIR when it isn't. The header says whose stream it is. Any size — down to a small pill.",
     size: { w: 8, h: 2, pw: 4, ph: 2 }, minPx: { w: 90, h: 28 }, defaults: {},
     fields: [],
     Render: ({ s }) => <StageLive s={s} /> },
@@ -613,7 +647,7 @@ export const WIDGETS: WidgetDef[] = [
   { type: "camera.stop", label: "Stop camera", group: "camera", icon: Square, description: "A big red stop.",
     size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 120, h: 60 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <StopWidget /> },
   { type: "camera.zoom", label: "Zoom", group: "camera", icon: ZoomIn, description: "Tele and wide.",
-    size: { w: 2, h: 5, pw: 1, ph: 5 }, minPx: { w: 70, h: 120 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <ZoomWidget /> },
+    size: { w: 2, h: 5, pw: 1, ph: 5 }, minPx: { w: 70, h: 142 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <ZoomWidget /> },
   { type: "camera.speed", label: "Speed", group: "camera", icon: Gauge, description: "Speed slider and Fine.",
     size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 180, h: 110 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <SpeedWidget /> },
 
@@ -637,7 +671,7 @@ export const WIDGETS: WidgetDef[] = [
   { type: "audio.favorites", label: "Favorites", group: "audio", icon: ListMusic, description: "All favorite channels.",
     size: { w: 8, h: 6, ph: 9 }, minPx: { w: 280, h: 160 }, defaults: {}, fields: [conn("mixer")], Render: () => <Fill><Mixer /></Fill> },
   { type: "audio.mute", label: "Mute button", group: "audio", icon: Mic, description: "One channel, big.",
-    size: { w: 2, h: 4, pw: 2, ph: 3 }, minPx: { w: 100, h: 92 }, defaults: { askUnmute: false, showChannel: true },
+    size: { w: 2, h: 4, pw: 2, ph: 3 }, minPx: { w: 100, h: 126 }, defaults: { askUnmute: false, showChannel: true },
     fields: [
       conn("mixer"),
       { key: "slot", label: "Channel", type: "source", source: "favorites" },
@@ -648,7 +682,7 @@ export const WIDGETS: WidgetDef[] = [
     Render: ({ s }) => <MuteButton s={s} /> },
 
   { type: "macros.button", label: "Macro button", group: "macros", icon: Play, description: "Run one macro.",
-    size: { w: 2, h: 3, pw: 2, ph: 3 }, minPx: { w: 120, h: 100 }, defaults: {},
+    size: { w: 2, h: 3, pw: 2, ph: 3 }, minPx: { w: 120, h: 134 }, defaults: {},
     fields: [{ key: "macro", label: "Macro", type: "source", source: "macros" }, label("label", "Label (optional)")],
     Render: ({ s }) => <MacroButton s={s} /> },
   { type: "macros.list", label: "Macro list", group: "macros", icon: ListChecks, description: "All macros, with the builder.",

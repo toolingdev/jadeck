@@ -3,7 +3,7 @@ import { Pipette } from "lucide-react";
 import { api, type FieldSpec } from "@/lib/api";
 import { useLog } from "@/lib/log";
 import { useCam, withCam } from "@/lib/camera";
-import { CamChip } from "@/components/CamChip";
+import { CamSource } from "@/dash/header";
 import { Button, Card, CardBody, CardHeader, Segmented, Select, Slider, Switch, Empty } from "@/components/ui";
 
 const groups = [
@@ -57,7 +57,7 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
 
   return (
     <Card>
-      <CardHeader title={<span className="flex items-center gap-2">Picture <CamChip /></span>} meta="advanced">
+      <CardHeader title={<span className="flex items-center gap-2">Picture <CamSource /></span>} meta="advanced">
         <Button size="sm" variant="ghost" onClick={load}>Refresh</Button>
       </CardHeader>
       <CardBody className="space-y-4">

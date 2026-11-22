@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as RSlider from "@radix-ui/react-slider";
 import { cn } from "@/lib/cn";
-import { Frame } from "../widgets";
-import { bound, ConnChip, isObj, label, num, Readout, str, useAddonAction, type ShapeProps } from "./common";
+import { Frame, Ctx } from "../header";
+import { bound, connHead, isObj, label, num, Readout, str, useAddonAction, type ShapeProps } from "./common";
 
 // kind "slider": a big touch slider (T-bar, volume). Upright when the box
 // is taller than wide. Sends while dragging (at most every 100 ms, never
@@ -91,8 +91,8 @@ export function SliderShape({ def, state, conn, preview, editing }: ShapeProps) 
   const scale = marks(b.ticks, min, max);
   const at = (v: number) => `${((v - min) / (max - min)) * 100}%`;
   return (
-    <Frame title={lbl ? `${def.label} · ${lbl}` : def.label}
-      right={<><ConnChip conn={conn} /><Readout>{unit ? `${value > 0 && min < 0 ? "+" : ""}${fmt(value)} ${unit}` : `${pct}%`}</Readout></>}>
+    <Frame title={def.label} {...connHead(conn)}
+      right={<>{lbl && <Ctx>{lbl}</Ctx>}<Readout>{unit ? `${value > 0 && min < 0 ? "+" : ""}${fmt(value)} ${unit}` : `${pct}%`}</Readout></>}>
       <div ref={box} className="flex h-full items-center justify-center">
         <RSlider.Root orientation={upright ? "vertical" : "horizontal"} disabled={off}
           value={[value]} min={min} max={max} step={(max - min) / 1000}

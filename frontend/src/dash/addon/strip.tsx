@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
-import { Frame } from "../widgets";
-import { bound, ConnChip, NumTag, objs, resUrl, str, TallyRing, useAddonAction, type ShapeProps } from "./common";
+import { Frame } from "../header";
+import { bound, connHead, NumTag, objs, resUrl, str, TallyRing, useAddonAction, type ShapeProps } from "./common";
 
 // kind "strip": a row of thumbnails that scrolls sideways (the one place a
 // widget scrolls); tap one to go there. Red = live, green = next.
@@ -26,7 +26,7 @@ export function StripShape({ def, state, conn, preview, editing }: ShapeProps) {
     if (left < el.scrollLeft || right > el.scrollLeft + el.clientWidth) el.scrollTo({ left: Math.max(0, left - 8), behavior: "smooth" });
   }, [live, items.length]);
   return (
-    <Frame title={def.label} right={<ConnChip conn={conn} />}>
+    <Frame title={def.label} {...connHead(conn)}>
       {items.length === 0 ? <p className="text-xs text-dim">Nothing to show.</p> : (
         <div ref={row} data-strip className="flex h-full gap-2.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-1 pt-1 [container-type:size] [scrollbar-width:thin]">
           {items.map((it, i) => {

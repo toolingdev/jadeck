@@ -60,7 +60,8 @@ export type StreamConfig = {
   camera: string; snapshot: string;
   whep?: string; hls?: string; whepSd?: string; hlsSd?: string;
   programWhep?: string; programHls?: string; confidenceWhep?: string; confidenceHls?: string;
-  feeds?: { id: string; name: string; source: "push" | "pull"; whep?: string; hls?: string }[];
+  feeds?: { id: string; name: string; source: "push" | "pull"; whep?: string; hls?: string;
+    /** the add-on connection that made it */ via?: string; /** a pull feed's protocol (rtsp, srt) */ proto?: string }[];
 };
 
 export type CameraInfo = {

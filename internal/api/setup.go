@@ -447,6 +447,21 @@ func (s *Server) streamURLs(r *http.Request, u *cams.Unit) map[string]any {
 	feeds := []map[string]string{}
 	for _, f := range set.Video.Feeds {
 		fd := map[string]string{"id": f.ID, "name": f.Name, "source": f.Source}
+		// For the widget header ("NDI · LIVESTREAM", "SRT"): the add-on
+		// connection that made the feed, and a pull feed's protocol (never
+		// the URL: it can carry a password).
+		if f.Owner != "" {
+			if d := s.Devs(); d != nil {
+				if l := d.Get(f.Owner); l != nil {
+					fd["via"] = l.Name
+				}
+			}
+		}
+		if f.Source == "pull" {
+			if i := strings.Index(f.URL, "://"); i > 0 {
+				fd["proto"] = strings.ToLower(f.URL[:i])
+			}
+		}
 		if running {
 			fd["whep"], fd["hls"] = url(video.PortWebRTC, f.ID+"/whep"), url(video.PortHLS, f.ID+"/index.m3u8")
 		}

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Frame } from "../widgets";
+import { Frame } from "../header";
 import { HoldButton, holdSeconds } from "./hold";
-import { ConnChip, isObj, listOf, num, stateClass, str, useAddonAction, type ShapeProps } from "./common";
+import { connHead, isObj, listOf, num, stateClass, str, useAddonAction, type ShapeProps } from "./common";
 
 // kind "buttons": a grid of equal buttons (WIDGETS.md: equal choices look
 // equal; colour is state, not importance).
@@ -81,7 +81,7 @@ export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps)
   // the longest label has room for.
   const font = fit ? Math.max(13.5, Math.min(19, 13.5 + (fit.bh - MIN_H) * 0.06, (fit.bw - 20) / (Math.max(1, longest) * 0.6))) : 13.5;
   return (
-    <Frame title={def.label} right={<ConnChip conn={conn} />}>
+    <Frame title={def.label} {...connHead(conn)}>
       {items.length === 0 ? <p className="text-xs text-dim">No buttons right now.</p> : (
         // Grows to fit: fixed-height buttons, the box gets taller instead of scrolling.
         <div ref={box} className="h-full overflow-y-auto">

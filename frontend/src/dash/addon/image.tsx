@@ -1,7 +1,7 @@
 import { ImageOff } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Frame } from "../widgets";
-import { Badge, bound, ConnChip, isObj, NumTag, resUrl, str, TallyRing, useAddonAction, type ShapeProps } from "./common";
+import { Frame } from "../header";
+import { Badge, bound, connHead, isObj, NumTag, resUrl, str, TallyRing, useAddonAction, type ShapeProps } from "./common";
 
 // kind "image": a picture from the add-on (a live slide, a thumbnail) that
 // keeps its aspect ratio, with a caption, a badge and a tally ring.
@@ -39,7 +39,7 @@ export function ImageShape({ def, state, conn, preview, editing }: ShapeProps) {
     </div>
   );
   return (
-    <Frame title={def.label} right={<ConnChip conn={conn} />}>
+    <Frame title={def.label} {...connHead(conn)}>
       <div className="h-full">
         {tap ? (
           <button type="button" disabled={!!busy} onClick={tap} aria-label={caption || def.label}

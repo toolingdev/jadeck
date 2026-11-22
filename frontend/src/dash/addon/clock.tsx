@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
-import { Frame } from "../widgets";
-import { bound, ConnChip, label, Readout, str, type ShapeProps } from "./common";
+import { Frame } from "../header";
+import { bound, connHead, label, Readout, str, type ShapeProps } from "./common";
 
 // kind "clock": the wall clock, plus a count up from / down to `at`.
 // bind: at? (state key: ISO time), label? (key or text)
@@ -31,7 +31,7 @@ export function ClockShape({ def, state, conn }: ShapeProps) {
   const diff = valid ? (now.getTime() - at!.getTime()) / 1000 : 0; // > 0: since, < 0: until
   const hm = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   return (
-    <Frame title={def.label} right={<ConnChip conn={conn} />}>
+    <Frame title={def.label} {...connHead(conn)}>
       <div className="flex h-full min-w-0 flex-col justify-center gap-1 [container-type:size]">
         {/* Scales with the box, never wraps out of it. */}
         <div className="truncate font-mono text-[clamp(22px,min(40cqh,18cqw),72px)] font-bold leading-none tracking-[-0.02em] tabular">
