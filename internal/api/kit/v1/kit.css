@@ -47,12 +47,14 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-dot.ok { background: var(--color-pvw); }
 .jk-dot.warn { background: var(--color-accent); }
 @keyframes jk-pulse { 50% { box-shadow: 0 0 1px color-mix(in srgb, var(--color-pgm) 30%, transparent); } }
-.jk-smallcaps, .jk-src, .jk-right { font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--color-dim); white-space: nowrap; }
+.jk-smallcaps, .jk-src, .jk-right { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--color-dim); white-space: nowrap; }
 .jk-src { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
 .jk-src:empty { display: none; }
 .jk-note { flex: 1; min-width: 0; color: var(--color-dim); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jk-note.bad { color: var(--color-bad); }
-.jk-right { margin-left: auto; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 60%; }
+.jk-right { margin-left: auto; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; max-width: 60%; }
+/* plain text on the right: a block, so a long one ends in … */
+.jk-right:not(:has(*)) { display: block; }
 .jk-right:empty { display: none; }
 
 /* --------------------------------------------------------------- buttons
@@ -69,7 +71,7 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-btn:active { transform: scale(.97); }
 .jk-btn > .jk-l { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; z-index: 1; }
 .jk-btn > .jk-s { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; z-index: 1;
-  font-size: calc(var(--jk-font, 13.5px) * .67); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .6; line-height: 1.35; }
+  font-size: max(10px, calc(var(--jk-font, 13.5px) * .67)); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .6; line-height: 1.35; }
 .jk-btn > .jk-s:empty { display: none; }
 .jk-btn.pgm { background: var(--color-pgm) linear-gradient(180deg, rgb(255 255 255 / .06), rgb(0 0 0 / .06)); border-color: var(--color-pgm); color: #fff;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .2), 0 0 12px color-mix(in srgb, var(--color-pgm) 30%, transparent); }
@@ -115,13 +117,13 @@ body.jk-editing .jk-live { pointer-events: none; }
 
 /* --------------------------------------------------------- lock (knobs) */
 .jk-lock { height: 32px; border-radius: 8px; border: 1px solid var(--color-accent); background: #2a2210; color: var(--color-accent); font-size: 10px; font-weight: 800;
-  letter-spacing: .6px; padding: 0 10px; cursor: pointer; white-space: nowrap; flex: none; }
+  letter-spacing: .6px; padding: 0 10px; cursor: pointer; white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .jk-lock.open { background: color-mix(in srgb, var(--color-pvw) 15%, transparent); border-color: var(--color-pvw); color: #7ee2a8; }
 
 /* --------------------------------------------------------------- readouts */
 .jk-ro { font: 700 11.5px var(--font-mono); font-variant-numeric: tabular-nums; background: var(--jk-recess); border: 1px solid var(--color-line);
   box-shadow: inset 0 1px 2px rgb(0 0 0 / .6); border-radius: 7px; padding: 3px 8px; white-space: nowrap; color: var(--color-fg); }
-.jk-tag { font: 700 9.5px var(--font-sans); letter-spacing: .1em; padding: 3px 6px; border-radius: 5px; text-transform: uppercase; }
+.jk-tag { font: 700 10px var(--font-sans); letter-spacing: .1em; padding: 3px 6px; border-radius: 5px; text-transform: uppercase; }
 .jk-tag.pgm { background: var(--color-pgm); color: #fff; }
 .jk-tag.pvw { background: var(--color-pvw); color: #04130a; }
 
@@ -129,7 +131,7 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-knob { display: flex; flex-direction: column; align-items: center; gap: 2px; touch-action: none; cursor: ns-resize; min-width: 40px; }
 .jk-knob svg { display: block; overflow: visible; }
 .jk-knob .jk-kv { font-size: 12px; font-weight: 700; color: var(--color-fg); white-space: nowrap; }
-.jk-knob .jk-kl { font-size: 9px; font-weight: 600; letter-spacing: 1.2px; color: var(--jk-label); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.jk-knob .jk-kl { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; color: var(--jk-label); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .jk-knob.off { cursor: default; }
 .jk-knob.off svg { opacity: .7; }
 .jk-knob.drag .jk-kv { color: var(--color-accent); }
@@ -152,7 +154,7 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-strip .jk-shdr { padding: 8px 10px 0; min-width: 0; flex: none; }
 .jk-strip .jk-numrow { display: flex; align-items: center; gap: 6px; min-height: 14px; }
 .jk-strip .jk-num { flex: 1; min-width: 0; color: var(--jk-label); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
-.jk-strip .jk-st { flex: none; background: var(--color-line); color: var(--jk-fg-2); font-size: 8px; font-weight: 800; border-radius: 4px; padding: 2px 4px; line-height: 10px; }
+.jk-strip .jk-st { flex: none; background: var(--color-line); color: var(--jk-fg-2); font-size: 10px; font-weight: 800; border-radius: 4px; padding: 1px 4px; line-height: 12px; }
 .jk-strip .jk-nm { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; }
 .jk-strip .jk-gainbox { flex: none; height: 96px; display: flex; align-items: center; justify-content: center; }
 .jk-strip .jk-gainbox .jk-nopre { color: #4a515c; font-size: 10px; letter-spacing: 1px; }
@@ -164,7 +166,7 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-strip .jk-scale { position: absolute; top: 0; bottom: 0; left: 0; width: 46px; pointer-events: none; }
 .jk-strip .jk-tick { position: absolute; right: 0; height: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .jk-strip .jk-tick i { display: block; width: 10px; border-top: 1px solid var(--jk-tick); }
-.jk-strip .jk-tick b { font-size: 8.5px; font-weight: 500; color: var(--color-dim); }
+.jk-strip .jk-tick b { font-size: 10px; font-weight: 500; color: var(--color-dim); }
 .jk-strip .jk-tick.z i { width: 14px; border-color: #9aa3af; }
 .jk-strip .jk-tick.z b { color: var(--jk-fg-2); font-weight: 700; }
 .jk-strip .jk-rail { position: absolute; top: 0; bottom: 0; left: 52px; width: 6px; margin-left: -3px; border-radius: 3px; background: #06070a; border: 1px solid #2a3038; }
@@ -185,7 +187,7 @@ body.jk-editing .jk-live { pointer-events: none; }
    spot is past the edge, so it falls back to the strip's right edge. */
 .jk-strip .jk-meter { position: absolute; top: 0; height: calc(100% - 14px); left: min(86px, calc(100% - 18px)); width: 8px; display: block; }
 .jk-strip .jk-meter.st { width: 20px; left: min(86px, calc(100% - 30px)); }
-.jk-strip .jk-lr { position: absolute; bottom: 0; left: min(86px, calc(100% - 30px)); width: 20px; display: flex; justify-content: space-between; font-size: 8px; color: var(--color-dim); }
+.jk-strip .jk-lr { position: absolute; bottom: 0; left: min(86px, calc(100% - 30px)); width: 20px; display: flex; justify-content: space-between; font-size: 10px; color: var(--color-dim); }
 .jk-strip .jk-pill {
   flex: none; align-self: center; margin: 4px 0 0; min-width: 72px; max-width: calc(100% - 12px); padding: 4px 8px; text-align: center;
   background: var(--jk-recess); border: 1px solid var(--color-line); border-radius: 7px; color: var(--color-fg);
@@ -196,7 +198,7 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-strip .jk-btns .jk-btn { min-height: 48px; border-radius: 11px; font-size: 12px; font-weight: 800; letter-spacing: 1.2px; padding: 0 4px; }
 .jk-strip .jk-mute { flex: 1; }
 .jk-strip .jk-mute.by { background: color-mix(in srgb, var(--color-pgm) 14%, transparent); border-color: color-mix(in srgb, var(--color-pgm) 55%, transparent);
-  color: #f2a7a9; box-shadow: none; font-size: 9.5px; letter-spacing: .4px; line-height: 1.2; }
+  color: #f2a7a9; box-shadow: none; font-size: 10px; letter-spacing: .2px; line-height: 1.15; }
 .jk-strip .jk-mute.by > .jk-l { white-space: normal; }
 .jk-strip .jk-solo { flex: none; width: 32px; letter-spacing: 0; }
 .jk-strip .jk-solo.sel { background: var(--color-accent); border-color: var(--color-accent); color: #1b1404; }
@@ -212,8 +214,14 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-strip.narrow .jk-btns { padding: 8px 6px; }
 .jk-strip.narrow .jk-btns .jk-btn { padding: 0 2px; }
 .jk-strip.narrow .jk-mute { font-size: 10px; letter-spacing: 0; }
-.jk-strip.narrow .jk-mute.by { font-size: 8px; }
+.jk-strip.narrow .jk-mute.by { font-size: 10px; letter-spacing: 0; }
 .jk-strip.narrow .jk-pill { font-size: 11px; min-width: 0; padding: 4px; }
+/* narrow and stereo: a slimmer pair of meters and a slimmer cap, so the
+   meters sit beside the cap instead of under it */
+.jk-strip.narrow:has(.jk-meter.st) .jk-meter.st, .jk-strip.narrow:has(.jk-meter.st) .jk-lr { width: 14px; right: 4px; }
+.jk-strip.narrow:has(.jk-meter.st) .jk-rail { left: 22px; }
+.jk-strip.narrow:has(.jk-meter.st) .jk-hit { left: 0; }
+.jk-strip.narrow:has(.jk-meter.st) .jk-cap { left: 8px; width: 28px; }
 /* no fader: the meter alone, centred */
 .jk-strip.nofader .jk-scale, .jk-strip.nofader .jk-rail, .jk-strip.nofader .jk-hit, .jk-strip.nofader .jk-cap { display: none; }
 .jk-strip.nofader .jk-meter, .jk-strip.nofader .jk-lr { left: 50%; right: auto; transform: translateX(-50%); }

@@ -736,10 +736,12 @@
     var pos = d ? d.pos : law.toPos(s.db == null ? -144 : s.db);
     this.cap.style.transform = "translateY(" + ((1 - pos) * (this.trackH || 0)).toFixed(1) + "px)";
     var db = d ? law.toDb(pos) : s.db;
-    this.pill.textContent = db == null ? "–" : JK.dbText(db, db <= -143.9 ? "" : "dB");
+    // a narrow strip's pill has room for the number only ("−10.0")
+    var full = db == null ? "–" : JK.dbText(db, db <= -143.9 ? "" : "dB");
+    this.pill.textContent = db == null ? "–" : JK.dbText(db, db <= -143.9 || this.root.classList.contains("narrow") ? "" : "dB");
     this.pill.classList.toggle("live", !!d);
     this.pill.title = s.edb != null && s.db != null && Math.abs(s.edb - s.db) > 0.05 ? "After DCA: " + JK.dbText(s.edb, "dB") : "";
-    this.hit.setAttribute("aria-valuetext", this.pill.textContent);
+    this.hit.setAttribute("aria-valuetext", full);
     var by = (s.emuted && !s.muted);
     this.mute.set({ tone: s.muted ? "pgm" : "", disabled: off,
       label: s.muted ? "MUTED" : by ? "MUTED BY " + String(s.mutedBy || "GROUP").toUpperCase() : "MUTE",
