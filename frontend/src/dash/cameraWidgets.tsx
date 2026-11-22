@@ -17,12 +17,12 @@ import type { CameraInfo } from "@/lib/api";
 
 // ---------------------------------------------------------------- speeds
 
-const SPEEDS: { key: keyof Controls & `${string}Speed`; label: string; min: number; max: number }[] = [
+const SPEEDS: { key: keyof Controls & `${string}Speed`; label: string; min: number; max: number; zero?: string }[] = [
   { key: "panSpeed", label: "Pan", min: 1, max: 24 },
   { key: "tiltSpeed", label: "Tilt", min: 1, max: 20 },
   { key: "zoomSpeed", label: "Zoom", min: 1, max: 7 },
-  { key: "focusSpeed", label: "Focus", min: 0, max: 7 },
-  { key: "recallSpeed", label: "Preset recall", min: 1, max: 24 },
+  { key: "focusSpeed", label: "Focus", min: 0, max: 8, zero: "Std" },
+  { key: "recallSpeed", label: "Preset recall", min: 0, max: 24, zero: "Cam" },
 ];
 
 export function SpeedsWidget() {
@@ -45,7 +45,7 @@ export function SpeedsWidget() {
               <Slider value={v} min={sp.min} max={sp.max} label={`${sp.label} speed`} className="min-w-0 flex-1"
                 onChange={(n) => setDrag((d) => ({ ...d, [sp.key]: n }))}
                 onCommit={(n) => { save({ [sp.key]: n }, `${sp.label} speed ${n}`).finally(() => setDrag((d) => ({ ...d, [sp.key]: undefined }))); }} />
-              <span className="w-6 shrink-0 text-right font-mono text-[13px] font-bold tabular text-fg">{v}</span>
+              <span className="w-8 shrink-0 text-right font-mono text-[13px] font-bold tabular text-fg" title={v === 0 && sp.zero ? (sp.key === "focusSpeed" ? "The camera's standard focus speed" : "The camera's own preset speed") : undefined}>{v === 0 && sp.zero ? sp.zero : v}</span>
             </div>
           );
         })}

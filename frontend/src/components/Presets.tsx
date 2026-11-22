@@ -165,7 +165,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
             <div className="recess flex items-center gap-3 rounded-xl border px-3 py-1.5 text-muted">
               <span className="flex-1">Recall speed for this preset</span>
               <Select value={recallSpeed} onChange={setRecallSpeed} className="w-auto"
-                options={[{ value: "0", label: `Camera default (${ctl?.recallSpeed ?? 18})` },
+                options={[{ value: "0", label: ctl?.recallSpeed ? `Camera default (${ctl.recallSpeed})` : "Camera default" },
                   ...Array.from({ length: 24 }, (_, i) => ({ value: String(i + 1), label: `${i + 1}${i === 0 ? " · slowest" : i === 23 ? " · fastest" : ""}` }))]} />
             </div>
           </div>

@@ -52,7 +52,7 @@ func LimitsOf(c settings.Camera) camera.Limits {
 		return camera.DefaultLimits
 	}
 	k := c.Ctl()
-	return camera.Limits{Pan: k.PanSpeed, Tilt: k.TiltSpeed, Zoom: k.ZoomSpeed, Focus: k.FocusSpeed, Recall: k.RecallSpeed}
+	return camera.Limits{Pan: k.PanSpeed, Tilt: k.TiltSpeed, Zoom: k.ZoomSpeed, Focus: k.FocusSpeed - 1, Recall: k.RecallSpeed}
 }
 
 func connChanged(a, b settings.Camera) bool {

@@ -68,10 +68,12 @@ type Scene struct {
 	Settings map[string]any `json:"settings"`
 }
 
-// DefaultControls are what a camera starts with (the PTZOptics app's
-// own defaults, roughly).
+// DefaultControls are what a camera starts with: the full range, exactly
+// how Move drove before per-camera speeds existed. FocusSpeed 0 is the
+// camera's standard focus drive (1..8 are variable speeds 0..7) and
+// RecallSpeed 0 leaves the camera's own preset speed alone.
 func DefaultControls() Controls {
-	return Controls{PanSpeed: 12, TiltSpeed: 10, ZoomSpeed: 4, FocusSpeed: 2, RecallSpeed: 18}
+	return Controls{PanSpeed: 24, TiltSpeed: 20, ZoomSpeed: 7}
 }
 
 // Normalize fills zero speeds with the defaults and clamps the rest.
@@ -86,10 +88,8 @@ func (c *Controls) Normalize() {
 	fix(&c.PanSpeed, d.PanSpeed, 1, 24)
 	fix(&c.TiltSpeed, d.TiltSpeed, 1, 20)
 	fix(&c.ZoomSpeed, d.ZoomSpeed, 1, 7)
-	if c.FocusSpeed < 0 || c.FocusSpeed > 7 {
-		c.FocusSpeed = max(0, min(7, c.FocusSpeed))
-	}
-	fix(&c.RecallSpeed, d.RecallSpeed, 1, 24)
+	c.FocusSpeed = max(0, min(8, c.FocusSpeed))
+	c.RecallSpeed = max(0, min(24, c.RecallSpeed))
 	for k, v := range c.PresetSpeeds {
 		if v <= 0 {
 			delete(c.PresetSpeeds, k)

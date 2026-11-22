@@ -12,7 +12,7 @@ func TestCameraControls(t *testing.T) {
 	e := setup(t)
 
 	code, c, _ := e.do(t, "GET", "/api/camera/controls", nil)
-	if code != 200 || c["panSpeed"] != float64(12) || c["recallSpeed"] != float64(18) || len(c["builtinScenes"].([]any)) != 3 {
+	if code != 200 || c["panSpeed"] != float64(24) || c["recallSpeed"] != float64(0) || c["focusSpeed"] != float64(0) || len(c["builtinScenes"].([]any)) != 3 {
 		t.Fatalf("defaults: %d %v", code, c)
 	}
 	if code, _, _ := e.do(t, "PATCH", "/api/camera/controls", map[string]any{"tiltSpeed": 30}); code != 400 {
@@ -25,7 +25,7 @@ func TestCameraControls(t *testing.T) {
 	if !slices.Contains(e.mock.HTTPCalls(), "post_image_value&motionsync&2") {
 		t.Fatalf("motion sync not sent: %v", e.mock.HTTPCalls())
 	}
-	if l := e.srv.Cams.Main().Svc.Limits(); l.Pan != 6 || l.Recall != 9 || l.Focus != 3 {
+	if l := e.srv.Cams.Main().Svc.Limits(); l.Pan != 6 || l.Recall != 9 || l.Focus != 2 {
 		t.Fatalf("limits not applied to the camera: %+v", l)
 	}
 
@@ -106,5 +106,26 @@ func TestCameraControls(t *testing.T) {
 	}
 	if _, c, _ := e.do(t, "GET", "/api/camera/controls", nil); c["panSpeed"] != float64(6) {
 		t.Fatalf("controls lost on edit: %v", c)
+	}
+}
+
+// Using any operator control (focus lock here) must not slow Move down:
+// untouched speeds stay at the camera's full range, focus at its standard
+// drive and preset recall at the camera's own speed.
+func TestControlsKeepMoveSpeed(t *testing.T) {
+	e := setup(t)
+	before := e.srv.Cams.Main().Svc.Limits()
+	if code, _, _ := e.do(t, "POST", "/api/camera/focus-lock", map[string]any{"locked": true}); code != 200 {
+		t.Fatalf("lock: %d", code)
+	}
+	if after := e.srv.Cams.Main().Svc.Limits(); after != before {
+		t.Fatalf("limits changed by focus lock: %+v -> %+v", before, after)
+	}
+	e.mock.Reset(nil, nil, nil)
+	if code, _, _ := e.do(t, "POST", "/api/presets/1/recall", nil); code != 200 {
+		t.Fatalf("recall: %d", code)
+	}
+	if log := e.mock.State().Log; len(log) == 0 || strings.HasPrefix(log[0], "81010601") {
+		t.Fatalf("a preset speed was sent without one being set: %v", log)
 	}
 }

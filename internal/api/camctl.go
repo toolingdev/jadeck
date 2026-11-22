@@ -104,14 +104,18 @@ func (s *Server) patchControls(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &b) {
 		return
 	}
-	for _, v := range []*int{b.PanSpeed, b.TiltSpeed, b.ZoomSpeed, b.RecallSpeed} {
+	if b.RecallSpeed != nil && (*b.RecallSpeed < 0 || *b.RecallSpeed > 24) {
+		fail(w, 400, "recall speed is 0 (camera's own) or 1-24")
+		return
+	}
+	for _, v := range []*int{b.PanSpeed, b.TiltSpeed, b.ZoomSpeed} {
 		if v != nil && (*v < 1 || *v > 24) {
 			fail(w, 400, "speeds are 1-24")
 			return
 		}
 	}
-	if b.TiltSpeed != nil && *b.TiltSpeed > 20 || b.ZoomSpeed != nil && *b.ZoomSpeed > 7 || b.FocusSpeed != nil && (*b.FocusSpeed < 0 || *b.FocusSpeed > 7) {
-		fail(w, 400, "tilt is 1-20, zoom 1-7, focus 0-7")
+	if b.TiltSpeed != nil && *b.TiltSpeed > 20 || b.ZoomSpeed != nil && *b.ZoomSpeed > 7 || b.FocusSpeed != nil && (*b.FocusSpeed < 0 || *b.FocusSpeed > 8) {
+		fail(w, 400, "tilt is 1-20, zoom 1-7, focus 0 (standard) or 1-8")
 		return
 	}
 	if b.MotionSync != nil {

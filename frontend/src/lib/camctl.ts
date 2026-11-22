@@ -15,7 +15,7 @@ export type Controls = {
 };
 
 export const DEFAULT_CONTROLS: Controls = {
-  camera: "", panSpeed: 12, tiltSpeed: 10, zoomSpeed: 4, focusSpeed: 2, recallSpeed: 18,
+  camera: "", panSpeed: 24, tiltSpeed: 20, zoomSpeed: 7, focusSpeed: 0, recallSpeed: 0,
   focusLocked: false, scenes: [], builtinScenes: [],
 };
 

@@ -177,8 +177,8 @@ type speedsIn struct {
 	PanSpeed    *int  `json:"panSpeed,omitempty" jsonschema:"top pan speed 1-24"`
 	TiltSpeed   *int  `json:"tiltSpeed,omitempty" jsonschema:"top tilt speed 1-20"`
 	ZoomSpeed   *int  `json:"zoomSpeed,omitempty" jsonschema:"top zoom speed 1-7"`
-	FocusSpeed  *int  `json:"focusSpeed,omitempty" jsonschema:"focus near/far speed 0-7"`
-	RecallSpeed *int  `json:"recallSpeed,omitempty" jsonschema:"preset recall speed 1-24"`
+	FocusSpeed  *int  `json:"focusSpeed,omitempty" jsonschema:"focus near/far speed: 0 the camera standard, 1-8 slow to fast"`
+	RecallSpeed *int  `json:"recallSpeed,omitempty" jsonschema:"preset recall speed: 0 the camera's own, 1-24"`
 	MotionSync  *bool `json:"motionSync,omitempty" jsonschema:"Motion Sync on or off (newer PTZOptics models)"`
 }
 
