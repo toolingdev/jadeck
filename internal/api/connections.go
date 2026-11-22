@@ -231,15 +231,13 @@ func (s *Server) saveAndOpen(f *devices.File, what string) error {
 			return err
 		}
 	}
-	// Close the old set first (a MIDI port can only be open once).
-	if old := s.Devs(); old != nil {
-		old.Close()
-	}
+	// Unchanged connections stay open; changed and removed ones close
+	// before the new ones open (a MIDI port can only be open once).
 	var open devices.Opener
 	if s.Addons != nil {
 		open = s.Addons.Open
 	}
-	set := devices.Open(f, open)
+	set := devices.Reopen(s.Devs(), f, open)
 	s.devMu.Lock()
 	s.Dev, s.DevFile = set, f
 	s.devMu.Unlock()

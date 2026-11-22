@@ -8,6 +8,7 @@
 package devices
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -248,13 +249,47 @@ type Set struct {
 // Open builds the set. A connection that fails to open is reported in
 // its Err instead of taking the app down.
 func Open(f *File, open Opener) *Set {
+	return Reopen(nil, f, open)
+}
+
+// sameOpen reports whether two connections open the same way (only their
+// name, quick channels or camera inputs differ).
+func sameOpen(a, b Connection) bool {
+	return a.ID == b.ID && a.Addon == b.Addon && a.Type == b.Type && a.Disabled == b.Disabled && bytes.Equal(a.Config, b.Config)
+}
+
+// Reopen builds the set for f, keeping every open connection of old that
+// is unchanged (so adding or editing one connection doesn't restart the
+// others mid-service). Connections that changed or went away are closed
+// first (a MIDI port can only be open once), then the new ones open.
+// old's leftovers are closed; old itself must not be used afterwards.
+func Reopen(old *Set, f *File, open Opener) *Set {
 	s := &Set{}
 	if f == nil {
 		f = &File{Version: 2}
 	}
 	f.Migrate()
+	keep := map[string]*Live{}
+	if old != nil {
+		want := map[string]Connection{}
+		for _, c := range f.Connections {
+			want[c.ID] = c
+		}
+		for _, l := range old.Conns {
+			if c, ok := want[l.ID]; ok && l.Impl != nil && sameOpen(l.Connection, c) {
+				keep[l.ID] = l
+				continue
+			}
+			if c, ok := l.Impl.(Closer); ok {
+				c.Close()
+			}
+		}
+	}
 	for _, c := range f.Connections {
 		l := &Live{Connection: c}
+		if k := keep[c.ID]; k != nil {
+			l.Impl, l.Caps, l.Err = k.Impl, k.Caps, k.Err
+		}
 		for i, fav := range c.Favorites {
 			sl := Slot{Slot: i + 1, Label: fav.Label}
 			if sl.Label == "" {
@@ -267,6 +302,8 @@ func Open(f *File, open Opener) *Set {
 			l.Slots = append(l.Slots, sl)
 		}
 		switch {
+		case keep[c.ID] != nil:
+			// still open from before
 		case c.Disabled:
 			l.Err = fmt.Errorf("turned off")
 		case open == nil:
