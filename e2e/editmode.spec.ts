@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { DEVICES, api, closeBrowsers, openDevice, writeJSON } from "./lib";
+import { DEVICES, api, closeBrowsers, openDevice, waitStill, writeJSON } from "./lib";
 
 // Edit mode must show the layout people get after Done: every widget the
 // same width and height in both. Checked with nothing selected and with a
@@ -19,12 +19,13 @@ test("edit mode looks like done", async () => {
     for (const d of dashboards.filter((x) => x.kind === kind)) {
       console.log(`… ${dev.name} · ${d.name}`);
       const { ctx, page } = await openDevice(dev, { screen: "Edit check", dashboard: d.id });
-      await page.waitForTimeout(1500);
+      await page.evaluate(() => document.fonts.ready);
+      await waitStill(page);
       const done: Box[] = await page.evaluate(boxes);
       const edit = page.getByRole("button", { name: "Edit" }).first();
       if (!(await edit.isVisible().catch(() => false))) { await ctx.close(); continue; }
       await edit.click();
-      await page.waitForTimeout(800);
+      await waitStill(page);
       const compare = async (when: string) => {
         const now: Box[] = await page.evaluate(boxes);
         for (const a of done) {
@@ -36,7 +37,7 @@ test("edit mode looks like done", async () => {
       const first = page.locator("[data-wid]").first();
       if (await first.isVisible().catch(() => false)) {
         await first.click({ position: { x: 20, y: 20 } });
-        await page.waitForTimeout(600);
+        await waitStill(page);
         await compare("editing, settings open");
       }
       await page.getByRole("button", { name: "Done" }).first().click({ timeout: 5000 }).catch(() => diffs.push({ device: dev.name, dashboard: d.name, when: "leaving edit", widget: "Done button", done: "tappable", edit: "covered or missing" }));

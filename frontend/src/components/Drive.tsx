@@ -210,8 +210,8 @@ export function ZoomStop({ vertical = true, home = false }: { vertical?: boolean
   const h = home ? "h-14" : "h-16";
   return (
     <div className={cn("flex gap-2", vertical ? "flex-col" : "flex-row")}>
-      <HoldButton vec={{ zoom: 1 }} label="Zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><Plus size={20} />TELE</HoldButton>
-      {home && <HoldButton vec={{ zoom: -1 }} label="Zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><Minus size={20} />WIDE</HoldButton>}
+      <HoldButton vec={{ zoom: 1 }} label="Tele, zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><Plus size={20} />TELE</HoldButton>
+      {home && <HoldButton vec={{ zoom: -1 }} label="Wide, zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><Minus size={20} />WIDE</HoldButton>}
       <button
         type="button" aria-label="Stop" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }}
         className={cn(h, "btn-pgm flex w-16 items-center justify-center rounded-2xl border transition hover:brightness-110 active:scale-[0.97]")}
@@ -226,7 +226,7 @@ export function ZoomStop({ vertical = true, home = false }: { vertical?: boolean
           <Home size={18} className="text-fg" />HOME
         </button>
       ) : (
-        <HoldButton vec={{ zoom: -1 }} label="Zoom out" className="h-16 w-16 flex-col text-[10px] font-semibold"><Minus size={20} />WIDE</HoldButton>
+        <HoldButton vec={{ zoom: -1 }} label="Wide, zoom out" className="h-16 w-16 flex-col text-[10px] font-semibold"><Minus size={20} />WIDE</HoldButton>
       )}
     </div>
   );

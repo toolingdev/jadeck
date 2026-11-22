@@ -118,7 +118,7 @@ export function SliderShape({ def, state, conn, preview, editing }: ShapeProps) 
             <RSlider.Range className={cn("absolute rounded-full bg-accent/45", upright ? "w-full" : "h-full")} />
           </RSlider.Track>
           {/* Metallic cap: same touch size as before (64×32). */}
-          <RSlider.Thumb className={cn("fader-cap relative flex items-center justify-center rounded-md transition-[filter] hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/40",
+          <RSlider.Thumb aria-label={def.label} className={cn("fader-cap relative flex items-center justify-center rounded-md transition-[filter] hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/40",
             upright ? "h-8 w-16 flex-col" : "h-16 w-8 flex-row", off && "brightness-75")}>
             <span aria-hidden className={cn("flex items-center justify-center gap-[3px]", upright ? "flex-col" : "flex-row")}>
               <span className={cn("block bg-black/25", upright ? "h-px w-7" : "h-7 w-px")} />

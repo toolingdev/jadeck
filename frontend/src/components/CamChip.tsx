@@ -30,7 +30,8 @@ export function CamChip({ className }: { className?: string }) {
         className="btn-sel flex w-full min-w-0 max-w-[11rem] items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] font-bold transition hover:brightness-125">
         <Video size={13} className="shrink-0 @max-[300px]:hidden" />
         <span className="truncate">{cur?.name ?? "Camera"}</span>
-        {pick && <ChevronDown size={13} className="shrink-0" />}
+        {/* drawn even where it can't open (edit mode) so the size is the same */}
+        <ChevronDown size={13} className="shrink-0" />
       </button>
       {/* in a portal: a short widget would clip it */}
       {open && pick && createPortal(

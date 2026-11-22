@@ -1,4 +1,4 @@
-import { test, type Frame, type Page } from "@playwright/test";
+import { test, expect, type Frame, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { api, closeBrowsers, openDevice, type Device } from "./lib";
@@ -298,6 +298,7 @@ for (let slot = 0; slot < SLOTS; slot++) {
     test.setTimeout(90 * 60_000);
     const variants = [...(await builtins()), ...(await addonVariants())].filter((v) => !ONLY || ONLY.test(v.name) || ONLY.test(v.type));
     const mine = variants.filter((_, i) => i % SLOTS === slot);
+    const problems: string[] = [];
     fs.mkdirSync(path.join(OUT, "findings"), { recursive: true });
     for (const scr of SCREENS) {
       const created = await api<{ id: number }>("POST", "/api/dashboards", { name: `Sizes ${scr.key} ${slot}`, kind: scr.key, widgets: [], layout: [] });
@@ -324,6 +325,7 @@ for (let slot = 0; slot < SLOTS; slot++) {
           fs.writeFileSync(file, JSON.stringify(cases, null, 2));
           const n = cases.reduce((a, c) => a + c.findings.length, 0);
           console.log(`${scr.key} · ${v.name}: ${n} findings`);
+          for (const c of cases) for (const f of c.findings) problems.push(`${scr.key} · ${v.name} · ${c.size}: ${JSON.stringify(f)}`);
         }
       } finally {
         await ctx.close();
@@ -332,6 +334,8 @@ for (let slot = 0; slot < SLOTS; slot++) {
     }
     await closeBrowsers();
     merge();
+    // in CI any finding fails the run; locally it's a report to look through
+    if (process.env.CI) expect(problems).toEqual([]);
   });
 }
 

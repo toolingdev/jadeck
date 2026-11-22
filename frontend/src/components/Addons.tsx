@@ -201,7 +201,7 @@ function WidgetPreview({ m, w }: { m: Manifest; w: AddonWidgetDef }) {
   }
   return (
     <figure className="space-y-1.5">
-      <div className={cn("pointer-events-none overflow-hidden rounded-[var(--radius-card)] select-none", w.kind === "chat" || w.kind === "sections" ? "h-72" : tall ? "h-48" : w.kind === "buttons" || w.kind === "clock" || w.kind === "text" || w.kind === "slider" ? "h-32" : "h-24")} aria-hidden>{body}</div>
+      <div className={cn("pointer-events-none overflow-hidden rounded-[var(--radius-card)] select-none", w.kind === "chat" || w.kind === "sections" ? "h-72" : tall ? "h-48" : w.kind === "buttons" || w.kind === "clock" || w.kind === "text" || w.kind === "slider" ? "h-32" : "h-24")} aria-hidden inert>{body}</div>
       <figcaption className="text-[11px] text-muted">{w.label}{w.description ? ` — ${w.description}` : ""}</figcaption>
     </figure>
   );

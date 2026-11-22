@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { useShared } from "@/lib/hooks";
-import { useCam, useCamPick } from "@/lib/camera";
+import { useCam } from "@/lib/camera";
 import { CamChip } from "@/components/CamChip";
 import type { CameraInfo, StreamConfig } from "@/lib/api";
 
@@ -102,9 +102,10 @@ export function useCamHead(pin?: string): { source?: string; online?: boolean } 
  *  cameras the amber chip (tap to switch) stands in for the name. */
 export function CamSource({ pin }: { pin?: string }) {
   const { source, online } = useCamHead(pin);
-  const pick = useCamPick();
   const { data } = useShared<{ id: string }[]>("/api/cameras", 10000);
-  if (pick && (data?.length ?? 0) >= 2) {
+  // The chip shows in edit mode too (not tappable there): edit mode must
+  // look exactly like the dashboard after Done, header line count included.
+  if ((data?.length ?? 0) >= 2) {
     return (
       <span className="flex min-w-0 items-center gap-1.5">
         {online !== undefined && <Source online={online} />}

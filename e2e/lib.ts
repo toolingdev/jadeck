@@ -80,3 +80,16 @@ export function writeJSON(file: string, data: unknown) {
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(data, null, 2));
 }
+
+/** Waits until no widget has moved or resized for a second (the dashboard
+ *  grid places widgets after measuring them), at most 15 s. */
+export async function waitStill(page: Page) {
+  let last = "", same = 0;
+  for (let i = 0; i < 60 && same < 4; i++) {
+    const now = await page.evaluate(() => [...document.querySelectorAll("[data-wid]")]
+      .map((e) => { const r = e.getBoundingClientRect(); return `${r.x | 0},${r.y | 0},${r.width | 0},${r.height | 0}`; }).join(";") + "|" + document.documentElement.scrollHeight);
+    same = now === last ? same + 1 : 0;
+    last = now;
+    await page.waitForTimeout(250);
+  }
+}

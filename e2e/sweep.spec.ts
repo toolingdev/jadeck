@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { DEVICES, api, closeBrowsers, openDevice, shot, writeJSON } from "./lib";
 
 // Every dashboard and every Settings section on every screen size: a
@@ -138,4 +138,6 @@ test("screen sweep: every page on every device", async () => {
   await closeBrowsers();
   console.log(`${pages.length} pages, ${findings.length} findings`);
   for (const f of findings) console.log(`- ${f.device} · ${f.page}: ${f.kind} — ${f.detail}`);
+  // in CI any finding fails the run; locally it's a report to look through
+  if (process.env.CI) expect(findings.map((f) => `${f.device} · ${f.page}: ${f.kind} — ${f.detail}`)).toEqual([]);
 });

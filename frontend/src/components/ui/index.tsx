@@ -124,7 +124,7 @@ export function Slider({ value, min, max, step = 1, onChange, onCommit, classNam
         <RSlider.Range className="absolute -top-px -bottom-px rounded-full bg-accent" />
       </RSlider.Track>
       {/* 28px to grab (a finger), the 20px cap drawn inside it */}
-      <RSlider.Thumb className="group flex h-7 w-7 items-center justify-center rounded-full focus:outline-none">
+      <RSlider.Thumb aria-label={label} className="group flex h-7 w-7 items-center justify-center rounded-full focus:outline-none">
         <span aria-hidden className="fader-cap block h-5 w-5 rounded-full transition-[filter] group-hover:brightness-105 group-focus-visible:ring-4 group-focus-visible:ring-accent/40 group-data-[disabled]:brightness-75" />
       </RSlider.Thumb>
     </RSlider.Root>

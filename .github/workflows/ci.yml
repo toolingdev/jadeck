@@ -5,6 +5,12 @@ on:
     branches: [main, go-port]
     tags: ["v*"]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      update_screens:
+        description: "Retake every saved screenshot (after a deliberate look change)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -29,6 +35,80 @@ jobs:
       - name: SDK (its own module)
         working-directory: sdk/addon
         run: go vet ./... && go test -race -count=1 ./...
+
+  # The app as people use it: a blank jadeck with the simulated rig
+  # (4 cameras, vMix, Proclaim, WING), driven in Chromium and WebKit (Safari)
+  # at phone, iPad and desktop sizes. See e2e/README.md.
+  gui:
+    if: "!startsWith(github.ref, 'refs/tags/v')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: ffmpeg (the simulated cameras' video)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Build web UI
+        working-directory: frontend
+        run: npm ci && npm run build
+      - name: Build jadeck (standard add-ons + MediaMTX inside) and the simulator
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PUBKEY: ${{ vars.PTZ_UPDATE_PUBKEY }}
+        run: |
+          go run ./cmd/addons-bundle --platform linux/amd64
+          go run ./cmd/mediamtx-bundle linux amd64
+          mkdir -p "$RUNNER_TEMP/rig"
+          go build -tags addonbundle,mediamtx -ldflags "-X main.UpdatePublicKey=${PUBKEY}" -o "$RUNNER_TEMP/rig/ptz" ./cmd/ptz
+          go build -o "$RUNNER_TEMP/rig/ptzsim" ./cmd/ptzsim
+      - name: Browsers
+        working-directory: e2e
+        run: npm ci && npx playwright install --with-deps chromium webkit
+      - name: Start jadeck + simulator
+        run: e2e/start-rig.sh "$RUNNER_TEMP/rig/ptz" "$RUNNER_TEMP/rig/ptzsim" "$RUNNER_TEMP/rig/data"
+      - name: Gear, screenshots, accessibility
+        working-directory: e2e
+        run: npx playwright test gear.spec.ts --reporter=list --update-snapshots=${{ inputs.update_screens && 'all' || 'missing' }}
+      - name: Service flow and edit mode
+        if: ${{ !cancelled() }}
+        working-directory: e2e
+        run: npx playwright test service.spec.ts editmode.spec.ts --reporter=list
+      - name: Every page on every screen
+        if: ${{ !cancelled() }}
+        working-directory: e2e
+        run: npx playwright test sweep.spec.ts --reporter=list
+      - name: Every widget at every size
+        if: ${{ !cancelled() }}
+        working-directory: e2e
+        run: npx playwright test sizes.spec.ts --workers 4 --reporter=dot
+      - name: New or retaken screenshots (commit them into e2e/screens/linux)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: screens-linux
+          path: e2e/screens/linux/
+          if-no-files-found: ignore
+      - name: What went wrong (pictures, diffs, logs)
+        if: ${{ failure() }}
+        run: |
+          cp "$RUNNER_TEMP"/rig/*.log e2e/results/ 2>/dev/null || true
+          (cd e2e && node make-report.mjs) || true
+      - if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gui-failures
+          path: |
+            e2e/results/
+            e2e/report/
+            e2e/out/sizes/report.json
+          if-no-files-found: ignore
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

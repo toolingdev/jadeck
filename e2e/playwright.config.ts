@@ -7,6 +7,8 @@ export default defineConfig({
   testDir: ".",
   testMatch: /.*\.spec\.ts/,
   outputDir: "results",
+  // saved pictures for toHaveScreenshot, one set per OS (fonts differ)
+  snapshotPathTemplate: "{testDir}/screens/{platform}/{arg}{ext}",
   timeout: 10 * 60_000,
   expect: { timeout: 8_000 },
   workers: 1,

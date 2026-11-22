@@ -138,8 +138,8 @@ function ZoomCol({ home }: { home: boolean }) {
   const h = home ? "h-14" : "h-16";
   return (
     <div className="flex shrink-0 flex-col gap-2">
-      <HoldButton vec={{ zoom: 1 }} label="Zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><ZoomIn size={18} />TELE</HoldButton>
-      <HoldButton vec={{ zoom: -1 }} label="Zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}>−<br />WIDE</HoldButton>
+      <HoldButton vec={{ zoom: 1 }} label="Tele, zoom in" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}><ZoomIn size={18} />TELE</HoldButton>
+      <HoldButton vec={{ zoom: -1 }} label="Wide, zoom out" className={cn(h, "w-16 flex-col text-[10px] font-semibold")}>−<br />WIDE</HoldButton>
       <button type="button" aria-label="Stop" onClick={() => { stopDrive(cam); act("Stop", "/api/ptz/stop"); }}
         className={cn(h, "btn-pgm flex w-16 items-center justify-center rounded-2xl border transition hover:brightness-110 active:scale-[0.97]")}>
         <Square size={18} fill="currentColor" />
@@ -209,8 +209,8 @@ function ZoomWidget() {
   return (
     <Frame title="Zoom" {...useCamHead()}>
       <div className="grid h-full grid-rows-2 gap-2">
-        <HoldButton vec={{ zoom: 1 }} label="Zoom in" className="h-full w-full flex-col gap-1 text-sm font-bold">+<span>TELE</span></HoldButton>
-        <HoldButton vec={{ zoom: -1 }} label="Zoom out" className="h-full w-full flex-col gap-1 text-sm font-bold">−<span>WIDE</span></HoldButton>
+        <HoldButton vec={{ zoom: 1 }} label="Tele, zoom in" className="h-full w-full flex-col gap-1 text-sm font-bold">+<span>TELE</span></HoldButton>
+        <HoldButton vec={{ zoom: -1 }} label="Wide, zoom out" className="h-full w-full flex-col gap-1 text-sm font-bold">−<span>WIDE</span></HoldButton>
       </div>
     </Frame>
   );

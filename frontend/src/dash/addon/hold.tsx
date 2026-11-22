@@ -94,7 +94,6 @@ export function HoldButton({ seconds, label, holdLabel, sub, tone, className, di
   const subSize = Math.max(10, Math.round(font * 0.67 * 2) / 2);
   return (
     <button type="button" disabled={disabled} title={title ?? `${label} — press and hold ${seconds} s`}
-      aria-label={`${label}, press and hold for ${seconds} seconds`}
       onPointerDown={(e) => { if (e.button === 0) { e.preventDefault(); start(); } }}
       onPointerUp={release} onPointerCancel={release} onPointerLeave={release}
       onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); start(); } }}
