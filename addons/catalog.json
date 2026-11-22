@@ -14,6 +14,8 @@
     {"id": "http-api", "name": "HTTP API", "repo": "toolingdev/jadeck-addon-http-api", "publisher": "jadeck",
      "description": "Each slide action is one web request you set up (ProPresenter and others).", "category": "Generic"},
     {"id": "simulated", "name": "Simulated devices", "repo": "toolingdev/jadeck-addon-simulated", "publisher": "jadeck",
-     "description": "A practice switcher, slides and mixer that touch no real gear.", "category": "Generic"}
+     "description": "A practice switcher, slides and mixer that touch no real gear.", "category": "Generic"},
+    {"id": "chat", "name": "Live chat", "repo": "toolingdev/jadeck-addon-chat", "publisher": "jadeck",
+     "description": "YouTube, Facebook Page, Twitch, Rumble and Owncast chat in one widget; reply, and show a message on screen in vMix.", "category": "Live streaming"}
   ]
 }
