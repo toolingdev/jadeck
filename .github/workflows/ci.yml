@@ -75,19 +75,19 @@ jobs:
         run: e2e/start-rig.sh "$RUNNER_TEMP/rig/ptz" "$RUNNER_TEMP/rig/ptzsim" "$RUNNER_TEMP/rig/data"
       - name: Gear, screenshots, accessibility
         working-directory: e2e
-        run: npx playwright test gear.spec.ts --reporter=list --update-snapshots=${{ inputs.update_screens && 'all' || 'missing' }}
+        run: npx playwright test gear.spec.ts --output=results/gear --reporter=list --update-snapshots=${{ inputs.update_screens && 'all' || 'missing' }}
       - name: Service flow and edit mode
         if: ${{ !cancelled() }}
         working-directory: e2e
-        run: npx playwright test service.spec.ts editmode.spec.ts --reporter=list
+        run: npx playwright test service.spec.ts editmode.spec.ts --output=results/flows --reporter=list
       - name: Every page on every screen
         if: ${{ !cancelled() }}
         working-directory: e2e
-        run: npx playwright test sweep.spec.ts --reporter=list
+        run: npx playwright test sweep.spec.ts --output=results/sweep --reporter=list
       - name: Every widget at every size
         if: ${{ !cancelled() }}
         working-directory: e2e
-        run: npx playwright test sizes.spec.ts --workers 4 --reporter=dot
+        run: npx playwright test sizes.spec.ts --workers 4 --output=results/sizes --reporter=dot
       - name: New or retaken screenshots (commit them into e2e/screens/linux)
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

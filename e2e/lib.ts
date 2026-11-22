@@ -29,9 +29,11 @@ export async function closeBrowsers() {
 }
 
 /** A device with its own storage: screen name and the dashboard it shows. */
-export async function openDevice(d: Device, opts: { screen?: string; dashboard?: number; path?: string } = {}): Promise<{ ctx: BrowserContext; page: Page; errors: string[] }> {
+export async function openDevice(d: Device, opts: { screen?: string; dashboard?: number; path?: string; fixedTime?: string } = {}): Promise<{ ctx: BrowserContext; page: Page; errors: string[] }> {
   const b = await browserFor(d);
-  const ctx = await b.newContext({ viewport: d.viewport, hasTouch: d.touch, isMobile: d.touch && d.viewport.width < 900, userAgent: d.ua, deviceScaleFactor: d.scale ?? 1 });
+  const ctx = await b.newContext({ viewport: d.viewport, hasTouch: d.touch, isMobile: d.touch && d.viewport.width < 900, userAgent: d.ua, deviceScaleFactor: d.scale ?? 1, timezoneId: opts.fixedTime ? "UTC" : undefined });
+  // screenshots: the clock on screen (an idle cue shows the time) never moves
+  if (opts.fixedTime) await ctx.clock.setFixedTime(new Date(opts.fixedTime));
   await ctx.addInitScript(({ screen, dashboard }) => {
     try {
       if (screen) localStorage.setItem("ptz.screen", screen);

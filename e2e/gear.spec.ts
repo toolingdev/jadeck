@@ -109,7 +109,7 @@ for (const { key, kind } of SCREENS) {
       ];
       for (const t of targets) {
         await test.step(t.name, async () => {
-          const { ctx, page, errors } = await openDevice(dev, { screen: "CI", dashboard: t.dashboard, path: t.path });
+          const { ctx, page, errors } = await openDevice(dev, { screen: "CI", dashboard: t.dashboard, path: t.path, fixedTime: "2026-01-03T10:00:00Z" });
           await settle(page);
           await page.addStyleTag({ content: "[data-phone-nav]{display:none!important}" });
           const file = `${key}-${t.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;

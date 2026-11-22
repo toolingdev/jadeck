@@ -197,7 +197,9 @@ const inspect = (arg: { frame: boolean; touch: boolean }) => {
     const r = el.getBoundingClientRect();
     // scrollbars
     if (el !== document.documentElement && el !== document.body) {
-      if (/(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1 && el.clientHeight > 0) out.push({ kind: "scrollbar", detail: `${name(el)}: ${el.scrollHeight}px of content in ${el.clientHeight}px` });
+      // lists that grow by themselves (log, viewers, chat) are marked
+      // data-feed and may scroll, the same rule the dashboard sizes by
+      if (!el.closest("[data-feed]") && /(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1 && el.clientHeight > 0) out.push({ kind: "scrollbar", detail: `${name(el)}: ${el.scrollHeight}px of content in ${el.clientHeight}px` });
       if (/(auto|scroll)/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0) out.push({ kind: "scrollbar", detail: `${name(el)} sideways: ${el.scrollWidth}px in ${el.clientWidth}px` });
     }
     if (ownText(el)) {
