@@ -78,7 +78,12 @@ func (r *Registry) Apply(s settings.Settings) {
 	for id, u := range r.units {
 		c, keep := want[id]
 		if keep && !connChanged(u.Cfg, c) {
-			u.Cfg = c // name / video flags / controls only
+			// name / video flags / controls only: same running camera, a
+			// new Unit (a Unit is never changed once handed out, so
+			// readers holding the old one don't race this write)
+			nu := *u
+			nu.Cfg = c
+			r.units[id] = &nu
 			u.Svc.SetLimits(LimitsOf(c))
 			continue
 		}

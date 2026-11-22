@@ -19,6 +19,9 @@ func (brokenTool) AddonState(context.Context) (map[string]any, error) {
 // A tool connection's problem shows in Settings (found in the background,
 // never holding up the list).
 func TestToolProblem(t *testing.T) {
+	toolHealth.Lock()
+	delete(toolHealth.m, "r1") // fresh for -count > 1
+	toolHealth.Unlock()
 	l := &devices.Live{Connection: devices.Connection{ID: "r1"}, Impl: brokenTool{}}
 	if p := toolProblem(l, []string{addon.CapTool}); p != "" {
 		t.Fatalf("first look should not wait: %q", p)
