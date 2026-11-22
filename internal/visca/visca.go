@@ -164,6 +164,38 @@ func FocusMode(auto bool) []byte {
 
 func FocusOnePush() []byte { return cmd(0x01, 0x04, 0x18, 0x01) }
 
+// FocusDriveSpeed is the variable-speed focus drive (81 01 04 08 2p/3p FF):
+// +1 far, -1 near, 0 stop; speed 0 (slow) .. 7 (fast).
+func FocusDriveSpeed(direction, speed int) []byte {
+	p := byte(clamp(speed, 0, 7))
+	switch sign(direction) {
+	case 1:
+		return cmd(0x01, 0x04, 0x08, 0x20|p)
+	case -1:
+		return cmd(0x01, 0x04, 0x08, 0x30|p)
+	}
+	return FocusDrive(0)
+}
+
+// FocusLock locks (or unlocks) the focus so nothing else changes it
+// (PTZOptics: 81 0A 04 68 02/03 FF).
+func FocusLock(on bool) []byte {
+	if on {
+		return cmd(0x0A, 0x04, 0x68, 0x02)
+	}
+	return cmd(0x0A, 0x04, 0x68, 0x03)
+}
+
+// ------------------------------------------------------- on-screen menu
+
+// OSDToggle opens or closes the camera's on-screen menu (PTZOptics: recall
+// of preset 95, 81 01 04 3F 02 5F FF). While it is open, pan/tilt drives
+// move the cursor and Home (81 01 06 04 FF) enters the highlighted item.
+func OSDToggle() []byte { return cmd(0x01, 0x04, 0x3F, 0x02, 0x5F) }
+
+// MenuOff closes the on-screen menu (81 01 06 06 03 FF).
+func MenuOff() []byte { return cmd(0x01, 0x06, 0x06, 0x03) }
+
 // -------------------------------------------------------------- presets
 
 // The slot byte is the preset number itself (1..127), matching how the
@@ -176,6 +208,10 @@ func preset(mode byte, slot int) []byte {
 func PresetClear(slot int) []byte  { return preset(0, slot) }
 func PresetSet(slot int) []byte    { return preset(1, slot) }
 func PresetRecall(slot int) []byte { return preset(2, slot) }
+
+// PresetSpeed sets how fast the camera moves on a preset recall
+// (PTZOptics: 81 01 06 01 pp FF, pp 1..0x18).
+func PresetSpeed(speed int) []byte { return cmd(0x01, 0x06, 0x01, byte(clamp(speed, 1, 24))) }
 
 // ------------------------------------------------------------ inquiries
 

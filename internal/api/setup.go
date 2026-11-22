@@ -74,6 +74,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			return
 		}
 		c := b.Camera
+		c.Controls = nil // set from the camera widgets, not the form
 		c.Defaults()
 		if err := c.Validate(); err != nil {
 			fail(w, 422, err.Error())
@@ -118,7 +119,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 				return errNotFound
 			}
 			c := b.Camera
-			c.ID, c.Presets = old.ID, old.Presets
+			c.ID, c.Presets, c.Controls = old.ID, old.Presets, old.Controls
 			if c.Pass == "" && !b.ClearPassword {
 				c.Pass = old.Pass
 			}

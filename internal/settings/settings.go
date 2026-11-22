@@ -34,6 +34,84 @@ type Camera struct {
 	Pass      string `json:"pass,omitempty"`
 	Video     bool   `json:"video"`       // stream it through the gateway
 	Presets   string `json:"presetsFile"` // preset names DB (file name in the data dir)
+
+	// Controls are this camera's operator settings (speeds, Motion Sync,
+	// focus lock, picture scenes, per-preset recall speeds). Edited from
+	// the camera widgets, never from the camera form.
+	Controls *Controls `json:"controls,omitempty"`
+}
+
+// Controls are one camera's operator settings, kept with the camera.
+type Controls struct {
+	PanSpeed    int `json:"panSpeed"`    // top pan speed 1..24
+	TiltSpeed   int `json:"tiltSpeed"`   // top tilt speed 1..20
+	ZoomSpeed   int `json:"zoomSpeed"`   // top zoom speed 1..7
+	FocusSpeed  int `json:"focusSpeed"`  // near/far speed 0..7
+	RecallSpeed int `json:"recallSpeed"` // preset recall speed 1..24
+
+	MotionSync  *bool `json:"motionSync,omitempty"` // nil: never set from jadeck
+	FocusLocked bool  `json:"focusLocked"`
+
+	// Scenes are the user's saved picture settings; ActiveScene is the
+	// one applied last (built-in ids start with "builtin:").
+	Scenes      []Scene `json:"scenes,omitempty"`
+	ActiveScene string  `json:"activeScene,omitempty"`
+
+	// PresetSpeeds: recall speed per preset id (0/absent = RecallSpeed).
+	PresetSpeeds map[string]int `json:"presetSpeeds,omitempty"`
+}
+
+// Scene is a named set of picture settings (imageconf typed names).
+type Scene struct {
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
+	Settings map[string]any `json:"settings"`
+}
+
+// DefaultControls are what a camera starts with (the PTZOptics app's
+// own defaults, roughly).
+func DefaultControls() Controls {
+	return Controls{PanSpeed: 12, TiltSpeed: 10, ZoomSpeed: 4, FocusSpeed: 2, RecallSpeed: 18}
+}
+
+// Normalize fills zero speeds with the defaults and clamps the rest.
+func (c *Controls) Normalize() {
+	d := DefaultControls()
+	fix := func(v *int, def, lo, hi int) {
+		if *v == 0 {
+			*v = def
+		}
+		*v = max(lo, min(hi, *v))
+	}
+	fix(&c.PanSpeed, d.PanSpeed, 1, 24)
+	fix(&c.TiltSpeed, d.TiltSpeed, 1, 20)
+	fix(&c.ZoomSpeed, d.ZoomSpeed, 1, 7)
+	if c.FocusSpeed < 0 || c.FocusSpeed > 7 {
+		c.FocusSpeed = max(0, min(7, c.FocusSpeed))
+	}
+	fix(&c.RecallSpeed, d.RecallSpeed, 1, 24)
+	for k, v := range c.PresetSpeeds {
+		if v <= 0 {
+			delete(c.PresetSpeeds, k)
+		} else {
+			c.PresetSpeeds[k] = min(24, v)
+		}
+	}
+}
+
+// Ctl returns the camera's controls with defaults filled in (a copy).
+func (c Camera) Ctl() Controls {
+	out := DefaultControls()
+	if c.Controls != nil {
+		out = *c.Controls
+		out.Scenes = append([]Scene(nil), c.Controls.Scenes...)
+		out.PresetSpeeds = map[string]int{}
+		for k, v := range c.Controls.PresetSpeeds {
+			out.PresetSpeeds[k] = v
+		}
+		out.Normalize()
+	}
+	return out
 }
 
 // Video is the built-in stream gateway (MediaMTX).

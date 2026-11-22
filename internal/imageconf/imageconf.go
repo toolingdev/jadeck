@@ -299,3 +299,9 @@ func Specs() []Spec {
 	}
 	return out
 }
+
+// KeyOf returns the camera's raw key for a typed field name.
+func KeyOf(name string) (string, bool) {
+	f, ok := byName[name]
+	return f.Key, ok
+}

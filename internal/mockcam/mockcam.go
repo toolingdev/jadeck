@@ -48,6 +48,8 @@ type Mock struct {
 	zoomV       int
 	presets     map[int]ptz
 	focusAuto   bool
+	// HTTPLog: the newer-camera CGI commands it was sent (ptzctrl.cgi, OSD).
+	HTTPLog     []string
 	frames      int
 	absTarget   *[2]int
 	wbModeByte  *int
@@ -267,7 +269,7 @@ func (m *Mock) handle(c net.Conn) {
 				}
 				m.mu.Lock()
 				m.frames++
-				if f[1] == 0x01 {
+				if f[1] == 0x01 || f[1] == 0x0A {
 					m.cmdLog = append(m.cmdLog, hex.EncodeToString(f))
 				}
 				m.mu.Unlock()
@@ -397,8 +399,18 @@ func (m *Mock) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		m.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(body)
+	case r.URL.Path == "/cgi-bin/param.cgi" && strings.HasPrefix(r.URL.RawQuery, "navigate_mode&"):
+		m.mu.Lock()
+		m.HTTPLog = append(m.HTTPLog, r.URL.RawQuery)
+		m.mu.Unlock()
+		fmt.Fprint(w, `{"Result":"Success"}`) // a Move 4K-style OSD
 	case r.URL.Path == "/cgi-bin/param.cgi":
 		m.cgi(w, r.URL.RawQuery)
+	case r.URL.Path == "/cgi-bin/ptzctrl.cgi":
+		m.mu.Lock()
+		m.HTTPLog = append(m.HTTPLog, r.URL.RawQuery)
+		m.mu.Unlock()
+		fmt.Fprint(w, `{"Result":"Success"}`)
 	case r.URL.Path == "/snapshot.jpg":
 		w.Header().Set("Content-Type", "image/jpeg")
 		if m.Snapshot != nil {
@@ -464,4 +476,11 @@ func slicesContains(s []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// HTTPCalls returns the newer-camera CGI commands received so far.
+func (m *Mock) HTTPCalls() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.HTTPLog...)
 }

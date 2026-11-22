@@ -16,6 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"ptz/internal/auth"
+	"ptz/internal/settings"
 )
 
 // MCP: Streamable HTTP at /mcp, API key required. Each request builds a
@@ -168,6 +169,19 @@ type renameIn struct {
 	Name    string `json:"name" jsonschema:"current preset name"`
 	NewName string `json:"new_name" jsonschema:"new preset name"`
 }
+type lockIn struct {
+	Locked bool `json:"locked" jsonschema:"true locks the focus, false unlocks it"`
+}
+
+type speedsIn struct {
+	PanSpeed    *int  `json:"panSpeed,omitempty" jsonschema:"top pan speed 1-24"`
+	TiltSpeed   *int  `json:"tiltSpeed,omitempty" jsonschema:"top tilt speed 1-20"`
+	ZoomSpeed   *int  `json:"zoomSpeed,omitempty" jsonschema:"top zoom speed 1-7"`
+	FocusSpeed  *int  `json:"focusSpeed,omitempty" jsonschema:"focus near/far speed 0-7"`
+	RecallSpeed *int  `json:"recallSpeed,omitempty" jsonschema:"preset recall speed 1-24"`
+	MotionSync  *bool `json:"motionSync,omitempty" jsonschema:"Motion Sync on or off (newer PTZOptics models)"`
+}
+
 type focusIn struct {
 	Action string `json:"action" jsonschema:"auto, manual, onepush, near, far or stop"`
 }
@@ -219,6 +233,7 @@ func (s *Server) mcpServer(k *auth.Key, ip string) *mcp.Server {
 	// camera.read
 	a("camera.read", "camera_status", "Camera status", "Connection, power, pan/tilt/zoom position, focus mode and device info.", true, get("/api/status"))
 	a("camera.read", "presets_list", "List presets", "Camera presets in service order (name, VISCA slot).", true, get("/api/presets"))
+	a("camera.read", "camera_controls_get", "Camera controls", "Speeds, Motion Sync, focus lock and picture scenes (saved and built-in) for the main camera.", true, get("/api/camera/controls"))
 	a("camera.read", "image_settings_get", "Read picture settings", "Current image settings the camera reports (brightness, saturation, …).", true, get("/api/camera/image"))
 	a("camera.read", "camera_snapshot", "Camera snapshot", "A JPEG still of what the camera sees right now.", true,
 		func(ctx context.Context, _ noArgs) (*mcp.CallToolResult, error) {
@@ -281,7 +296,29 @@ func (s *Server) mcpServer(k *auth.Key, ip string) *mcp.Server {
 			}
 			return s.call(ctx, "POST", "/api/presets/"+strconv.FormatInt(id, 10)+"/recall", nil)
 		})
+	addTool(&tools, s, k, ip, "camera.move", "camera_focus_lock", "Lock focus", "Lock (true) or unlock (false) the focus so nothing else changes it.", false,
+		func(ctx context.Context, in lockIn) (*mcp.CallToolResult, error) {
+			return s.call(ctx, "POST", "/api/camera/focus-lock", map[string]bool{"locked": in.Locked})
+		})
+	addTool(&tools, s, k, ip, "camera.move", "camera_speeds_set", "Set camera speeds", "Top speeds for the main camera: pan 1-24, tilt 1-20, zoom 1-7, focus 0-7, preset recall 1-24; motionSync on/off. Omitted values stay.", false,
+		func(ctx context.Context, in speedsIn) (*mcp.CallToolResult, error) {
+			return s.call(ctx, "PATCH", "/api/camera/controls", in)
+		})
 	// camera.image
+	addTool(&tools, s, k, ip, "camera.image", "scene_apply", "Apply picture scene", "Apply a picture scene by name (a saved one, or Low light / Sports day / Sports night).", false,
+		func(ctx context.Context, in nameIn) (*mcp.CallToolResult, error) {
+			u, err := s.mainCam()
+			if err != nil {
+				return nil, err
+			}
+			k := s.controlsOf(u)
+			for _, sc := range append(append([]settings.Scene{}, k.Scenes...), k.Builtin...) {
+				if strings.EqualFold(sc.Name, strings.TrimSpace(in.Name)) {
+					return s.call(ctx, "POST", "/api/camera/scenes/"+sc.ID+"/apply", nil)
+				}
+			}
+			return nil, fmt.Errorf("no scene named %q", in.Name)
+		})
 	addTool(&tools, s, k, ip, "camera.image", "image_settings_set", "Change picture settings", "Change image settings (read-modify-write; untouched settings stay as they are).", false,
 		func(ctx context.Context, in imageIn) (*mcp.CallToolResult, error) {
 			return s.call(ctx, "POST", "/api/camera/image", in.Settings)

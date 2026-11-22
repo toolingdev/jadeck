@@ -45,6 +45,16 @@ func ServiceConfig(c settings.Camera) config.Config {
 		CameraUser: c.User, CameraPass: c.Pass}
 }
 
+// LimitsOf maps a camera's controls to the service's operator speeds.
+// A camera nobody set speeds for keeps the full range.
+func LimitsOf(c settings.Camera) camera.Limits {
+	if c.Controls == nil {
+		return camera.DefaultLimits
+	}
+	k := c.Ctl()
+	return camera.Limits{Pan: k.PanSpeed, Tilt: k.TiltSpeed, Zoom: k.ZoomSpeed, Focus: k.FocusSpeed, Recall: k.RecallSpeed}
+}
+
 func connChanged(a, b settings.Camera) bool {
 	return a.Host != b.Host || a.ViscaPort != b.ViscaPort || a.HTTPPort != b.HTTPPort ||
 		a.User != b.User || a.Pass != b.Pass || a.Presets != b.Presets
@@ -68,7 +78,8 @@ func (r *Registry) Apply(s settings.Settings) {
 	for id, u := range r.units {
 		c, keep := want[id]
 		if keep && !connChanged(u.Cfg, c) {
-			u.Cfg = c // name / video flags only
+			u.Cfg = c // name / video flags / controls only
+			u.Svc.SetLimits(LimitsOf(c))
 			continue
 		}
 		r.stopLocked(u)
@@ -101,6 +112,7 @@ func (r *Registry) start(c settings.Camera) (*Unit, error) {
 		return nil, err
 	}
 	svc := camera.New(ServiceConfig(c), r.Log.With("camera", c.Name))
+	svc.SetLimits(LimitsOf(c))
 	id := c.ID
 	svc.OnChange = func(st camera.Status) {
 		if r.OnStatus != nil {

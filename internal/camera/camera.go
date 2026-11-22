@@ -88,6 +88,17 @@ type Status struct {
 	Error     string            `json:"error"`
 }
 
+// Limits are a camera's operator speeds (per camera, from its controls).
+type Limits struct {
+	Pan, Tilt, Zoom int // top drive speeds: pan 1..24, tilt 1..20, zoom 1..7
+	Focus           int // near/far 0..7; -1: the camera's standard speed
+	Recall          int // preset recall 1..24 (0: leave the camera's own)
+}
+
+// DefaultLimits drive at the camera's full range (the behaviour before
+// per-camera speeds).
+var DefaultLimits = Limits{Pan: 24, Tilt: 20, Zoom: 7, Focus: -1}
+
 type driveSig struct {
 	pan, tilt, zoom       int
 	panSp, tiltSp, zoomSp int
@@ -121,6 +132,8 @@ type Service struct {
 	appliedSpeed  float64
 	appliedSig    *driveSig
 	deviceFetched time.Time
+	limits        Limits
+	recallSet     int // preset speed last sent (0: none yet)
 
 	opLock   sync.Mutex
 	opActive atomic.Bool
@@ -132,10 +145,11 @@ func New(cfg config.Config, log *slog.Logger) *Service {
 		rt = &digest.Transport{User: cfg.CameraUser, Pass: cfg.CameraPass}
 	}
 	return &Service{
-		cfg:  cfg,
-		http: &http.Client{Transport: rt, Timeout: 5 * time.Second},
-		log:  log,
-		st:   Status{Device: map[string]string{}},
+		cfg:    cfg,
+		http:   &http.Client{Transport: rt, Timeout: 5 * time.Second},
+		log:    log,
+		st:     Status{Device: map[string]string{}},
+		limits: DefaultLimits,
 	}
 }
 
@@ -430,9 +444,9 @@ func (s *Service) controlTick() error {
 		eff := s.appliedSpeed
 		sig := driveSig{
 			pan: desired.Pan, tilt: desired.Tilt, zoom: desired.Zoom,
-			panSp:  max(1, roundInt(24*eff/100)),
-			tiltSp: max(1, roundInt(20*eff/100)),
-			zoomSp: max(1, roundInt(7*eff/100)),
+			panSp:  max(1, roundInt(float64(s.limits.Pan)*eff/100)),
+			tiltSp: max(1, roundInt(float64(s.limits.Tilt)*eff/100)),
+			zoomSp: max(1, roundInt(float64(s.limits.Zoom)*eff/100)),
 		}
 		// Only active axes' speeds count, so a pan/tilt speed step never
 		// re-sends an identical zoom frame (and vice versa).
@@ -497,9 +511,115 @@ func (s *Service) Home() error {
 	return s.SendCommand(visca.Home(), true)
 }
 
-func (s *Service) RecallPreset(slot int) error {
+// SetLimits changes the operator speeds (they apply from the next tick).
+func (s *Service) SetLimits(l Limits) {
+	l.Pan, l.Tilt, l.Zoom = clamp(l.Pan, 1, 24), clamp(l.Tilt, 1, 20), clamp(l.Zoom, 1, 7)
+	l.Focus = clamp(l.Focus, -1, 7)
+	if l.Recall != 0 {
+		l.Recall = clamp(l.Recall, 1, 24)
+	}
+	s.mu.Lock()
+	s.limits = l
+	s.appliedSig = nil // a drive in progress picks the new speeds up
+	s.mu.Unlock()
+}
+
+// Limits returns the current operator speeds.
+func (s *Service) Limits() Limits {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.limits
+}
+
+func (s *Service) RecallPreset(slot int) error { return s.RecallPresetAt(slot, 0) }
+
+// RecallPresetAt recalls a preset at a speed (1..24); 0 uses the
+// camera's recall speed from its controls. The camera keeps one preset
+// speed, so it is set before the recall whenever it changes.
+func (s *Service) RecallPresetAt(slot, speed int) error {
 	s.ForceStop()
+	if speed <= 0 {
+		speed = s.Limits().Recall
+	}
+	if speed > 0 {
+		speed = clamp(speed, 1, 24)
+		s.mu.Lock()
+		send := s.recallSet != speed
+		s.mu.Unlock()
+		if send {
+			if err := s.SendCommand(visca.PresetSpeed(speed), true); err != nil {
+				return err
+			}
+			s.mu.Lock()
+			s.recallSet = speed
+			s.mu.Unlock()
+		}
+	}
 	return s.SendCommand(visca.PresetRecall(slot), true)
+}
+
+// FocusLock locks or unlocks the focus.
+func (s *Service) FocusLock(on bool) error { return s.SendCommand(visca.FocusLock(on), true) }
+
+// OSD drives the camera's on-screen menu: open (toggle), close, up,
+// down, left, right, enter, back. Newer PTZOptics cameras (Move 4K/SE,
+// Link 4K, Studio) take the HTTP OSD commands; older ones (G2/G3) the
+// VISCA ones, where the arrows are pan/tilt drives and Enter is Home.
+func (s *Service) OSD(ctx context.Context, action string) error {
+	httpCmd := map[string]string{
+		"open": "/cgi-bin/param.cgi?navigate_mode&OSD", "close": "/cgi-bin/param.cgi?navigate_mode&PTZ",
+		"enter": "/cgi-bin/param.cgi?navigate_mode&CONFIRM", "back": "/cgi-bin/param.cgi?navigate_mode&OSD_BACK",
+		"up": "/cgi-bin/ptzctrl.cgi?ptzcmd&osd=up", "down": "/cgi-bin/ptzctrl.cgi?ptzcmd&osd=down",
+		"left": "/cgi-bin/ptzctrl.cgi?ptzcmd&osd=left", "right": "/cgi-bin/ptzctrl.cgi?ptzcmd&osd=right",
+	}
+	path, ok := httpCmd[action]
+	if !ok {
+		return fmt.Errorf("unknown menu action %q", action)
+	}
+	s.ForceStop()
+	if b, err := s.HTTPGet(ctx, path); err == nil && osdAccepted(b) {
+		return nil
+	}
+	dir := map[string][2]int{"up": {0, 1}, "down": {0, -1}, "left": {-1, 0}, "right": {1, 0}}
+	switch action {
+	case "open", "back":
+		return s.SendCommand(visca.OSDToggle(), false)
+	case "close":
+		return s.SendCommand(visca.MenuOff(), false)
+	case "enter":
+		return s.SendCommand(visca.Home(), false)
+	default:
+		d := dir[action]
+		if err := s.SendCommand(visca.PanTiltDrive(d[0], d[1], 1, 1), false); err != nil {
+			return err
+		}
+		time.Sleep(60 * time.Millisecond) // one cursor step
+		return s.SendCommand(visca.PanTiltStop(), false)
+	}
+}
+
+// osdAccepted: newer cameras answer {"Result":"Success"} (or plain OK);
+// older ones answer an error page or an empty body.
+func osdAccepted(b []byte) bool {
+	t := bytes.ToLower(bytes.TrimSpace(b))
+	return bytes.Contains(t, []byte("success")) || bytes.Equal(t, []byte("ok"))
+}
+
+// MotionSync turns PTZOptics Motion Sync on or off (pan, tilt and zoom
+// arrive at a preset together). HTTP only; Move 4K / SE and Link 4K.
+func (s *Service) MotionSync(ctx context.Context, on bool) error {
+	v := "3"
+	if on {
+		v = "2"
+	}
+	b, err := s.HTTPGet(ctx, "/cgi-bin/ptzctrl.cgi?post_image_value&motionsync&"+v)
+	if err != nil {
+		return fmt.Errorf("the camera didn't take Motion Sync (%v)", err)
+	}
+	if t := bytes.ToLower(b); bytes.Contains(t, []byte("error")) || bytes.Contains(t, []byte("not found")) {
+		return errors.New("this camera model has no Motion Sync over the network")
+	}
+	return nil
 }
 
 func (s *Service) StorePreset(slot int) error {
@@ -525,10 +645,13 @@ func (s *Service) Focus(action string) error {
 		}
 	case "onepush":
 		err = s.SendCommand(visca.FocusOnePush(), true)
-	case "near":
-		err = s.SendCommand(visca.FocusDrive(-1), false)
-	case "far":
-		err = s.SendCommand(visca.FocusDrive(1), false)
+	case "near", "far":
+		dir := map[string]int{"near": -1, "far": 1}[action]
+		if sp := s.Limits().Focus; sp >= 0 {
+			err = s.SendCommand(visca.FocusDriveSpeed(dir, sp), false)
+		} else {
+			err = s.SendCommand(visca.FocusDrive(dir), false)
+		}
 	case "stop":
 		err = s.SendCommand(visca.FocusDrive(0), false)
 	default:

@@ -88,8 +88,12 @@ func scopeFor(method, path string) string {
 		return "presets.edit"
 	case has("/api/ptz/") || has("/api/focus"):
 		return "camera.move"
-	case has("/api/camera/image") && read:
+	case (has("/api/camera/image") || path == "/api/camera/controls") && read:
 		return "camera.read"
+	case path == "/api/camera/osd" || path == "/api/camera/focus-lock":
+		return "camera.move" // drive-like: the menu cursor, the focus
+	case path == "/api/camera/controls":
+		return "camera.move" // speeds and Motion Sync
 	case has("/api/camera/"):
 		return "camera.image"
 	case has("/api/switcher/") || has("/api/vmix/"):

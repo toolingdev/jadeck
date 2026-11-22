@@ -3,7 +3,7 @@ import {
   MonitorPlay, Gamepad2, Bookmark, LayoutGrid, Sun, Home as HomeIcon, Square, ZoomIn, Gauge,
   Tv, Presentation, ChevronsRight, Mic, MicOff, ListMusic, Play, ListChecks, Clock, Timer, Type, ScrollText,
   ChevronLeft, ChevronRight, Loader2, Activity, HeartPulse, MessageSquareText, MessagesSquare, Radio, type LucideIcon,
-  Lightbulb, Move as MoveIcon,
+  Lightbulb, Move as MoveIcon, SlidersHorizontal, Focus as FocusIcon, Aperture, Menu as MenuIcon,
 } from "lucide-react";
 import { BandwidthWidget, HealthWidget } from "./metricsWidgets";
 import { ComingUp } from "./scheduleWidget";
@@ -24,6 +24,7 @@ import { ImageSettings } from "@/components/ImageSettings";
 import { Mixer } from "@/components/Booth";
 import { Macros } from "@/components/Macros";
 import { Frame, Ctx, CamSource, useCamHead, feedSource } from "./header";
+import { SpeedsWidget, FocusWidget, ScenesWidget, MenuWidget } from "./cameraWidgets";
 export { Frame };
 import type { Conn as AddonConn } from "./addon/common";
 
@@ -689,6 +690,16 @@ export const WIDGETS: WidgetDef[] = [
     size: { w: 2, h: 5, pw: 1, ph: 5 }, minPx: { w: 70, h: 142 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <ZoomWidget /> },
   { type: "camera.speed", label: "Speed", group: "camera", icon: Gauge, description: "Speed slider and Fine.",
     size: { w: 4, h: 2, pw: 4, ph: 2 }, minPx: { w: 180, h: 110 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <SpeedWidget /> },
+  { type: "camera.speeds", label: "Camera speeds", group: "camera", icon: SlidersHorizontal, description: "Pan, tilt, zoom, focus and preset recall speeds, and Motion Sync. Kept with the camera (PTZOptics).",
+    size: { w: 5, h: 7, pw: 4, ph: 7 }, minPx: { w: 220, h: 250 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <SpeedsWidget /> },
+  { type: "camera.focus", label: "Focus", group: "camera", icon: FocusIcon, description: "Auto, manual or one-push focus, hold Near / Far, and lock the focus.",
+    size: { w: 5, h: 7, pw: 4, ph: 6 }, minPx: { w: 220, h: 180 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <FocusWidget /> },
+  { type: "camera.scenes", label: "Picture scenes", group: "camera", icon: Aperture, description: "Low light, Sports day / night and your own saved pictures: tap one to put it on the camera.",
+    size: { w: 5, h: 7, pw: 4, ph: 6 }, minPx: { w: 180, h: 140 }, defaults: { builtins: true },
+    fields: [CAMERA_FIELD, { key: "builtins", label: "Show the built-in scenes", type: "bool", help: "Low light, Sports day and Sports night. Off: only the ones you saved." }],
+    Render: ({ s }) => <ScenesWidget builtins={bool(s.builtins, true)} /> },
+  { type: "camera.menu", label: "Camera menu", group: "camera", icon: MenuIcon, description: "The camera's own on-screen menu: open it, move with the arrows, Enter, Back.",
+    size: { w: 5, h: 7, pw: 4, ph: 6 }, minPx: { w: 230, h: 170 }, defaults: {}, fields: [CAMERA_FIELD], Render: () => <MenuWidget /> },
 
   { type: "switcher.program", hidden: true, label: "Program", group: "switcher", icon: Tv, description: "What the congregation sees.",
     size: { w: 7, h: 8, ph: 5 }, minPx: { w: 160, h: 100 }, defaults: {}, fields: [], Render: ({ s }) => <Feed kind="program" s={s} /> },

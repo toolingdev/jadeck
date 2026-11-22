@@ -29,6 +29,7 @@ import (
 	"ptz/internal/schedule"
 	"ptz/internal/settings"
 	"ptz/internal/stage"
+	"ptz/internal/store"
 	"ptz/internal/update"
 	"ptz/internal/video"
 )
@@ -108,6 +109,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/camera/image", s.postImage)
 	mux.HandleFunc("POST /api/camera/image/wb-trigger", s.wbTriggerCGI)
 
+	s.camCtlRoutes(mux)
 	s.setupRoutes(mux)
 	s.deviceRoutes(mux)
 	s.connectionRoutes(mux)
@@ -450,7 +452,7 @@ func (s *Server) motionGuard(w http.ResponseWriter, u *cams.Unit) bool {
 	return true
 }
 
-func (s *Server) presetMotion(w http.ResponseWriter, r *http.Request, do func(*cams.Unit, int) error) {
+func (s *Server) presetMotion(w http.ResponseWriter, r *http.Request, do func(*cams.Unit, *store.Preset) error) {
 	u := s.camFor(w, r)
 	if u == nil {
 		return
@@ -471,19 +473,78 @@ func (s *Server) presetMotion(w http.ResponseWriter, r *http.Request, do func(*c
 	if !s.motionGuard(w, u) {
 		return
 	}
-	if err := do(u, p.Slot); err != nil {
+	if err := do(u, p); err != nil {
 		fail(w, 502, err.Error())
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "slot": p.Slot})
 }
 
+// recallPreset moves to a preset at its own recall speed (else the
+// camera's), then puts back the picture saved with it, if any.
 func (s *Server) recallPreset(w http.ResponseWriter, r *http.Request) {
-	s.presetMotion(w, r, func(u *cams.Unit, slot int) error { return u.Svc.RecallPreset(slot) })
+	s.presetMotion(w, r, func(u *cams.Unit, p *store.Preset) error {
+		if err := u.Svc.RecallPresetAt(p.Slot, s.presetSpeed(u, p.ID)); err != nil {
+			return err
+		}
+		if len(p.Exposure) > 0 {
+			if err := s.applyPicture(r.Context(), u, p.Exposure); err != nil {
+				s.Log.Warn("preset picture not applied", "preset", p.Name, "err", err)
+			}
+		}
+		return nil
+	})
 }
 
+// storePreset saves the position. Optional body: {"picture": true}
+// also saves the picture settings (false clears them), "recallSpeed"
+// 1-24 gives the preset its own recall speed (0: the camera's).
 func (s *Server) storePreset(w http.ResponseWriter, r *http.Request) {
-	s.presetMotion(w, r, func(u *cams.Unit, slot int) error { return u.Svc.StorePreset(slot) })
+	var b struct {
+		Picture     *bool `json:"picture"`
+		RecallSpeed *int  `json:"recallSpeed"`
+	}
+	if r.ContentLength != 0 && r.Body != nil {
+		if !decode(w, r, &b) {
+			return
+		}
+	}
+	if b.RecallSpeed != nil && (*b.RecallSpeed < 0 || *b.RecallSpeed > 24) {
+		fail(w, 400, "recallSpeed is 0-24")
+		return
+	}
+	s.presetMotion(w, r, func(u *cams.Unit, p *store.Preset) error {
+		if err := u.Svc.StorePreset(p.Slot); err != nil {
+			return err
+		}
+		if b.Picture != nil {
+			var pic map[string]any
+			if *b.Picture {
+				var err error
+				if pic, err = s.currentPicture(r.Context(), u); err != nil {
+					return errors.New("position saved; the picture settings couldn't be read")
+				}
+			}
+			if _, err := u.Presets.Update(p.ID, nil, pic, true); err != nil {
+				return err
+			}
+		}
+		if b.RecallSpeed != nil {
+			key := strconv.FormatInt(p.ID, 10)
+			return s.updateControls(u, func(k *settings.Controls) error {
+				if k.PresetSpeeds == nil {
+					k.PresetSpeeds = map[string]int{}
+				}
+				if *b.RecallSpeed == 0 {
+					delete(k.PresetSpeeds, key)
+				} else {
+					k.PresetSpeeds[key] = *b.RecallSpeed
+				}
+				return nil
+			})
+		}
+		return nil
+	})
 }
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
