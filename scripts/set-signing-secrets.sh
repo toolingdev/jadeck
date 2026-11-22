@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 REF="${1:-}"
 [ -n "$REF" ] || { echo "usage: $0 \"op://<vault>/<item>/<field>\""; exit 1; }
 OWNER=toolingdev
-REPOS="jadeck jadeck-addon-ai-controller jadeck-addon-behringer-wing jadeck-addon-http-api jadeck-addon-midi jadeck-addon-proclaim jadeck-addon-simulated jadeck-addon-vmix"
+REPOS="jadeck jadeck-addon-ai-controller jadeck-addon-behringer-wing jadeck-addon-chat jadeck-addon-http-api jadeck-addon-midi jadeck-addon-proclaim jadeck-addon-simulated jadeck-addon-vmix"
 
 [ "$(gh api user -q .login)" = "$OWNER" ] || { echo "gh is not signed in as $OWNER (run: gh auth switch -h github.com -u $OWNER)"; exit 1; }
 
