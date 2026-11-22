@@ -69,7 +69,7 @@ function StatusShape({ def, state, conn }: ShapeProps) {
     <div className="flex h-full flex-col justify-center gap-1 px-1">
       <span className={cn("flex items-center gap-2 text-sm font-bold tracking-[0.12em]", on ? "text-bad" : "text-dim")}>
         {/* 12px dot; the pulse is for on air only (WIDGETS.md §6) */}
-        <span className={cn("h-3 w-3 shrink-0 rounded-full", on ? "animate-pulse bg-pgm shadow-[0_0_8px_var(--color-pgm)]" : "bg-unlit border border-line-strong")} />{on ? "ON AIR" : "OFF AIR"}
+        <span className={cn("h-3 w-3 shrink-0 rounded-full", on ? "live-dot bg-pgm shadow-[0_0_8px_var(--color-pgm)]" : "bg-unlit border border-line-strong")} />{on ? "ON AIR" : "OFF AIR"}
       </span>
       {on && title && <span className="truncate text-base font-semibold">{title}{slide ? ` · slide ${slide}${slides ? ` of ${slides}` : ""}` : ""}</span>}
     </div>
