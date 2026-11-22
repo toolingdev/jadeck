@@ -137,8 +137,8 @@ function Catalog({ addons, caps, onPick, bare }: { addons: Manifest[]; caps: Cap
                 <button key={m.id + t.id} type="button" onClick={() => onPick(m, t)}
                   className="rounded-xl border border-line bg-panel-2 px-3 py-2 text-left transition hover:border-accent">
                   <span className="block text-sm font-semibold">{t.label}</span>
-                  <span className="line-clamp-2 block text-[11px] text-muted">{t.description || m.description}</span>
-                  {t.needs && <span className="mt-1 block truncate text-[9.5px] font-bold uppercase tracking-[0.08em] text-info">{t.needs}</span>}
+                  <span className="line-clamp-2 text-[11px] text-muted">{t.description || m.description}</span>
+                  {t.needs && <span className="mt-1 line-clamp-2 text-[9.5px] font-bold uppercase tracking-[0.08em] text-info">{t.needs}</span>}
                 </button>
               ))}
             </div>
