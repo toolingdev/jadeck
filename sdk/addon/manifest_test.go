@@ -202,3 +202,15 @@ func TestWidgetFields(t *testing.T) {
 		}
 	}
 }
+
+func TestGuideValidation(t *testing.T) {
+	m := base(2)
+	m.ConnectionTypes[0].Guide = &Guide{Steps: []GuideStep{{Text: "Open it", Link: &GuideLink{Label: "Open", URL: "http://example.com"}}}}
+	if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "https://") {
+		t.Fatalf("http link must be refused: %v", err)
+	}
+	m.ConnectionTypes[0].Guide.Steps[0].Link.URL = "https://example.com"
+	if err := m.Validate(); err != nil {
+		t.Fatalf("good guide refused: %v", err)
+	}
+}

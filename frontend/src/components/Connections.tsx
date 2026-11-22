@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { CAP_LABEL, defaults, useAddons, useConnections, type Capability, type Connection, type ConnectionType, type Fav, type Manifest } from "@/lib/addons";
 import { Button, Dialog, Input } from "@/components/ui";
 import { FieldRow, QuickChannels } from "@/components/FieldRow";
+import { SetupGuide } from "@/components/SetupGuide";
 
 // Settings → Connections: the gear this controller talks to, any number of
 // each kind, each through an add-on's connection type.
@@ -111,8 +112,12 @@ function Catalog({ addons, caps, onPick, bare }: { addons: Manifest[]; caps: Cap
   const [q, setQ] = useState("");
   const types = useMemo(() => addons.flatMap((m) => m.connectionTypes.map((t) => ({ m, t }))), [addons]);
   const match = ({ m, t }: { m: Manifest; t: ConnectionType }) => !q || `${m.name} ${t.label} ${t.description}`.toLowerCase().includes(q.toLowerCase());
+  // An add-on with several tool types (Live chat: one per platform) gets
+  // its own group, named after it.
+  const own = (m: Manifest) => m.connectionTypes.filter((t) => t.capabilities.includes("tool")).length > 1;
   const groups = [
-    ...caps.map((k) => ({ title: CAP_LABEL[k], items: types.filter((x) => !x.m.generic && x.t.capabilities.includes(k) && match(x)) })),
+    ...caps.map((k) => ({ title: CAP_LABEL[k], items: types.filter((x) => !x.m.generic && x.t.capabilities.includes(k) && !(k === "tool" && own(x.m)) && match(x)) })),
+    ...(caps.includes("tool") ? addons.filter(own).map((m) => ({ title: m.name, items: types.filter((x) => x.m === m && x.t.capabilities.includes("tool") && match(x)) })) : []),
     { title: "Generic — for gear with no add-on yet", items: types.filter((x) => x.m.generic && x.t.capabilities.some((k) => caps.includes(k)) && match(x)) },
   ];
   return (
@@ -133,6 +138,7 @@ function Catalog({ addons, caps, onPick, bare }: { addons: Manifest[]; caps: Cap
                   className="rounded-xl border border-line bg-panel-2 px-3 py-2 text-left transition hover:border-accent">
                   <span className="block text-sm font-semibold">{t.label}</span>
                   <span className="line-clamp-2 block text-[11px] text-muted">{t.description || m.description}</span>
+                  {t.needs && <span className="mt-1 block truncate text-[9.5px] font-bold uppercase tracking-[0.08em] text-info">{t.needs}</span>}
                 </button>
               ))}
             </div>
@@ -152,12 +158,18 @@ function ConnectionForm({ draft, type, conn, onChange, onDone }: {
   const [test, setTest] = useState<TestResult>(null);
   const [busy, setBusy] = useState<"" | "test" | "save" | "delete">("");
   const [confirm, setConfirm] = useState(false);
+  // The guide is open until the connection works (new, or not connected now).
+  const [guideOpen, setGuideOpen] = useState(!draft.id || !conn?.ready);
   const set = (k: string, v: unknown) => onChange({ ...draft, config: { ...draft.config, [k]: v } });
   const body = { addon: draft.addon, type: draft.type, name: draft.name, config: draft.config, favorites: draft.favorites, cameraInputs: draft.cameraInputs, id: draft.id };
   const run = async (what: "test" | "save" | "delete") => {
     setBusy(what);
     try {
-      if (what === "test") setTest(await api<TestResult>("/api/connections/test", "POST", body));
+      if (what === "test") {
+        const r = await api<TestResult>("/api/connections/test", "POST", body);
+        setTest(r);
+        if (r?.ok) setGuideOpen(false);
+      }
       if (what === "save") {
         await api(draft.id ? `/api/connections/${draft.id}` : "/api/connections", draft.id ? "PUT" : "POST", body);
         log("Settings", `${draft.name} saved`, true);
@@ -197,6 +209,7 @@ function ConnectionForm({ draft, type, conn, onChange, onDone }: {
         <Button size="icon" variant="ghost" onClick={onDone} aria-label="Close"><X size={16} /></Button>
       </div>
       {type.description && <p className="text-xs text-muted">{type.description}</p>}
+      {type.guide && type.guide.steps?.length > 0 && <SetupGuide guide={type.guide} open={guideOpen} onToggle={() => setGuideOpen(!guideOpen)} />}
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-muted">Name</span>
         <Input value={draft.name} maxLength={60} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder={`${type.label} — office PC`} />

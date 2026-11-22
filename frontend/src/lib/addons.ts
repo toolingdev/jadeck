@@ -15,7 +15,12 @@ export type Capability = "switcher" | "slides" | "mixer" | "assistant" | "tool";
 export type ConnectionType = {
   id: string; label: string; description: string; capabilities: Capability[]; fields: Field[];
   sample?: Record<string, unknown>; sampleTest?: string;
+  /** Short "what you need" line in Add connection. */
+  needs?: string;
+  /** The "How to set up" card above the fields. */
+  guide?: Guide;
 };
+export type Guide = { minutes?: number; steps: { text: string; code?: string; link?: { label: string; url: string } }[]; note?: string };
 export type ActionDef = { id: string; label: string; description?: string; params?: Field[]; macroStep?: boolean };
 /** Widget kinds the dashboard can draw (WIDGETS-V2.md). v2 adds the shapes
  *  after "chat" and "frame" (drawn by the add-on in a sandboxed iframe). */

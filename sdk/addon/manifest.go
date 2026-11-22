@@ -51,6 +51,34 @@ type ConnectionType struct {
 	// Sample values for the form preview, and the "Test" line it shows.
 	Sample     map[string]any `json:"sample,omitempty"`
 	SampleTest string         `json:"sampleTest,omitempty"`
+	// Needs is the short line under the type in Add connection: what the
+	// person must have or create ("API key", "Channel name, no key").
+	Needs string `json:"needs,omitempty"`
+	// Guide is the "How to set up" card above the connection's fields.
+	Guide *Guide `json:"guide,omitempty"`
+}
+
+// Guide walks someone through what a connection needs, in plain steps,
+// with buttons that open the right web pages. The controller shows it
+// above the fields: open for a new connection, folded once Test passes.
+type Guide struct {
+	Minutes int         `json:"minutes,omitempty"` // about how long it takes
+	Steps   []GuideStep `json:"steps"`
+	Note    string      `json:"note,omitempty"` // "Good to know": limits, costs
+}
+
+// GuideStep is one numbered step. Text may name a field by its label;
+// Code is something to copy (a path, a command), shown monospaced.
+type GuideStep struct {
+	Text string     `json:"text"`
+	Code string     `json:"code,omitempty"`
+	Link *GuideLink `json:"link,omitempty"`
+}
+
+// GuideLink is a button that opens a page in a new tab (https only).
+type GuideLink struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
 }
 
 // ActionDef is an add-on action: a button, a macro step and an agent
@@ -462,6 +490,22 @@ func (m Manifest) Validate() error {
 		seen[t.ID] = true
 		if len(t.Capabilities) == 0 {
 			bad("connection type %s has no capabilities", t.ID)
+		}
+		if len([]rune(t.Needs)) > 48 {
+			bad("connection type %s: needs is at most 48 characters", t.ID)
+		}
+		if g := t.Guide; g != nil {
+			if len(g.Steps) == 0 || len(g.Steps) > 12 {
+				bad("connection type %s: a guide has 1-12 steps", t.ID)
+			}
+			for i, st := range g.Steps {
+				if strings.TrimSpace(st.Text) == "" {
+					bad("connection type %s: guide step %d has no text", t.ID, i+1)
+				}
+				if st.Link != nil && (st.Link.Label == "" || !strings.HasPrefix(st.Link.URL, "https://")) {
+					bad("connection type %s: guide step %d link needs a label and an https:// address", t.ID, i+1)
+				}
+			}
 		}
 		for _, c := range t.Capabilities {
 			v, ok := capabilities[c]
