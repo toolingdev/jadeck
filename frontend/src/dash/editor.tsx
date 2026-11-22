@@ -405,8 +405,11 @@ export function SaveBadge({ state, onRetry }: { state: "saved" | "pending" | "sa
 
 /** Which connection a widget uses: only shown when there's a choice. */
 function ConnectionField({ f, value, onChange }: { f: Field; value: string; onChange: (v: string) => void }) {
-  const { data } = useShared<{ connections: { id: string; name: string; addon: string; capabilities: string[]; ready: boolean }[] }>("/api/devices", 10000);
-  const list = (data?.connections ?? []).filter((c) => (f.cap ? c.capabilities?.includes(f.cap) : true) && (f.addon ? c.addon === f.addon : true));
+  const { data } = useShared<{ connections: { id: string; name: string; addon: string; capabilities: string[]; ready: boolean; auto?: boolean }[] }>("/api/devices", 10000);
+  const matching = (data?.connections ?? []).filter((c) => (f.cap ? c.capabilities?.includes(f.cap) : true) && (f.addon ? c.addon === f.addon : true));
+  // an add-on with an auto connection: its widgets always use that one
+  if (f.addon && matching.some((c) => c.auto)) return null;
+  const list = matching;
   if (list.length <= 1 && !value) return null;
   const options = [{ value: "", label: `The first one${list[0] ? ` (${list[0].name})` : ""}` }, ...list.map((c) => ({ value: c.id, label: c.name + (c.ready ? "" : " — not connected") }))];
   if (value && !list.some((c) => c.id === value)) options.push({ value, label: "(removed connection)" });

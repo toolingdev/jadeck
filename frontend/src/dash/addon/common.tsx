@@ -10,7 +10,7 @@ import type { Settings } from "../widgets";
 // state, resolving pictures, and running the add-on's actions.
 
 export type State = Record<string, unknown>;
-export type Conn = { id: string; addon: string; name: string; ready: boolean; error: string };
+export type Conn = { id: string; addon: string; name: string; ready: boolean; error: string; auto?: boolean };
 
 /** Preview state for Settings → Add-ons (instead of the live connection). */
 export const AddonSample = createContext<State | null>(null);
@@ -89,7 +89,11 @@ export function widgetStatePath(conn: { id: string }, w?: WidgetRef) {
 export function useAddonState(addonId: string, connId: string, widget?: WidgetRef) {
   const sample = useContext(AddonSample);
   const { data: list } = useShared<{ connections: Conn[] }>(sample ? null : "/api/devices", 10000);
-  const mine = (list?.connections ?? []).filter((c) => c.addon === addonId);
+  const all = (list?.connections ?? []).filter((c) => c.addon === addonId);
+  // An add-on with an auto connection (Live chat) draws its widgets from
+  // that one; its other connections are what it reads (the platforms).
+  const auto = all.filter((x) => x.auto);
+  const mine = auto.length ? auto : all;
   const c = mine.find((x) => x.id === connId) ?? mine[0];
   const path = !sample && c ? widgetStatePath(c, widget) : null;
   const { data } = useShared<State>(path, 2000);

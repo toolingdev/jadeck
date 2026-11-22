@@ -107,12 +107,14 @@ type Manifest = { id: string; widgets?: { kind: string; type: string }[] };
 
 async function addonVariants(): Promise<Variant[]> {
   const { addons } = await api<{ addons: { info: { enabled: boolean; manifest: Manifest } }[] }>("GET", "/api/addons");
-  const { connections } = await api<{ connections: { id: string; addon: string }[] }>("GET", "/api/connections");
+  // /api/devices also lists the controller's own (auto) connections, which
+  // an add-on's widgets use when it has one (Live chat).
+  const { connections } = await api<{ connections: { id: string; addon: string; auto?: boolean }[] }>("GET", "/api/devices");
   const opts = (addon: string, name: string, conn: string) => api<{ value: string }[]>("GET", `/api/connections/options/${addon}/${name}?conn=${conn}`).catch(() => []);
   const out: Variant[] = [];
   for (const a of addons) {
     const m = a.info.manifest;
-    const conn = connections.find((c) => c.addon === m.id)?.id;
+    const conn = (connections.find((c) => c.addon === m.id && c.auto) ?? connections.find((c) => c.addon === m.id))?.id;
     if (!conn || !a.info.enabled) continue;
     const base = (w: string, extra: Record<string, unknown> = {}) => ({ addon: m.id, widget: w, connection: conn, ...extra });
     for (const w of m.widgets ?? []) {

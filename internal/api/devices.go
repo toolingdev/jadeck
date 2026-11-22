@@ -66,7 +66,7 @@ func (s *Server) devicesInfo(w http.ResponseWriter, r *http.Request) {
 			caps = s.Addons.DeclaredCaps(l.Connection)
 		}
 		conns = append(conns, map[string]any{"id": l.ID, "name": l.Name, "addon": l.Addon, "type": l.Type,
-			"capabilities": caps, "ready": l.Impl != nil, "error": errText(l.Err)})
+			"capabilities": caps, "ready": l.Impl != nil, "error": errText(l.Err), "auto": s.isAuto(l.Connection)})
 	}
 	writeJSON(w, 200, map[string]any{
 		"connections":  conns,
