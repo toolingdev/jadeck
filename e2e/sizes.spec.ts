@@ -267,7 +267,31 @@ async function settle(page: Page) {
     if (!fr) continue;
     await fr.waitForFunction(() => document.body && document.body.children.length > 0 && document.body.getBoundingClientRect().height > 0, null, { timeout: 8000 }).catch(() => {});
   }
-  if (frames.length) await page.waitForTimeout(900);
+  // then until nothing in the widget (or its frames) changes size or text
+  // for 750 ms: widgets reflow when their data arrives
+  const sig = async () => {
+    const core = await page.evaluate(() => {
+      const w = document.querySelector("[data-wid]");
+      if (!w) return "";
+      let tall = 0;
+      for (const e of w.querySelectorAll("*")) tall += (e as HTMLElement).scrollHeight | 0;
+      const r = w.getBoundingClientRect();
+      return `${r.width | 0}x${r.height | 0}:${tall}:${(w.textContent ?? "").length}`;
+    });
+    const fr: string[] = [];
+    for (const f of await page.$$("[data-wid] iframe")) {
+      const c = await f.contentFrame();
+      fr.push(c ? await c.evaluate(() => `${document.body?.scrollHeight ?? 0}:${document.body?.innerText.length ?? 0}`).catch(() => "-") : "-");
+    }
+    return core + "|" + fr.join(",");
+  };
+  let last = "", same = 0;
+  for (let i = 0; i < 40 && same < 3; i++) {
+    const now = await sig();
+    same = now === last ? same + 1 : 0;
+    last = now;
+    await page.waitForTimeout(250);
+  }
 }
 
 async function frameFindings(page: Page, touch: boolean): Promise<Finding[]> {

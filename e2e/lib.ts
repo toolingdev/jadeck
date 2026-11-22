@@ -81,11 +81,14 @@ export function writeJSON(file: string, data: unknown) {
   fs.writeFileSync(p, JSON.stringify(data, null, 2));
 }
 
-/** Waits until no widget has moved or resized for a second (the dashboard
- *  grid places widgets after measuring them), at most 15 s. */
+/** Waits until no widget has moved or resized for 2 s (the dashboard grid
+ *  places widgets after measuring them, and a widget grows when its data
+ *  arrives), at most 20 s. On a dashboard, first waits for widgets to be
+ *  there at all (an empty page is "still" too). */
 export async function waitStill(page: Page) {
+  if (!/\/settings/.test(page.url())) await page.locator("[data-wid]").first().waitFor({ timeout: 10_000 }).catch(() => {});
   let last = "", same = 0;
-  for (let i = 0; i < 60 && same < 4; i++) {
+  for (let i = 0; i < 80 && same < 8; i++) {
     const now = await page.evaluate(() => [...document.querySelectorAll("[data-wid]")]
       .map((e) => { const r = e.getBoundingClientRect(); return `${r.x | 0},${r.y | 0},${r.width | 0},${r.height | 0}`; }).join(";") + "|" + document.documentElement.scrollHeight);
     same = now === last ? same + 1 : 0;
