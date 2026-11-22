@@ -223,7 +223,7 @@
       var secs = clamp(Number(cur.seconds) || 5, 0.5, 30);
       l.textContent = cur.label || "";
       s.textContent = "HOLD " + secsText(secs) + " S" + (cur.sub ? " · " + cur.sub : "");
-      b.setAttribute("aria-label", (cur.label || "") + ", press and hold for " + secsText(secs) + " seconds");
+      // no aria-label: the name is what's written on it ("Stop stream HOLD 5 S")
       b.title = cur.title || ((cur.label || "") + " — press and hold " + secsText(secs) + " s");
     }
     var baseSet = b.set;
