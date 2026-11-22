@@ -116,7 +116,7 @@ export function PresetGrid({ compact, editable = true }: { compact?: boolean; ed
                   )}
                 >
                   <span className="w-full truncate text-[15px] font-bold">{p.name}</span>
-                  <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-dim">Slot {p.slot}{active === p.id ? " · last" : ""}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-dim">Slot {p.slot}{active === p.id ? " · last" : ""}</span>
                 </button>
               ),
             )}

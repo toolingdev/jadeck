@@ -60,7 +60,7 @@ export function CardHeader({ title, meta, children, className }: { title: ReactN
     <header className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-3.5 pb-2", className)}>
       <h2 className="shrink-0 text-[13px] font-bold text-fg">{title}</h2>
       {/* phones: the note goes under the title instead of squeezing beside it */}
-      {meta && <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-dim max-sm:order-3 max-sm:basis-full">{meta}</span>}
+      {meta && <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-dim max-sm:order-3 max-sm:basis-full">{meta}</span>}
       <div className="ml-auto flex shrink-0 items-center gap-2">{children}</div>
     </header>
   );
@@ -123,7 +123,10 @@ export function Slider({ value, min, max, step = 1, onChange, onCommit, classNam
       <RSlider.Track className="recess relative h-1.5 grow rounded-full border">
         <RSlider.Range className="absolute -top-px -bottom-px rounded-full bg-accent" />
       </RSlider.Track>
-      <RSlider.Thumb className="fader-cap block h-5 w-5 rounded-full transition-[filter] hover:brightness-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/40 data-[disabled]:brightness-75" />
+      {/* 28px to grab (a finger), the 20px cap drawn inside it */}
+      <RSlider.Thumb className="group flex h-7 w-7 items-center justify-center rounded-full focus:outline-none">
+        <span aria-hidden className="fader-cap block h-5 w-5 rounded-full transition-[filter] group-hover:brightness-105 group-focus-visible:ring-4 group-focus-visible:ring-accent/40 group-data-[disabled]:brightness-75" />
+      </RSlider.Thumb>
     </RSlider.Root>
   );
 }
@@ -134,9 +137,11 @@ export function Switch({ checked, onChange, disabled, label }: { checked: boolea
   return (
     <RSwitch.Root
       checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label}
-      className="recess relative h-6 w-11 shrink-0 rounded-full border border-line-strong transition data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:shadow-none disabled:opacity-40"
+      // 28px tall to tap; the 24px track is drawn inside it
+      className="group relative h-7 w-11 shrink-0 disabled:opacity-40"
     >
-      <RSwitch.Thumb className="fader-cap block h-4.5 w-4.5 translate-x-0.5 rounded-full transition data-[state=checked]:translate-x-[22px]" />
+      <span aria-hidden className="recess absolute inset-x-0 top-0.5 h-6 rounded-full border border-line-strong transition group-data-[state=checked]:border-accent group-data-[state=checked]:bg-accent group-data-[state=checked]:shadow-none" />
+      <RSwitch.Thumb className="fader-cap relative block h-4.5 w-4.5 translate-x-[3px] rounded-full transition data-[state=checked]:translate-x-[23px]" />
     </RSwitch.Root>
   );
 }

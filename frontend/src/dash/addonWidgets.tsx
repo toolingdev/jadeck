@@ -87,7 +87,8 @@ function ListShape({ def, state, conn, preview, editing }: ShapeProps) {
   return (
     <Frame title={def.label} {...connHead(conn)} right={curTitle ? <Ctx>{`${cur} of ${items.length}`}</Ctx> : undefined}>
         {items.length === 0 ? <p className="text-xs text-dim">{state.onAir === false ? "Not on air." : "Nothing in the list."}</p> : (
-          <div className="h-full space-y-1 overflow-y-auto" data-feed>
+          // Not a feed: the box grows to show every item (no scrollbar).
+          <div className="h-full space-y-1 overflow-y-auto">
             {items.map((it) => (
               <button key={it.index} type="button" disabled={!action || !!busy || editing} onClick={() => run(action, { index: it.index }, `Go to ${it.title}`, String(it.index))}
                 className={cn("relative flex w-full items-center gap-2 overflow-hidden rounded-lg border px-2.5 py-2 text-left text-sm transition active:scale-[0.99]",
@@ -95,7 +96,7 @@ function ListShape({ def, state, conn, preview, editing }: ShapeProps) {
                 {it.index === cur && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-r bg-accent" />}
                 <span className={cn("w-5 shrink-0 text-right font-mono text-[11px] tabular", it.index === cur ? "text-accent/80" : "text-dim")}>{it.index}</span>
                 <span className="min-w-0 flex-1 truncate">{it.title}</span>
-                {it.index === cur && <span className="btn-pgm shrink-0 rounded-full px-1.5 text-[9.5px] font-bold leading-[15px] tracking-[0.08em]">LIVE</span>}
+                {it.index === cur && <span className="btn-pgm shrink-0 rounded-full px-1.5 text-[10px] font-bold leading-[15px] tracking-[0.08em]">LIVE</span>}
               </button>
             ))}
           </div>

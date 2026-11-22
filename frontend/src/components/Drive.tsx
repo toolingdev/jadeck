@@ -221,7 +221,7 @@ export function ZoomStop({ vertical = true, home = false }: { vertical?: boolean
       {home ? (
         <button
           type="button" aria-label="Home" onClick={() => act("Home", "/api/ptz/home")}
-          className="btn-raised flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-[9px] font-bold tracking-[0.1em] !text-muted transition hover:brightness-125 hover:!text-fg active:scale-[0.97]"
+          className="btn-raised flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-[10px] font-bold tracking-[0.1em] !text-muted transition hover:brightness-125 hover:!text-fg active:scale-[0.97]"
         >
           <Home size={18} className="text-fg" />HOME
         </button>
@@ -253,7 +253,7 @@ export function SpeedControl({ speed, onChange, fine, onFine, label = "Speed" }:
       </div>
       <Slider value={eff} min={5} max={fine ? FINE_SPEED : 100}
         onChange={(v) => { if (!fine) onChange(v); setDrive({ speed: v }, cam); }} label="Movement speed" />
-      <div className="flex justify-between text-[9.5px] font-bold uppercase tracking-[0.12em] text-dim"><span>Precise</span><span>{fine ? "Fine max" : "Fast"}</span></div>
+      <div className="flex justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-dim"><span>Precise</span><span>{fine ? "Fine max" : "Fast"}</span></div>
     </div>
   );
 }

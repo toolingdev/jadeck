@@ -25,10 +25,10 @@ export function CamChip({ className }: { className?: string }) {
   if (cams.length < 2) return null;
   const cur = cams.find((c) => c.id === cam) ?? cams.find((c) => c.main);
   return (
-    <div ref={ref} className={cn("no-drag relative", className)}>
+    <div ref={ref} className={cn("no-drag relative min-w-0", className)}>
       <button type="button" disabled={!pick} onClick={(e) => setOpen(open ? null : e.currentTarget.getBoundingClientRect())}
-        className="btn-sel flex max-w-[11rem] items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] font-bold transition hover:brightness-125">
-        <Video size={13} className="shrink-0" />
+        className="btn-sel flex w-full min-w-0 max-w-[11rem] items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] font-bold transition hover:brightness-125">
+        <Video size={13} className="shrink-0 @max-[300px]:hidden" />
         <span className="truncate">{cur?.name ?? "Camera"}</span>
         {pick && <ChevronDown size={13} className="shrink-0" />}
       </button>

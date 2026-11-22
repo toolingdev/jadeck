@@ -51,6 +51,7 @@ function measureNeed(root: HTMLElement): number | null {
 
 export function WidgetView({ w, editing, onNeed, dash }: { w: Widget; editing: boolean; onNeed?: (id: string, px: number | null) => void; dash?: number }) {
   const def = WIDGET[w.type];
+  const known = !!def;
   // The camera a widget drives: this screen's pick (from the widget's
   // camera chip), else the widget's Camera setting.
   const [picked, setPicked] = useLocal<string | null>(`ptz.wcam.${dash ?? 0}.${w.id}`, null);
@@ -87,7 +88,9 @@ export function WidgetView({ w, editing, onNeed, dash }: { w: Widget; editing: b
       ro.disconnect();
       mo.disconnect();
     };
-  }, [w.id, onNeed]);
+    // `known`: an add-on widget's type registers after the first render
+    // (its box isn't there until then), so measuring starts when it does.
+  }, [w.id, onNeed, known]);
   if (!def) return <UnknownWidget type={w.type} />;
   const R = def.Render;
   return (

@@ -91,7 +91,7 @@ export function HoldButton({ seconds, label, holdLabel, sub, tone, className, di
   const left = seconds * (1 - p);
   const fill = FILL[tone] ?? FILL.pgm;
   const idleSub = `HOLD ${seconds % 1 ? seconds.toFixed(1) : seconds} S${sub ? ` · ${sub}` : ""}`;
-  const subSize = Math.round(font * 0.67 * 2) / 2;
+  const subSize = Math.max(10, Math.round(font * 0.67 * 2) / 2);
   return (
     <button type="button" disabled={disabled} title={title ?? `${label} — press and hold ${seconds} s`}
       aria-label={`${label}, press and hold for ${seconds} seconds`}

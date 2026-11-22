@@ -108,7 +108,7 @@ export function SliderShape({ def, state, conn, preview, editing }: ShapeProps) 
                   <span key={i} className={cn("absolute flex items-center gap-1", upright ? "right-0 -translate-y-1/2 flex-row" : "bottom-0 -translate-x-1/2 flex-col-reverse")}
                     style={upright ? { bottom: at(m.value) } : { left: at(m.value) }}>
                     <span className={cn("block rounded-full", zero ? "bg-muted" : "bg-line-strong", upright ? (zero ? "h-[2px] w-2.5" : "h-px w-1.5") : (zero ? "h-2.5 w-[2px]" : "h-1.5 w-px"))} />
-                    {m.label && <span className={cn("font-mono text-[8.5px] leading-none tabular", zero ? "font-bold text-muted" : "text-dim", upright && "order-first")}>{m.label}</span>}
+                    {m.label && <span className={cn("font-mono text-[10px] leading-none tabular", zero ? "font-bold text-muted" : "text-dim", upright && "order-first")}>{m.label}</span>}
                   </span>
                 );
               })}

@@ -48,7 +48,7 @@ export function SectionsShape({ def, state, conn, preview, editing }: ShapeProps
             return (
               <div key={sid}>
                 <button type="button" onClick={() => setFolded((f) => ({ ...f, [sid]: open }))} aria-expanded={open}
-                  className={cn("flex h-8 w-full items-center gap-1.5 rounded-lg px-1 text-left text-[9.5px] font-bold uppercase tracking-[0.12em] transition-colors",
+                  className={cn("flex h-8 w-full items-center gap-1.5 rounded-lg px-1 text-left text-[10px] font-bold uppercase tracking-[0.12em] transition-colors",
                     holdsCur ? "text-muted" : "text-dim hover:text-muted")}>
                   {open ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />}
                   <span className="min-w-0 truncate">{str(sec.title, sid)}</span>

@@ -61,10 +61,13 @@ export function fitGrid(n: number, w: number, h: number, fixedCols = 0, longest 
 export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps) {
   const b = def.bind ?? {};
   const items = listOf(state, b, Array.isArray(b.buttons) ? "buttons" : "items");
-  const cols = b.columns === undefined ? 0 : Math.max(1, Math.min(8, Math.round(num(b.columns, 1))));
+  const asked = b.columns === undefined ? 0 : Math.max(1, Math.min(8, Math.round(num(b.columns, 1))));
   const { run, busy } = useAddonAction(conn, preview);
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // A set column count gives way on a narrow box: never buttons under
+  // 56px wide (they wrap to more rows and the box grows instead).
+  const cols = asked && size.w > 0 ? Math.max(1, Math.min(asked, Math.floor((size.w + GAP) / (56 + GAP)))) : asked;
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -122,7 +125,7 @@ export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps)
                     {busy === id && <Loader2 size={14} className="shrink-0 animate-spin" />}
                     <span className="min-w-0 truncate font-bold leading-[1.25]" style={{ fontSize: font }}>{lbl}</span>
                   </span>
-                  {sub && <span className="block w-full truncate text-center font-bold uppercase leading-[1.35] tracking-[0.1em] opacity-60" style={{ fontSize: Math.round(font * 0.67 * 2) / 2 }}>{sub}</span>}
+                  {sub && <span className="block w-full truncate text-center font-bold uppercase leading-[1.35] tracking-[0.1em] opacity-60" style={{ fontSize: Math.max(10, Math.round(font * 0.67 * 2) / 2) }}>{sub}</span>}
                 </button>
               );
             })}

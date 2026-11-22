@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   MonitorPlay, Gamepad2, Bookmark, LayoutGrid, Sun, Home as HomeIcon, Square, ZoomIn, Gauge,
   Tv, Presentation, ChevronsRight, Mic, MicOff, ListMusic, Play, ListChecks, Clock, Timer, Type, ScrollText,
   ChevronLeft, ChevronRight, Loader2, Activity, HeartPulse, MessageSquareText, MessagesSquare, Radio, type LucideIcon,
-  Lightbulb,
+  Lightbulb, Move as MoveIcon,
 } from "lucide-react";
 import { BandwidthWidget, HealthWidget } from "./metricsWidgets";
 import { ComingUp } from "./scheduleWidget";
@@ -101,7 +101,12 @@ function MoveWidget({ s }: { s: Settings }) {
   const act = useCamAction();
   return (
     <Frame title="Move" source={<CamSource />} right={controls === "switchable" && (
-      <Segmented value={mode} onChange={setSaved} options={[{ value: "buttons", label: "Buttons" }, { value: "joystick", label: "Joystick" }]} />
+      // On a narrow box the words give way to icons, so the camera chip
+      // beside the title keeps its room (.wframe is the size container).
+      <Segmented value={mode} onChange={setSaved} className="@max-[340px]:[&>button]:px-2" options={[
+        { value: "buttons", label: <><span className="@max-[340px]:hidden">Buttons</span><MoveIcon size={15} aria-label="Buttons" className="hidden @max-[340px]:block" /></> },
+        { value: "joystick", label: <><span className="@max-[340px]:hidden">Joystick</span><Gamepad2 size={15} aria-label="Joystick" className="hidden @max-[340px]:block" /></> },
+      ]} />
     )}>
       <div className="flex h-full flex-col gap-3">
         {/* A size container: the pad / stick is a square that fits the
@@ -140,7 +145,7 @@ function ZoomCol({ home }: { home: boolean }) {
       </button>
       {home && (
         <button type="button" aria-label="Home" onClick={() => act("Home", "/api/ptz/home")}
-          className="btn-raised flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-[9px] font-bold tracking-[0.1em] text-muted transition hover:brightness-125 active:scale-[0.97]">
+          className="btn-raised flex h-14 w-16 flex-col items-center justify-center gap-0.5 rounded-2xl border text-[10px] font-bold tracking-[0.1em] text-muted transition hover:brightness-125 active:scale-[0.97]">
           <HomeIcon size={17} className="text-fg" />HOME
         </button>
       )}
@@ -167,7 +172,7 @@ function OnePreset({ s }: { s: Settings }) {
       className="btn-raised flex h-full w-full flex-col items-start justify-center rounded-[var(--radius-card)] border px-4 text-left transition hover:brightness-125 active:scale-[0.98]"
     >
       <span className="w-full truncate text-lg font-bold">{str(s.label) || name}</span>
-      <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-dim">{p ? `PRESET · SLOT ${p.slot}` : "PRESET NOT FOUND"}</span>
+      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-dim">{p ? `PRESET · SLOT ${p.slot}` : "PRESET NOT FOUND"}</span>
     </button>
     </Frame>
   );
@@ -506,12 +511,46 @@ function CountdownWidget({ s }: { s: Settings }) {
   );
 }
 
+const NOTE_PX: Record<string, number> = { sm: 14, md: 16, lg: 24, xl: 36 };
+
+/** A note at its chosen size, smaller when the box can't hold it (down to
+ *  14px); past that the box grows to fit (the board measures the
+ *  scroller), so nothing runs out of the box. */
 function TextWidget({ s }: { s: Settings }) {
-  const size = { sm: "text-sm", md: "text-base", lg: "text-2xl", xl: "text-4xl" }[str(s.size, "md")] ?? "text-base";
+  const want = NOTE_PX[str(s.size, "md")] ?? 16;
+  const text = str(s.text);
+  const box = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [px, setPx] = useState(want);
+  useLayoutEffect(() => {
+    const b = box.current, i = inner.current;
+    if (!b || !i) return;
+    const fit = () => {
+      const floor = Math.min(want, 14);
+      let n = want;
+      // Measured with whole words: a word wider than the box shrinks the
+      // text; only at the floor does a word break.
+      i.style.overflowWrap = "normal";
+      i.style.fontSize = `${n}px`;
+      while (n > floor && (i.scrollHeight > b.clientHeight + 1 || i.scrollWidth > b.clientWidth + 1)) {
+        n = Math.max(floor, n - 2);
+        i.style.fontSize = `${n}px`;
+      }
+      i.style.overflowWrap = "";
+      setPx(n);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(b);
+    return () => ro.disconnect();
+  }, [want, text]);
   return (
     <Frame>
-      <div className={cn("flex h-full items-center whitespace-pre-wrap font-semibold", size, str(s.align) === "center" && "justify-center text-center")}>
-        {str(s.text) || <span className="text-dim">Write a note in this widget's settings.</span>}
+      <div ref={box} className="h-full overflow-y-auto">
+        <div ref={inner} style={{ fontSize: px }}
+          className={cn("flex min-h-full items-center whitespace-pre-wrap font-semibold leading-tight [overflow-wrap:anywhere]", str(s.align) === "center" && "justify-center text-center")}>
+          {text ? <span className="min-w-0">{text}</span> : <span className="text-sm text-dim">Write a note in this widget's settings.</span>}
+        </div>
       </div>
     </Frame>
   );

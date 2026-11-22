@@ -81,7 +81,11 @@ function useDeviceScreen() {
 }
 
 export function DashboardPage({ locked = false }: { locked?: boolean }) {
-  useAddonWidgets(); // add-on widgets join the registry before widgets render
+  // Add-on widgets join the registry before widgets render. They arrive
+  // after the first paint, so the grid's minimums are worked out again
+  // when they do (else an add-on widget sits at the generic 120×80 minimum).
+  const addonDefs = useAddonWidgets();
+  const addonKey = addonDefs.map((d) => `${d.type}:${JSON.stringify(d.minPx)}`).join("|");
   const { log } = useLog();
   const { screen: device, sideways } = useDeviceScreen();
 
@@ -385,7 +389,8 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
     // what its content needs, whichever is taller. Saved as such on the next edit.
     const h = it.h >= MAX_ROWS && minH < MAX_ROWS ? Math.max(minH, def?.size?.h ?? minH) : it.h;
     return { ...it, w: Math.min(view.cols, Math.max(it.w, m.w)), h: Math.min(maxH, Math.max(h, minH)), minW: m.w, minH, maxH };
-  }), [view, shown, colW, need]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [view, shown, colW, need, addonKey]);
 
   // Phone: the settings sheet covers the bottom 60% — bring the tapped
   // widget up above it.

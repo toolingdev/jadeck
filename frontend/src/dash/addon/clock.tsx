@@ -39,7 +39,7 @@ export function ClockShape({ def, state, conn }: ShapeProps) {
         </div>
         {valid && (
           <>
-            <div className="truncate text-[9.5px] font-bold uppercase leading-[18px] tracking-[0.12em] text-dim">{lbl || (diff >= 0 ? "Started" : "Starts")} {hm(at!)}</div>
+            <div className="truncate text-[10px] font-bold uppercase leading-[18px] tracking-[0.12em] text-dim">{lbl || (diff >= 0 ? "Started" : "Starts")} {hm(at!)}</div>
             <div className="flex min-w-0">
               <Readout className={cn("text-[12px]", diff >= 0 ? "text-muted" : -diff < 120 ? "text-accent" : "text-fg")}>
                 {diff >= 0 ? `+${span(diff)}` : `−${span(diff)}`}
@@ -47,7 +47,7 @@ export function ClockShape({ def, state, conn }: ShapeProps) {
             </div>
           </>
         )}
-        {!valid && lbl && <div className="truncate text-[9.5px] font-bold uppercase leading-[18px] tracking-[0.12em] text-dim">{lbl}</div>}
+        {!valid && lbl && <div className="truncate text-[10px] font-bold uppercase leading-[18px] tracking-[0.12em] text-dim">{lbl}</div>}
       </div>
     </Frame>
   );

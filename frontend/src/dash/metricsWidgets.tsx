@@ -23,12 +23,14 @@ export function rate(kbps: number) {
   return `${kbps} kbps`;
 }
 
-function Box({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
+/** `fit`: a fixed list (health) — the box grows to show all of it instead
+ *  of scrolling like a feed (the viewers list) does. */
+function Box({ title, right, children, fit }: { title: string; right?: ReactNode; children: ReactNode; fit?: boolean }) {
   return (
     <div className="card-surface flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-line">
       {/* source: what the numbers come from */}
       <WidgetHeader title={title} source={title === "Video bandwidth" ? "Stream gateway" : "jadeck"} right={right ? <Ctx>{right}</Ctx> : undefined} />
-      <div data-feed className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
+      <div data-feed={fit ? undefined : ""} className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
     </div>
   );
 }
@@ -117,7 +119,7 @@ export function BandwidthWidget({ s }: { s: Settings }) {
 function Stat({ label, value, sub, tone = "ok" }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" }) {
   return (
     <div className="recess rounded-lg border px-2.5 py-2">
-      <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-dim">{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-dim">{label}</div>
       <div className={cn("font-mono text-[clamp(16px,2.6vw,24px)] font-bold tabular", tone === "warn" ? "text-warn" : "text-fg")}>{value}</div>
       {sub && <div className="text-[11px] text-muted">{sub}</div>}
     </div>
@@ -133,7 +135,7 @@ export function HealthWidget({ s }: { s: Settings }) {
   const rows = Object.entries(data.health).sort(([a], [b]) => a.localeCompare(b));
   const down = rows.filter(([, h]) => !h.ok).length;
   return (
-    <Box title="System health" right={`v${data.version.replace(/^v/, "")} · up ${data.uptime ?? "?"}`}>
+    <Box fit title="System health" right={`v${data.version.replace(/^v/, "")} · up ${data.uptime ?? "?"}`}>
       <div className={cn("mb-2 rounded-lg px-2.5 py-1.5 text-sm font-bold", down ? "bg-pgm/15 text-bad" : "bg-good/10 text-good")}>
         {down ? `${down} not answering` : "Everything answering"}
       </div>

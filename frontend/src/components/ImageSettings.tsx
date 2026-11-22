@@ -63,7 +63,7 @@ export function ImageSettings({ onWbPick }: { onWbPick?: () => void }) {
       <CardBody className="space-y-4">
         {err ? <Empty>Camera picture settings unavailable — {err}</Empty> : !vals ? <Empty>Reading camera…</Empty> : (
           <>
-            <Segmented value={group} onChange={setGroup} options={shownGroups.map((g) => ({ value: g.id, label: g.label }))} className="max-w-full overflow-x-auto" />
+            <Segmented value={group} onChange={setGroup} options={shownGroups.map((g) => ({ value: g.id, label: g.label }))} className="max-w-full flex-wrap" />
             {group === "wb" && (
               <div className="recess rounded-xl border p-3">
                 <div className="flex items-center gap-3">
