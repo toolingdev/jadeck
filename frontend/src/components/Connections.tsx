@@ -8,6 +8,7 @@ import { CAP_LABEL, defaults, useAddons, useConnections, type Capability, type C
 import { Button, Dialog, Input } from "@/components/ui";
 import { FieldRow, QuickChannels } from "@/components/FieldRow";
 import { SetupGuide } from "@/components/SetupGuide";
+import { ActionField } from "@/components/ActionField";
 
 // Settings → Connections: the gear this controller talks to, any number of
 // each kind, each through an add-on's connection type.
@@ -215,7 +216,9 @@ function ConnectionForm({ draft, type, conn, onChange, onDone }: {
         <Input value={draft.name} maxLength={60} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder={`${type.label} — office PC`} />
       </label>
       {fields.map((f) => (
-        <FieldRow key={f.key} f={f} value={draft.config[f.key]} onChange={(v) => set(f.key, v)} addon={draft.addon} hasSecret={!!draft.config[`_has_${f.key}`]} />
+        f.type === "action"
+          ? <ActionField key={f.key} f={f} connId={draft.id} />
+          : <FieldRow key={f.key} f={f} value={draft.config[f.key]} onChange={(v) => set(f.key, v)} addon={draft.addon} hasSecret={!!draft.config[`_has_${f.key}`]} />
       ))}
       {hasAdv && (
         <button type="button" className="text-xs text-muted underline-offset-2 hover:text-fg hover:underline" onClick={() => setAdv(!adv)}>

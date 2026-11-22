@@ -4,12 +4,16 @@ import { useShared } from "@/lib/hooks";
 
 export type Opt = { value: string; label: string };
 export type Field = {
-  key: string; label: string; type: "text" | "number" | "select" | "bool" | "notes" | "json" | "password" | "scopes" | "textarea" | "order";
+  key: string; label: string; type: "text" | "number" | "select" | "bool" | "notes" | "json" | "password" | "scopes" | "textarea" | "order" | "action";
   default?: unknown; placeholder?: string; help?: string; required?: boolean; advanced?: boolean;
   min?: number; max?: number; options?: Opt[]; optionsFrom?: string; keys?: string[];
   /** select only (v2.1): pick several; the value is a string array. "order" is always a string array. */
   multiple?: boolean;
+  /** "action" fields (connection forms): the connection action the button runs. */
+  action?: string;
 };
+/** What an action field's action answers (SDK ActionFieldResult). */
+export type ActionResult = { text?: string; code?: string; url?: string; ok?: boolean; poll?: boolean; error?: string; button?: string };
 /** "tool" (apiVersion 2): a general add-on — widgets and actions, but not a switcher, slides, mixer or assistant. */
 export type Capability = "switcher" | "slides" | "mixer" | "assistant" | "tool";
 export type ConnectionType = {

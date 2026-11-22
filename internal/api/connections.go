@@ -92,6 +92,11 @@ func (s *Server) connView(l *devices.Live) map[string]any {
 	if v["favorites"] == nil {
 		v["favorites"] = []devices.Favorite{}
 	}
+	if l.Impl != nil && l.Err == nil {
+		if p := toolProblem(l, caps); p != "" {
+			v["ready"], v["error"] = false, p
+		}
+	}
 	if s.Addons != nil {
 		if m, ok := s.Addons.Manifest(l.Addon); ok {
 			v["addonName"] = m.Name

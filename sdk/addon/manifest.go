@@ -410,10 +410,32 @@ const (
 	FieldScopes   = "scopes"
 	FieldTextarea = "textarea"
 	FieldOrder    = "order" // v2.1: an ordered pick from the options (a list of values)
+	// FieldAction (connection forms only) is a button that runs the
+	// connection action named in Field.Action on the saved connection:
+	// a sign-in, a pairing. See ActionFieldResult.
+	FieldAction = "action"
 )
 
+// ActionFieldResult is what an action field's action returns (as its
+// result map). The controller shows Text (and Code large, to type
+// somewhere; URL as a button to open it), and while Poll is true calls
+// the action again every few seconds with {"poll": true} until it isn't.
+// OK true shows Text in green; Error shows in red. Status: an action
+// field's action is also called with {"status": true} when the form
+// opens, to show where things stand ("Can reply as …").
+type ActionFieldResult struct {
+	Text  string `json:"text,omitempty"`
+	Code  string `json:"code,omitempty"`
+	URL   string `json:"url,omitempty"`
+	OK    bool   `json:"ok,omitempty"`
+	Poll  bool   `json:"poll,omitempty"`
+	Error string `json:"error,omitempty"`
+	// Button relabels the field's button for the next press ("Sign out").
+	Button string `json:"button,omitempty"`
+}
+
 // FieldTypes lists every field type.
-var FieldTypes = []string{FieldText, FieldNumber, FieldSelect, FieldBool, FieldPassword, FieldNotes, FieldJSON, FieldScopes, FieldTextarea, FieldOrder}
+var FieldTypes = []string{FieldText, FieldNumber, FieldSelect, FieldBool, FieldPassword, FieldNotes, FieldJSON, FieldScopes, FieldTextarea, FieldOrder, FieldAction}
 
 // KnownFieldType reports whether t is a field type.
 func KnownFieldType(t string) bool { return slices.Contains(FieldTypes, t) }
@@ -448,6 +470,8 @@ type Field struct {
 	Keys        []string `json:"keys,omitempty"` // notes: which actions
 	// Multiple (select only, v2.1): pick several; the value is a list.
 	Multiple bool `json:"multiple,omitempty"`
+	// Action (type "action" only): the connection action the button runs.
+	Action string `json:"action,omitempty"`
 }
 
 // Num is a helper for Field.Min / Max.
@@ -490,6 +514,11 @@ func (m Manifest) Validate() error {
 		seen[t.ID] = true
 		if len(t.Capabilities) == 0 {
 			bad("connection type %s has no capabilities", t.ID)
+		}
+		for _, f := range t.Fields {
+			if f.Type == FieldAction && !actionRe.MatchString(f.Action) {
+				bad("connection type %s: action field %s needs an action id", t.ID, f.Key)
+			}
 		}
 		if len([]rune(t.Needs)) > 48 {
 			bad("connection type %s: needs is at most 48 characters", t.ID)
