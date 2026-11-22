@@ -6,6 +6,7 @@ import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
 import { Button, Dialog, Input } from "@/components/ui";
 import { VideoCard } from "@/components/SystemSetup";
+import { refusedText, type Refused } from "@/lib/refused";
 
 // Settings → Video feeds: pictures dashboards can show. Cameras add
 // their own; anything else is sent here (SRT / RTSP push) or pulled from
@@ -13,7 +14,7 @@ import { VideoCard } from "@/components/SystemSetup";
 // A feed sent here takes a stream only from a sender that gives its
 // publish key (user = feed id, password = key); watching needs no key.
 
-type Status = { online: boolean; inKbps: number; viewers: number; width?: number; height?: number } | undefined;
+type Status = { online: boolean; inKbps: number; viewers: number; width?: number; height?: number; lastRefused?: Refused } | undefined;
 type Feed = {
   id: string; name: string; source: "camera" | "push" | "pull"; url?: string; enabled: boolean; detail?: string; status: Status;
   canEdit?: boolean; owner?: string; ownerName?: string;
@@ -31,6 +32,7 @@ export function VideoFeedsSection() {
   const status = (f: Feed) => {
     if (f.source === "camera" && !f.enabled) return <span className="text-dim">still pictures only</span>;
     if (f.status?.online) return <span className="text-good">● {f.source === "push" ? "receiving" : "live"} {(f.status.inKbps / 1000).toFixed(1)} Mbps · {f.status.viewers} watching</span>;
+    if (f.source === "push" && f.status?.lastRefused) return <span className="text-warn">⚠ sender refused at {new Date(f.status.lastRefused.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>;
     if (f.source === "push") return <span className="text-muted">○ waiting for the sender</span>;
     return <span className="text-muted">○ idle — starts when someone watches</span>;
   };
@@ -58,6 +60,9 @@ export function VideoFeedsSection() {
                     {f.source === "camera" ? `${f.detail} · turn live video on/off under Cameras below` : f.source === "push" ? `SRT / RTSP push · needs its publish key${f.ownerName ? ` · added by ${f.ownerName}` : ""}` : `pull · ${f.url}`}
                   </span>
                   <span className="mt-0.5 block text-xs sm:hidden">{status(f)}</span>
+                  {f.source === "push" && !f.status?.online && f.status?.lastRefused && (
+                    <span className="mt-1 block whitespace-normal text-xs text-warn">{refusedText(f.status.lastRefused, f.id)}</span>
+                  )}
                 </span>
                 <span className="shrink-0 text-xs max-sm:hidden">{status(f)}</span>
               </button>
@@ -197,6 +202,9 @@ function PushInfo({ feed, show, onShow, onNewKey, busy }: { feed: Feed; show: bo
         <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-dim">RTSP — ffmpeg, encoders</span>
         <Kv k="Address" v={p.rtspUrl ?? ""} shown={mask(p.rtspUrl ?? "")} /><Kv k="User" v={p.user} /><Kv k="Key" v={key} shown={mask(key)} />
       </div>
+      {!feed.status?.online && feed.status?.lastRefused && (
+        <p role="status" className="rounded-lg border border-warn/40 bg-warn/10 px-2.5 py-2 text-warn">{refusedText(feed.status.lastRefused, feed.id)}</p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <p className={cn("flex-1", feed.status?.online ? "text-good" : "text-muted")}>{feed.status?.online ? "● Receiving now." : "Shows “receiving” here the moment the sender connects."}</p>
         {onNewKey && <Button size="sm" variant="ghost" onClick={onNewKey} disabled={busy}>{busy ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />} New key</Button>}

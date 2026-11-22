@@ -18,6 +18,7 @@ import { CamChip } from "@/components/CamChip";
 import { cn } from "@/lib/cn";
 import { Button, Dialog, Segmented } from "@/components/ui";
 import { StreamView } from "@/components/StreamView";
+import { refusedText, useFeedRefused } from "@/lib/refused";
 import { DirPad, Joystick, HoldButton, SpeedControl, FINE_SPEED, useCamAction } from "@/components/Drive";
 import { PresetGrid } from "@/components/Presets";
 import { ImageSettings } from "@/components/ImageSettings";
@@ -225,13 +226,16 @@ function SpeedWidget() {
 
 function Feed({ kind }: { kind: "program" | "confidence" | "camera"; s: Settings }) {
   const cfg = useCfg();
-  if (kind === "program") return <StreamView title="Program" whep={cfg?.programWhep} hls={cfg?.programHls} aspect="h-full" noSignalText="The program feed isn't reaching the stream gateway yet." />;
-  return <StreamView title="Confidence" whep={cfg?.confidenceWhep} hls={cfg?.confidenceHls} aspect="h-full" noSignalText="The confidence feed isn't reaching the gateway yet." />;
+  const refused = useFeedRefused(kind === "camera" ? undefined : kind);
+  const alert = refused ? refusedText(refused, kind) : undefined;
+  if (kind === "program") return <StreamView title="Program" whep={cfg?.programWhep} hls={cfg?.programHls} aspect="h-full" noSignalText="The program feed isn't reaching the stream gateway yet." noSignalAlert={alert} />;
+  return <StreamView title="Confidence" whep={cfg?.confidenceWhep} hls={cfg?.confidenceHls} aspect="h-full" noSignalText="The confidence feed isn't reaching the gateway yet." noSignalAlert={alert} />;
 }
 
 function VideoWidget({ s, editing }: { s: Settings; editing: boolean }) {
   const cfg = useCfg();
   const feed = str(s.feed);
+  const refused = useFeedRefused(feed && !feed.startsWith("cam:") ? feed : undefined);
   if (!feed) return <Unset what="Pick a feed in this widget's settings." />;
   // the feed picker sits top-left (where every widget's picker is), so the badges go bottom-left;
   // decided by the setting, not by whether the picker shows, so edit mode looks the same as after Done
@@ -240,7 +244,8 @@ function VideoWidget({ s, editing }: { s: Settings; editing: boolean }) {
   const f = cfg?.feeds?.find((x) => x.id === feed);
   if (cfg && !f) return <Unset what="That feed was removed — pick another in this widget's settings." />;
   return <StreamView title={str(s.title) || f?.name || ""} whep={f?.whep} hls={f?.hls} aspect="h-full" badges={badges}
-    noSignalText={f?.source === "push" ? `Nothing is sending ${f?.name} yet (Settings → Video feeds shows how).` : `${f?.name ?? "This feed"} isn't answering.`} />;
+    noSignalText={f?.source === "push" ? `Nothing is sending ${f?.name} yet (Settings → Video feeds shows how).` : `${f?.name ?? "This feed"} isn't answering.`}
+    noSignalAlert={refused ? refusedText(refused, feed) : undefined} />;
 }
 
 function useSwitcher() {

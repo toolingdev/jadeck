@@ -45,8 +45,10 @@ function useSeen(ref: React.RefObject<HTMLElement | null>) {
   return docOn && onScreen;
 }
 
-export function StreamView({ whep, hls, snapshot, title, noSignalText, overlay, className, fullscreen = true, aspect = "aspect-video", onMedia, badges = "top" }: {
+export function StreamView({ whep, hls, snapshot, title, noSignalText, noSignalAlert, overlay, className, fullscreen = true, aspect = "aspect-video", onMedia, badges = "top" }: {
   whep?: string; hls?: string; snapshot?: string; title?: ReactNode; noSignalText?: string;
+  /** a problem worth acting on while there's no picture (e.g. a sender with the wrong key), shown in warning colors */
+  noSignalAlert?: string;
   overlay?: ReactNode; className?: string; fullscreen?: boolean; aspect?: string;
   /** where the name / quality / live badges sit ("bottom" when a picker takes the top-left) */
   badges?: "top" | "bottom";
@@ -97,7 +99,8 @@ export function StreamView({ whep, hls, snapshot, title, noSignalText, overlay, 
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
           <VideoOff className="text-dim" size={28} />
           <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">No signal</div>
-          {noSignalText && <p className="max-w-xs text-xs text-dim">{noSignalText}</p>}
+          {noSignalAlert ? <p role="status" className="max-w-xs rounded-lg border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-warn">{noSignalAlert}</p>
+            : noSignalText && <p className="max-w-xs text-xs text-dim">{noSignalText}</p>}
           <Button size="sm" variant="outline" onClick={retry}><RefreshCw size={14} /> Retry</Button>
         </div>
       )}
