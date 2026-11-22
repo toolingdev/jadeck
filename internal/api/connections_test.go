@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"ptz/internal/devices"
@@ -90,10 +91,17 @@ func testAddon() addon.Spec {
 	}
 }
 
-// toolGear is a general ("tool") add-on connection: state and actions only.
-type toolGear struct{ n int }
+// toolGear is a general ("tool") add-on connection: state and actions
+// only. Settings also asks its state in the background (toolhealth.go),
+// so it must take calls at the same time, like a real add-on does.
+type toolGear struct {
+	mu sync.Mutex
+	n  int
+}
 
 func (g *toolGear) AddonState(context.Context) (map[string]any, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	return map[string]any{"count": g.n, "detail": "Counting"}, nil
 }
 
@@ -101,6 +109,8 @@ func (g *toolGear) AddonAction(_ context.Context, name string, _ json.RawMessage
 	if name != "go_to_item" {
 		return nil, fmt.Errorf("%w %q", addon.ErrUnknownAction, name)
 	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.n++
 	return map[string]any{"count": g.n}, nil
 }
