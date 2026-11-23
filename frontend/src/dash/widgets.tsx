@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { BandwidthWidget, HealthWidget } from "./metricsWidgets";
 import { ComingUp } from "./scheduleWidget";
-import { StageShow, StageCue, sendAsCue, showAsCue, StageTimer, StageLive, TallyLight, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK, DEFAULT_REPLIES } from "./stageWidgets";
+import { StageShow, StageCue, StageMessages, DEFAULT_MSG_QUICK, DEFAULT_MSG_REPLIES, sendAsCue, showAsCue, StageTimer, StageLive, TallyLight, LiveCamPinned, usePinnedPresets, recallPinned, DEFAULT_QUICK, DEFAULT_REPLIES } from "./stageWidgets";
 import { api, type Preset, type Macro, type MixerStatus, type SwitcherStatus, type PresentationStatus, type RunReport, type StreamConfig } from "@/lib/api";
 import { useShared, refreshShared, useLocal, useWidgetConn } from "@/lib/hooks";
 import { withConn, type Field as AddonField } from "@/lib/addons";
@@ -609,6 +609,25 @@ export const WIDGETS: WidgetDef[] = [
       { key: "timers", label: "Timer buttons", type: "list", showIf: (s) => bool(s.outgoing, false), help: "One per line, e.g. “Sermon 30”. Starts that channel's countdown." },
     ],
     Render: ({ s, editing }) => <StageCue s={s} editing={editing} /> },
+  { type: "stage.messages", label: "Messages", group: "stage", icon: MessagesSquare,
+    description: "A two-way conversation on a stage channel: quick buttons and a text box, the other side's newest message big (for the speaker), \"seen\" on what you sent, a chime and NEW when they answer. Works over remote access too.",
+    size: { w: 5, h: 8, pw: 4, ph: 8 },
+    // header, the big message, quick buttons (2 a row at the minimum width), the text box, some history
+    minPx: (s) => {
+      const big = bool(s.big, false);
+      const quick = list(s.quick, big ? DEFAULT_MSG_REPLIES : DEFAULT_MSG_QUICK).length;
+      return { w: 220, h: 56 + (big ? 96 : 0) + Math.ceil(quick / 2) * 50 + (bool(s.textBox, true) ? 52 : 0) + (bool(s.history, true) ? 96 : 0) };
+    },
+    defaults: { channels: ["pastor"], big: false, history: true, textBox: true, sound: true },
+    fields: [
+      { key: "channels", label: "Channel", type: "channels", help: "Both sides pick the same channel (e.g. Pastor)." },
+      { key: "big", label: "Their newest message big", type: "bool", help: "For the speaker: the latest from the other side fills the top, with reply buttons under it." },
+      { key: "quick", label: "Quick buttons", type: "list", help: "One per line. Blank: replies for the speaker (OK, 2 more min…), cues for the booth (We're live, 5 min left…)." },
+      { key: "textBox", label: "Text box", type: "bool" },
+      { key: "history", label: "The conversation", type: "bool", help: "Everything said today, scrolling." },
+      { key: "sound", label: "Chime when they write", type: "bool" },
+    ],
+    Render: ({ s, editing }) => <StageMessages s={s} editing={editing} /> },
   // Older message widgets: kept working (drawn as a Cue), not offered any more.
   { type: "stage.send", hidden: true, label: "Message sender", group: "stage", icon: MessageSquareText,
     description: "Replaced by Cue.", size: { w: 6, h: 9, pw: 4, ph: 9 }, minPx: { w: 220, h: 120 },

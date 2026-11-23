@@ -745,3 +745,152 @@ export function usePinnedPresets(cam: string) {
 export async function recallPinned(cam: string, id: number) {
   return api(`/api/presets/${id}/recall${cam ? `?cam=${encodeURIComponent(cam)}` : ""}`, "POST");
 }
+
+// ------------------------------------------------------------- messages
+
+export const DEFAULT_MSG_QUICK = ["We're live", "5 min left", "Speak up", "Your mic is off", "Wrap up"];
+export const DEFAULT_MSG_REPLIES = ["OK 👍", "2 more min", "Can't hear music", "Am I live?"];
+
+/** A short chime for a new message (no file to load; silent if the
+ *  browser hasn't been tapped yet). */
+function chime() {
+  try {
+    const A = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new A();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.setValueAtTime(1320, ctx.currentTime + 0.12);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    o.connect(g).connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.4);
+    setTimeout(() => ctx.close(), 600);
+  } catch { /* no audio */ }
+}
+
+/** Messages: a two-way conversation on stage channels (booth ↔ speaker,
+ *  at the venue or from anywhere). Quick buttons and a text box send; the
+ *  other side's newest message can show big; the conversation scrolls on
+ *  its own; what you send shows "seen" once the other side has it on
+ *  screen. A reply also answers that message for the Cue widgets. */
+export function StageMessages({ s, editing }: { s: Settings; editing: boolean }) {
+  const ids = list(s.channels);
+  const { channels, online, loaded } = useStage(ids.length ? ids : ["-"]);
+  const me = useScreenName();
+  const { log } = useLog();
+  const live = channels.filter((c) => ids.includes(c.id));
+  const big = bool(s.big, false);
+  const quick = list(s.quick, big ? DEFAULT_MSG_REPLIES : DEFAULT_MSG_QUICK);
+  const textBox = bool(s.textBox, true);
+  const history = bool(s.history, true);
+  const sound = bool(s.sound, true);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [unread, setUnread] = useState(false);
+  const feed = useRef<HTMLDivElement>(null);
+  const atEnd = useRef(true);
+  const msgs = useMemo(() => live.flatMap((c) => c.messages.map((m) => ({ c, m }))).sort((a, b) => (a.m.at < b.m.at ? -1 : a.m.at > b.m.at ? 1 : 0)), [live]);
+  const lastIn = [...msgs].reverse().find((x) => x.m.from !== me);
+  const lastMine = [...msgs].reverse().find((x) => x.m.from === me);
+  // the speaker always sees the booth's latest; once answered it dims
+  // and says what he answered
+  const showBig = big && !!lastIn;
+  const answered = !!lastIn && !!lastMine && lastMine.m.at > lastIn.m.at;
+  const others = new Set(live.flatMap((c) => c.screens.filter((x) => x.name !== me && x.online).map((x) => x.name)));
+
+  // the newest from the other side: seen (it's on this screen), a chime
+  const prevIn = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const id = lastIn?.m.id ?? null;
+    if (!editing && lastIn && !lastIn.m.seen.includes(me) && !document.hidden) stageApi.seen(lastIn.c.id, lastIn.m.id).catch(() => {});
+    if (prevIn.current !== undefined && id && id !== prevIn.current) {
+      if (sound && !editing) chime();
+      setUnread(true);
+      const t = setTimeout(() => setUnread(false), 10000);
+      prevIn.current = id;
+      return () => clearTimeout(t);
+    }
+    prevIn.current = id;
+  }, [lastIn?.m.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onVis = () => { if (!document.hidden && lastIn && !lastIn.m.seen.includes(me)) stageApi.seen(lastIn.c.id, lastIn.m.id).catch(() => {}); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [lastIn?.m.id, me]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the conversation follows new messages, unless you've scrolled up to reread
+  useLayoutEffect(() => {
+    const el = feed.current;
+    if (el && atEnd.current) el.scrollTop = el.scrollHeight;
+  }, [msgs.length]);
+
+  const send = async (t: string) => {
+    t = t.trim();
+    if (editing || !t || !live.length) return;
+    setBusy(true);
+    try {
+      await Promise.all(live.map((c) => stageApi.send(c.id, t)));
+      // also the answer to their newest, so Cue widgets show it answered
+      if (lastIn && !(lastIn.m.replies ?? []).some((r) => r.screen === me)) await stageApi.reply(lastIn.c.id, lastIn.m.id, t).catch(() => {});
+      if (t === text.trim()) setText("");
+      setUnread(false);
+      atEnd.current = true;
+    } catch (e) {
+      log("Messages", `Not sent — ${(e as Error).message}`, false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!ids.length) return <Note>Pick a channel in this widget's settings.</Note>;
+  if (loaded && live.length === 0) return <ChannelMissing id={ids[0]} />;
+  const who = others.size ? [...others].join(", ") : live.map((c) => c.name).join(" · ");
+  const earlier = showBig && lastIn ? msgs.filter((x) => x.m.id !== lastIn.m.id) : msgs;
+  return (
+    <Frame title="Messages" source={who} online={loaded ? online : undefined}
+      right={unread ? <span className="flex items-center gap-1 text-bad"><span className="h-2 w-2 rounded-full bg-pgm" />NEW</span> : undefined}
+      className={cn("bg-panel-2", !online && "grayscale")}>
+      <div className="flex h-full min-h-0 flex-col gap-2">
+        {showBig && lastIn && (
+          <div className={cn("flex min-h-[4.5rem] flex-col rounded-xl border-2 px-3 py-2 transition",
+            answered ? "border-line bg-panel" : "border-accent/70 bg-accent/10", history ? "shrink-0" : "flex-1")} style={history ? { maxHeight: "40%" } : undefined}>
+            <div className={cn("text-[11px] font-bold uppercase tracking-[0.08em]", answered ? "text-muted" : "text-accent")}>
+              {lastIn.m.from || "Booth"} · {hhmm(lastIn.m.at)}{answered ? ` · you answered “${lastMine!.m.text}”` : " · new"}
+            </div>
+            <div className={cn("flex min-h-0 flex-1 flex-col", answered ? "text-muted" : "text-fg")}><FitText text={lastIn.m.text} max={64} /></div>
+          </div>
+        )}
+        {quick.length > 0 && (
+          <div className="grid shrink-0 grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-1.5">
+            {quick.map((q, i) => (
+              <button key={q} type="button" disabled={busy || editing} onClick={() => send(q)}
+                className={cn("no-drag min-h-11 rounded-lg border px-2 py-1.5 text-sm font-semibold transition active:scale-[0.97]",
+                  big && i === 0 && showBig && !answered ? "btn-sel" : "btn-raised hover:brightness-125")}>
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+        {textBox && (
+          <div className="flex shrink-0 gap-1.5">
+            <input value={text} maxLength={MAX_TEXT} placeholder={big ? "Type a reply…" : "Type a message…"} disabled={editing}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(text); } }}
+              className="no-drag h-11 min-w-0 flex-1 recess rounded-lg border px-3 text-[15px] outline-none focus:border-accent" />
+            <button type="button" disabled={busy || !text.trim() || editing} onClick={() => send(text)}
+              className="no-drag flex h-11 w-14 items-center justify-center rounded-lg btn-sel border hover:brightness-125 disabled:btn-off" aria-label="Send"><Send size={16} /></button>
+          </div>
+        )}
+        {history && (
+          <div ref={feed} data-feed onScroll={(e) => { const el = e.currentTarget; atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24; }}
+            className="recess min-h-0 flex-1 space-y-1.5 overflow-y-auto rounded-lg border p-2">
+            {earlier.length === 0 && <p className="pt-2 text-center text-xs text-dim">{showBig ? "Nothing earlier." : "No messages yet today."}</p>}
+            {earlier.map(({ m }) => <Bubble key={m.id} m={m} mine={m.from === me} fresh={false} color="#F5A524" />)}
+          </div>
+        )}
+      </div>
+    </Frame>
+  );
+}

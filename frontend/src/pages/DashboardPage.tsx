@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useLocal, useShared } from "@/lib/hooks";
 import { useLog } from "@/lib/log";
 import { cn } from "@/lib/cn";
+import { useRemoteLimited } from "@/lib/remote";
 import { Badge, Button, Dialog, Input, Select } from "@/components/ui";
 import { WIDGET, type WidgetDef, type Settings } from "@/dash/widgets";
 import { WidgetView, Library, Inspector, SaveBadge } from "@/dash/editor";
@@ -88,6 +89,7 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   const addonKey = addonDefs.map((d) => `${d.type}:${JSON.stringify(d.minPx)}`).join("|");
   const { log } = useLog();
   const { screen: device, sideways } = useDeviceScreen();
+  const remoteOnly = useRemoteLimited();
 
   const [list, setList] = useState<Dashboard[] | null>(null);
   const [defaults, setDefaults] = useState<Defaults>({});
@@ -127,8 +129,10 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   // This device's pick, else the default for this kind of screen.
   const current = useMemo(() => {
     if (!list) return null;
+    // remote access, own screens only: the one made for this kind of screen
+    if (remoteOnly) return list.find((d) => d.kind === device) ?? list.find((d) => d.kind === "tablet") ?? list[0] ?? null;
     return list.find((d) => d.id === pick) ?? list.find((d) => d.id === defaults[device]) ?? list[0] ?? null;
-  }, [list, pick, defaults, device]);
+  }, [list, pick, defaults, device, remoteOnly]);
   const shown = draft ?? current;
   const editing = draft !== null;
 

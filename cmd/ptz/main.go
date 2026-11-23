@@ -39,6 +39,7 @@ import (
 	"ptz/internal/macros"
 	"ptz/internal/mockcam"
 	"ptz/internal/netinfo"
+	"ptz/internal/remote"
 	"ptz/internal/schedule"
 	"ptz/internal/settings"
 	"ptz/internal/stage"
@@ -403,6 +404,11 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 		return fmt.Errorf("stage messages: %w", err)
 	}
 
+	rem, err := remote.Open(filepath.Join(cfg.DataDir, "remote.json"))
+	if err != nil {
+		return fmt.Errorf("remote access: %w", err)
+	}
+
 	reg := cams.New(ctx, cfg.DataDir, log)
 	defer reg.Close()
 	gw := &video.Gateway{Dir: filepath.Join(cfg.DataDir, "video"), ExeDir: config.ExeDir(), Log: log}
@@ -414,6 +420,7 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 		Names: names, BindHost: cfg.BindHost, PortLocked: portLocked, Port: hs.Port,
 		Web: web.Dist, Legacy: web.Legacy, Log: log, Version: Version,
 		Dev: dev, DevFile: devFile, DevicesPath: cfg.DevicesPath, Addons: host, MacroStore: ms, Updates: um,
+		Remote: rem, RemoteVerify: &remote.Verifier{},
 		Restart: api.Restarter{Mode: mode, ExecArgs: execArgs, ServiceArg: []string{"run"}, Exit: exit}}
 	srv.Macros = macros.NewEngine(ms, srv.MacroActions())
 	host.Grant = srv.GrantAddon
@@ -424,6 +431,14 @@ func run(ctx context.Context, exit func(), f flags, mode string, execArgs []stri
 	srv.Schedule = sched
 	go sched.Run(ctx)
 	hs.handler = srv.Handler() // sets reg.OnStatus before any camera starts
+	// The remote door (Cloudflare Tunnel → 127.0.0.1 only): on when
+	// Settings → Access → Remote access says so, moved or closed live.
+	rs := &remoteServer{log: log, handler: srv.RemoteHandler()}
+	srv.OnRemote = rs.apply
+	if err := rs.apply(rem.Get()); err != nil {
+		log.Error("remote access listener", "err", err)
+	}
+	defer rs.apply(remote.Config{})
 
 	reg.Apply(set)
 	if err := gw.Apply(set); err != nil {
@@ -478,4 +493,45 @@ func firstNonEmpty(v ...string) string {
 		}
 	}
 	return ""
+}
+
+// remoteServer is the remote-access listener, on 127.0.0.1 only: the
+// tunnel runs on this computer, and nothing else should reach it.
+type remoteServer struct {
+	log     *slog.Logger
+	handler http.Handler
+	mu      sync.Mutex
+	srv     *http.Server
+	port    int
+}
+
+func (r *remoteServer) apply(c remote.Config) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	want := 0
+	if c.Enabled {
+		want = c.Port
+	}
+	if want == r.port {
+		return nil
+	}
+	if r.srv != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		r.srv.Shutdown(ctx)
+		cancel()
+		r.srv, r.port = nil, 0
+		r.log.Info("remote access door closed")
+	}
+	if want == 0 {
+		return nil
+	}
+	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(want)))
+	if err != nil {
+		return fmt.Errorf("remote access can't use port %d: %w", want, err)
+	}
+	srv := &http.Server{Handler: r.handler, ReadHeaderTimeout: 10 * time.Second}
+	go srv.Serve(ln)
+	r.srv, r.port = srv, want
+	r.log.Info("remote access door open", "listen", ln.Addr().String())
+	return nil
 }

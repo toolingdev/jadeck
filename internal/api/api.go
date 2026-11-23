@@ -26,6 +26,7 @@ import (
 	"ptz/internal/logx"
 	"ptz/internal/macros"
 	"ptz/internal/netinfo"
+	"ptz/internal/remote"
 	"ptz/internal/schedule"
 	"ptz/internal/settings"
 	"ptz/internal/stage"
@@ -48,22 +49,29 @@ type Server struct {
 	Log        *slog.Logger
 	Version    string
 
-	Dev         *devices.Set  // initial device set; use Devs() — it can be swapped live
-	DevFile     *devices.File // the config Dev was built from
-	DevicesPath string        // where the Settings screen saves it
-	Addons      *addons.Host  // runs add-ons; opens connections
-	grants      grants        // controller access for Controller add-ons
-	devMu       sync.RWMutex
-	MacroStore  *macros.Store
-	Macros      *macros.Engine
-	Updates     *update.Manager
-	Restart     Restarter
-	Keys        *auth.Store
-	Dashboards  *dashboards.Store
-	Trust       *auth.Trust
-	Stage       *stage.Store
-	Schedule    *schedule.Store // scheduled actions (Coming up)
-	Logs        *logx.Logs      // diagnostics: log ring, files, level
+	Dev          *devices.Set  // initial device set; use Devs() — it can be swapped live
+	DevFile      *devices.File // the config Dev was built from
+	DevicesPath  string        // where the Settings screen saves it
+	Addons       *addons.Host  // runs add-ons; opens connections
+	grants       grants        // controller access for Controller add-ons
+	devMu        sync.RWMutex
+	MacroStore   *macros.Store
+	Macros       *macros.Engine
+	Updates      *update.Manager
+	Restart      Restarter
+	Keys         *auth.Store
+	Dashboards   *dashboards.Store
+	Trust        *auth.Trust
+	Stage        *stage.Store
+	Schedule     *schedule.Store  // scheduled actions (Coming up)
+	Logs         *logx.Logs       // diagnostics: log ring, files, level
+	Remote       *remote.Store    // remote access (Cloudflare Tunnel + Access)
+	RemoteVerify *remote.Verifier // checks Access sign-ins
+	// OnRemote applies a saved remote-access config (starts or stops the
+	// remote listener).
+	OnRemote func(remote.Config) error
+	remoteMu sync.Mutex
+	remoteAt time.Time // last request on the remote door
 
 	hub    *hub
 	mux    *http.ServeMux
@@ -128,6 +136,7 @@ func (s *Server) Handler() http.Handler {
 	if s.Logs != nil {
 		s.diagRoutes(mux)
 	}
+	s.remoteRoutes(mux)
 	s.updateRoutes(mux)
 	if s.Keys != nil {
 		s.keyRoutes(mux)

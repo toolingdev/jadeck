@@ -15,7 +15,7 @@ func (s *Server) dashboardRoutes(mux *http.ServeMux) {
 			fail(w, 500, err.Error())
 			return
 		}
-		writeJSON(w, 200, l)
+		writeJSON(w, 200, filterDashboards(RemoteFrom(r.Context()), l))
 	})
 	mux.HandleFunc("GET /api/dashboards/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathID(w, r)

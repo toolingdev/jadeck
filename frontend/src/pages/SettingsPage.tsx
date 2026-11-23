@@ -10,6 +10,7 @@ import { StageSettings } from "@/components/StageSettings";
 import { CamerasCard } from "@/components/CameraSetup";
 import { SystemCard } from "@/components/SystemSetup";
 import { VideoFeedsSection } from "@/components/VideoFeeds";
+import { RemoteAccess } from "@/components/RemoteAccess";
 import { useLog } from "@/lib/log";
 import { Badge, Button, Card, CardBody, CardHeader, Dialog, Empty, Input, Switch } from "@/components/ui";
 
@@ -62,6 +63,7 @@ export function SettingsPage() {
         {sec === "addons" && <AddonsSection />}
         {sec === "access" && (
           <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0">
+            <div className="lg:col-span-2"><RemoteAccess /></div>
             <div className="lg:col-span-2"><Keys /></div>
             <Connect />
             <Audit />

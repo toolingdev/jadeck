@@ -59,6 +59,8 @@ func scopeFor(method, path string) string {
 		return scopeTrusted
 	case has("/mcp"):
 		return scopeAny // tool-level scopes apply inside
+	case path == "/api/remote/me":
+		return scopeAny // who am I: "not remote" on this door
 	case path == "/api/config" || path == "/api/devices" || path == "/api/update/status":
 		return scopeAny
 	case path == "/api/stage/channels" || (has("/api/stage/channels/") && !strings.Contains(strings.TrimPrefix(path, "/api/stage/channels/"), "/")):

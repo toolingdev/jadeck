@@ -8,6 +8,7 @@ import { Dot } from "@/components/ui";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { useRemoteLimited } from "@/lib/remote";
 import { exitFullScreen, canFullScreen, standalone, useLocked, useWakeLock } from "@/lib/kiosk";
 import { Boundary } from "@/components/Boundary";
 
@@ -54,7 +55,8 @@ export function App() {
     }
   };
 
-  const locked = useLocked() && route === "/";
+  const remoteOnly = useRemoteLimited(); // remote access, their own screens only
+  const locked = (useLocked() && route === "/") || remoteOnly;
   useWakeLock(locked);
 
   if (locked) {
@@ -63,7 +65,7 @@ export function App() {
         <main className="w-full flex-1 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <Boundary name="Dashboard" full><DashboardPage locked /></Boundary>
         </main>
-        <ExitCorner />
+        {!remoteOnly && <ExitCorner />}
       </div>
     );
   }
