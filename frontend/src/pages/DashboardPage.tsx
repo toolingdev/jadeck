@@ -130,9 +130,19 @@ export function DashboardPage({ locked = false }: { locked?: boolean }) {
   const current = useMemo(() => {
     if (!list) return null;
     // remote access, own screens only: the one made for this kind of screen
-    if (remoteOnly) return list.find((d) => d.kind === device) ?? list.find((d) => d.kind === "tablet") ?? list[0] ?? null;
+    if (remoteOnly) {
+      const mine = list.filter((d) => d.kind === device);
+      // two layouts for this kind of screen (an iPad upright and sideways):
+      // the taller one when it's upright, the wider one when it's sideways
+      if (mine.length > 1) {
+        const tall = (d: Dashboard) => Math.max(0, ...d.layout.map((it) => it.y + it.h)) / COLS[d.kind as keyof typeof COLS];
+        const sorted = [...mine].sort((a, b) => tall(a) - tall(b));
+        return sideways ? sorted[0] : sorted[sorted.length - 1];
+      }
+      return mine[0] ?? list.find((d) => d.kind === "tablet") ?? list[0] ?? null;
+    }
     return list.find((d) => d.id === pick) ?? list.find((d) => d.id === defaults[device]) ?? list[0] ?? null;
-  }, [list, pick, defaults, device, remoteOnly]);
+  }, [list, pick, defaults, device, remoteOnly, sideways]);
   const shown = draft ?? current;
   const editing = draft !== null;
 
