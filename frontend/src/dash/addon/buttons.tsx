@@ -39,20 +39,23 @@ export function fitGrid(n: number, w: number, h: number, fixedCols = 0, longest 
   if (n < 1 || w <= 0 || h <= 0) return null;
   let best: { cols: number; rows: number; bh: number; bw: number; wrap: boolean; score: number } | null = null;
   const tries = fixedCols ? [Math.min(fixedCols, 8)] : Array.from({ length: Math.min(n, 8) }, (_, i) => i + 1);
-  for (const c of tries) {
-    const r = Math.ceil(n / c);
-    const bw = (w - (c - 1) * GAP) / c;
-    const bh = Math.min(MAX_H, (h - (r - 1) * GAP) / r);
-    if (bh < MIN_H) continue;
-    // The longest label must fit at the base size: on one line, or on two
-    // when the row is tall enough (a little over half its characters a line).
-    const oneLine = bw >= labelW(longest);
-    const wrap = !oneLine && bh >= WRAP_H && bw >= labelW(Math.ceil(longest * 0.6));
-    if (!fixedCols && !oneLine && !wrap && c > 1) continue;
-    // Bigger buttons win, but a button much wider than ~1.6× its height
-    // counts only that wide; fewer empty cells breaks ties.
-    const score = Math.min(bw, bh * 1.6) * bh - (c * r - n) * 0.01;
-    if (!best || score > best.score) best = { cols: c, rows: r, bh, bw, wrap, score };
+  // First every grid whose labels fit on one line; only when there is none,
+  // grids where the longest label wraps to two lines (rows tall enough).
+  for (const allowWrap of [false, true]) {
+    for (const c of tries) {
+      const r = Math.ceil(n / c);
+      const bw = (w - (c - 1) * GAP) / c;
+      const bh = Math.min(MAX_H, (h - (r - 1) * GAP) / r);
+      if (bh < MIN_H) continue;
+      const oneLine = bw >= labelW(longest);
+      const wrap = !oneLine && allowWrap && bh >= WRAP_H && bw >= labelW(Math.ceil(longest * 0.6));
+      if (!fixedCols && !oneLine && !wrap && c > 1) continue;
+      // Bigger buttons win, but a button much wider than ~1.6× its height
+      // counts only that wide; fewer empty cells breaks ties.
+      const score = Math.min(bw, bh * 1.6) * bh - (c * r - n) * 0.01;
+      if (!best || score > best.score) best = { cols: c, rows: r, bh, bw, wrap, score };
+    }
+    if (best) break;
   }
   if (best) return { cols: best.cols, rows: best.rows, bh: best.bh, bw: best.bw, wrap: best.wrap };
   // Nothing fits at full size: shrink rather than scroll. Labels may be

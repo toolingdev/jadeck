@@ -24,6 +24,7 @@ import { ImageSettings } from "@/components/ImageSettings";
 import { Mixer } from "@/components/Booth";
 import { Macros } from "@/components/Macros";
 import { Frame, Ctx, CamSource, useCamHead, feedSource } from "./header";
+import { fitGrid } from "./addon/buttons";
 import { SpeedsWidget, FocusWidget, ScenesWidget, MenuWidget } from "./cameraWidgets";
 export { Frame };
 import type { Conn as AddonConn } from "./addon/common";
@@ -428,6 +429,66 @@ function MuteButton({ s }: { s: Settings }) {
 
 // ---------------------------------------------------------------- macros
 
+// Macro buttons: several macros as one row of buttons (the same grid as
+// an add-on's buttons), e.g. "Pre-Service Loop" / "Post-Service Loop",
+// each switching OBS and starting Proclaim's loop. Amber edge: a button
+// that does more than one thing.
+function MacroButtons({ s }: { s: Settings }) {
+  const { data } = useShared<Macro[]>("/api/macros", 10000);
+  const { log } = useLog();
+  const [busy, setBusy] = useState<string | null>(null);
+  const names = (Array.isArray(s.macros) ? s.macros : []).filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim());
+  const box = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSize((o) => (o.w === el.clientWidth && o.h === el.clientHeight ? o : { w: el.clientWidth, h: el.clientHeight })));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [names.length > 0]);
+  if (!names.length) return <Unset what="Name the macros in this widget's settings, one per line." />;
+  const longest = Math.min(16, Math.max(...names.map((n) => [...n].length)));
+  const fit = fitGrid(names.length, size.w, size.h, 0, longest);
+  const run = async (name: string) => {
+    const m = data?.find((x) => x.name === name);
+    if (!m) return log("Macro", `No macro named “${name}”`, false);
+    setBusy(name);
+    try {
+      const r = await api<RunReport>(`/api/macros/${m.id}/run`, "POST");
+      log("Macro", r.ok ? `“${m.name}” ran — ${r.steps.length} steps verified` : `“${m.name}” stopped — ${r.error}`, r.ok);
+    } catch (e) {
+      log("Macro", `“${name}” — ${(e as Error).message}`, false);
+    } finally {
+      setBusy(null);
+      refreshShared("/api/macros");
+    }
+  };
+  return (
+    <Frame title={str(s.title) || "Macros"}>
+      <div ref={box} className="h-full min-h-0">
+        <div className="grid h-full gap-2" style={fit ? { gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${fit.rows}, minmax(0, 1fr))` } : { gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gridAutoRows: "48px" }}>
+          {names.map((name) => {
+            const m = data?.find((x) => x.name === name);
+            const sub = !m ? "macro not found" : m.lastRun ? `last run ${new Date(m.lastRun.finishedAt * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} ${m.lastRun.ok ? "✓" : "✗"}` : `${m.steps.length} steps`;
+            return (
+              <button key={name} type="button" disabled={!!busy || !m} onClick={() => run(name)} title={m?.description || name}
+                className={cn("btn-raised flex min-h-0 min-w-0 flex-col items-center justify-center rounded-[10px] border border-accent/55 px-2 transition hover:brightness-125 active:scale-[0.98] disabled:active:scale-100",
+                  busy && busy !== name && "opacity-70", !m && "btn-off")}>
+                <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
+                  {busy === name && <Loader2 size={14} className="shrink-0 animate-spin" />}
+                  <span className={cn("min-w-0 font-bold leading-[1.25]", fit?.wrap ? "line-clamp-2 text-center [overflow-wrap:anywhere]" : "truncate")} style={{ fontSize: fit ? Math.max(13.5, Math.min(17, 13.5 + (fit.bh - 48) * 0.06)) : 13.5 }}>{name}</span>
+                </span>
+                <span className={cn("block w-full truncate text-center text-[10.5px] font-bold uppercase tracking-[0.08em]", m?.lastRun ? (m.lastRun.ok ? "text-good" : "text-bad") : "text-dim")}>{sub}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
 function MacroButton({ s }: { s: Settings }) {
   const { data } = useShared<Macro[]>("/api/macros", 10000);
   const { log } = useLog();
@@ -754,6 +815,10 @@ export const WIDGETS: WidgetDef[] = [
     size: { w: 2, h: 3, pw: 2, ph: 3 }, minPx: { w: 120, h: 134 }, defaults: {},
     fields: [{ key: "macro", label: "Macro", type: "source", source: "macros" }, label("label", "Label (optional)")],
     Render: ({ s }) => <MacroButton s={s} /> },
+  { type: "macros.buttons", label: "Macro buttons", group: "macros", icon: Play, description: "Several macros as a row of buttons, e.g. your service loops.",
+    size: { w: 5, h: 2, pw: 4, ph: 2 }, minPx: { w: 160, h: 64 }, defaults: { title: "Macros" },
+    fields: [label("title", "Title"), { key: "macros", label: "Macros", type: "list", help: "Macro names, one per line, in the order you want the buttons." }],
+    Render: ({ s }) => <MacroButtons s={s} /> },
   { type: "macros.list", label: "Macro list", group: "macros", icon: ListChecks, description: "All macros, with the builder.",
     size: { w: 5, h: 7, ph: 8 }, minPx: { w: 310, h: 184 }, defaults: {}, fields: [], Render: () => <Fill><Macros /></Fill> },
 
