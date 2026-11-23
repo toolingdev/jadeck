@@ -46,9 +46,14 @@ func TestSwitcherFullXML(t *testing.T) {
 		}
 	}
 	// the stage mix is live and its meters move
+	// (polled for up to 2 s: a slow CI runner can read the same value twice
+	// in a row, which once failed this on Windows)
 	m1 := xmlAttr(t, x, "Stage mix", "meterF1")
-	time.Sleep(120 * time.Millisecond)
-	m2 := xmlAttr(t, string(s.stateXML()), "Stage mix", "meterF1")
+	m2 := m1
+	for deadline := time.Now().Add(2 * time.Second); m2 == m1 && time.Now().Before(deadline); {
+		time.Sleep(60 * time.Millisecond)
+		m2 = xmlAttr(t, string(s.stateXML()), "Stage mix", "meterF1")
+	}
 	if m1 == 0 || m1 == m2 {
 		t.Fatalf("stage mix meter should move: %v %v", m1, m2)
 	}
