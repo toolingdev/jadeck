@@ -477,7 +477,7 @@ function MacroButtons({ s }: { s: Settings }) {
                   busy && busy !== name && "opacity-70", !m && "btn-off")}>
                 <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
                   {busy === name && <Loader2 size={14} className="shrink-0 animate-spin" />}
-                  <span className={cn("min-w-0 font-bold leading-[1.25]", fit?.wrap ? "line-clamp-2 text-center [overflow-wrap:anywhere]" : "truncate")} style={{ fontSize: fit ? Math.max(13.5, Math.min(17, 13.5 + (fit.bh - 48) * 0.06)) : 13.5 }}>{name}</span>
+                  <span className={cn("min-w-0 font-bold leading-[1.25]", fit?.wrap ? "line-clamp-2 text-ellipsis text-center [overflow-wrap:anywhere]" : "truncate")} style={{ fontSize: fit ? Math.max(13.5, Math.min(17, 13.5 + (fit.bh - 48) * 0.06)) : 13.5 }}>{name}</span>
                 </span>
                 <span className={cn("block w-full truncate text-center text-[10.5px] font-bold uppercase tracking-[0.08em]", m?.lastRun ? (m.lastRun.ok ? "text-good" : "text-bad") : "text-dim")}>{sub}</span>
               </button>
