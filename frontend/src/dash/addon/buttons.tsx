@@ -139,7 +139,7 @@ export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps)
                     stateClass(str(it.tone), it.active === true, it.disabled === true), busy && busy !== id && "opacity-70")}>
                   <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
                     {busy === id && <Loader2 size={14} className="shrink-0 animate-spin" />}
-                    <span className={cn("min-w-0 font-bold leading-[1.25]", fit?.wrap ? "line-clamp-2 break-words text-center" : "truncate")} style={{ fontSize: font }}>{lbl}</span>
+                    <span className={cn("min-w-0 font-bold leading-[1.25]", fit?.wrap ? "line-clamp-2 text-center [overflow-wrap:anywhere]" : "truncate")} style={{ fontSize: font }}>{lbl}</span>
                   </span>
                   {sub && <span className="block w-full truncate text-center font-bold uppercase leading-[1.35] tracking-[0.1em] opacity-60" style={{ fontSize: Math.max(10, Math.round(font * 0.67 * 2) / 2) }}>{sub}</span>}
                 </button>
