@@ -158,6 +158,12 @@ func (s *Server) remoteAllowed(r *http.Request, p *remote.Person) bool {
 		}
 		return false
 	}
+	// clearing the conversation on his own channel (Messages → Clear, design
+	// page 38); never another channel's
+	if r.Method == http.MethodDelete && has("/api/stage/channels/") {
+		id, rest, _ := strings.Cut(strings.TrimPrefix(path, "/api/stage/channels/"), "/")
+		return rest == "messages" && s.remoteUses(p).channels[id]
+	}
 	if r.Method != http.MethodPost {
 		return false
 	}

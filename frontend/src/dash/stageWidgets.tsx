@@ -790,6 +790,14 @@ export function StageMessages({ s, editing }: { s: Settings; editing: boolean })
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [unread, setUnread] = useState(false);
+  // Clear (design page 38): empties the conversation on both screens; no
+  // undo, so a second tap confirms ("Clear for both?")
+  const [confirmClear, setConfirmClear] = useState(false);
+  useEffect(() => {
+    if (!confirmClear) return;
+    const t = window.setTimeout(() => setConfirmClear(false), 5000);
+    return () => window.clearTimeout(t);
+  }, [confirmClear]);
   const feed = useRef<HTMLDivElement>(null);
   const atEnd = useRef(true);
   const msgs = useMemo(() => live.flatMap((c) => c.messages.map((m) => ({ c, m }))).sort((a, b) => (a.m.at < b.m.at ? -1 : a.m.at > b.m.at ? 1 : 0)), [live]);
@@ -844,15 +852,39 @@ export function StageMessages({ s, editing }: { s: Settings; editing: boolean })
     }
   };
 
+  const clearAll = async () => {
+    setConfirmClear(false);
+    try {
+      for (const c of live) await api(`/api/stage/channels/${encodeURIComponent(c.id)}/messages`, "DELETE");
+      log("Messages", "Cleared on both screens");
+    } catch (e) {
+      log("Messages", `Not cleared — ${(e as Error).message}`, false);
+    }
+  };
   if (!ids.length) return <Note>Pick a channel in this widget's settings.</Note>;
   if (loaded && live.length === 0) return <ChannelMissing id={ids[0]} />;
   const who = others.size ? [...others].join(", ") : live.map((c) => c.name).join(" · ");
   const earlier = showBig && lastIn ? msgs.filter((x) => x.m.id !== lastIn.m.id) : msgs;
   return (
     <Frame title="Messages" source={who} online={loaded ? online : undefined}
-      right={unread ? <span className="flex items-center gap-1 text-bad"><span className="h-2 w-2 rounded-full bg-pgm" />NEW</span> : undefined}
+      right={<span className="flex items-center gap-2">
+        {unread && <span className="flex items-center gap-1 text-bad"><span className="h-2 w-2 rounded-full bg-pgm" />NEW</span>}
+        {!editing && msgs.length > 0 && !confirmClear && (
+          <button type="button" onClick={() => setConfirmClear(true)} title="Clear the conversation on both screens"
+            className="btn-raised flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold normal-case tracking-normal hover:brightness-125">
+            <Eraser size={12} />Clear
+          </button>
+        )}
+      </span>}
       className={cn("bg-panel-2", !online && "grayscale")}>
       <div className="flex h-full min-h-0 flex-col gap-2">
+        {confirmClear && (
+          <div className="flex shrink-0 items-center gap-2 rounded-lg border border-pgm/50 bg-pgm/10 px-3 py-2">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-bold">Clear for both screens?</span>
+            <button type="button" onClick={clearAll} className="btn-pgm rounded-md border px-3 py-1 text-[12px] font-bold">Clear</button>
+            <button type="button" onClick={() => setConfirmClear(false)} className="btn-raised rounded-md border px-3 py-1 text-[12px] font-bold">Keep</button>
+          </div>
+        )}
         {showBig && lastIn && (
           <div className={cn("flex min-h-[4.5rem] flex-col rounded-xl border-2 px-3 py-2 transition",
             answered ? "border-line bg-panel" : "border-accent/70 bg-accent/10", history ? "shrink-0" : "flex-1")} style={history ? { maxHeight: "40%" } : undefined}>

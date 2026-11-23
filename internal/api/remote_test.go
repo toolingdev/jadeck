@@ -109,13 +109,17 @@ func TestRemoteDoor(t *testing.T) {
 			t.Errorf("GET %s refused: %s", p, body)
 		}
 	}
-	// messages on his channel only, never clearing or other channels
+	// messages on his channel only, and clearing it; never other channels
 	if code, body := r.as(t, "pastor@example.com", "POST", "/api/stage/channels/pastor/messages", `{"text":"2 more min"}`); code == 403 {
 		t.Errorf("message on his channel refused: %s", body)
 	}
+	if code, body := r.as(t, "pastor@example.com", "DELETE", "/api/stage/channels/pastor/messages", ""); code == 403 {
+		t.Errorf("clearing his channel refused: %s", body)
+	}
 	for _, c := range []struct{ m, p, b string }{
 		{"POST", "/api/stage/channels/pulpit/messages", `{"text":"x"}`},
-		{"DELETE", "/api/stage/channels/pastor/messages", ""},
+		{"DELETE", "/api/stage/channels/pulpit/messages", ""},
+		{"DELETE", "/api/stage/channels/pastor", ""},
 		{"POST", "/api/stage/channels/pastor/timer", `{"op":"stop"}`},
 		{"POST", "/api/connections/live-chat/actions/reply", `{"text":"hi"}`},
 		{"POST", "/api/ptz/home", ""},
