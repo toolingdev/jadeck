@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 )
 
 var labelRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,200}$`)
@@ -41,6 +42,9 @@ func launchAgent() (label, plist string, ok bool) {
 	return label, plist, true
 }
 
+// sleep is swapped in tests.
+var sleep = time.Sleep
+
 // launchctl is swapped in tests.
 var launchctl = func(args ...string) ([]byte, error) {
 	return exec.Command("launchctl", args...).CombinedOutput()
@@ -61,6 +65,22 @@ func agentControl(action, label, plist string) error {
 		return errors.New("a LaunchAgent install is managed by its plist (" + plist + "); " + action + " isn't supported here")
 	}
 	out, err := launchctl(args...)
+	// launchd may still be tearing the job down right after a bootout and
+	// refuses the bootstrap ("Bootstrap failed: 5: Input/output error"),
+	// which rolled an update back on 2026-11-23: wait and try again.
+	for try := 0; err != nil && action == "start" && try < 10 && strings.Contains(string(out), "Input/output error"); try++ {
+		sleep(500 * time.Millisecond)
+		out, err = launchctl(args...)
+	}
+	if err == nil && action == "stop" {
+		// gone for real before the caller swaps the binary and starts again
+		for try := 0; try < 20; try++ {
+			if _, e := launchctl("print", job); e != nil {
+				break
+			}
+			sleep(250 * time.Millisecond)
+		}
+	}
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		// already stopped / already loaded: the state asked for is there

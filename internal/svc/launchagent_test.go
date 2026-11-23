@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLaunchAgentControl(t *testing.T) {
@@ -35,11 +36,22 @@ func TestLaunchAgentControl(t *testing.T) {
 	}
 
 	var calls []string
-	orig := launchctl
-	defer func() { launchctl = orig }()
+	orig, origSleep := launchctl, sleep
+	defer func() { launchctl, sleep = orig, origSleep }()
+	sleep = func(time.Duration) {}
+	booted := 0
 	launchctl = func(args ...string) ([]byte, error) {
+		if args[0] == "print" {
+			return nil, fmt.Errorf("gone") // the job is unloaded at once
+		}
+		if args[0] == "bootstrap" {
+			if booted++; booted == 1 {
+				calls = append(calls, "bootstrap (refused)")
+				return []byte("Bootstrap failed: 5: Input/output error"), fmt.Errorf("exit 5")
+			}
+		}
 		calls = append(calls, strings.Join(args, " "))
-		if args[0] == "bootout" && len(calls) > 3 {
+		if args[0] == "bootout" && len(calls) > 4 {
 			return []byte("Boot-out failed: 3: No such process"), fmt.Errorf("exit 3")
 		}
 		return nil, nil
@@ -52,6 +64,7 @@ func TestLaunchAgentControl(t *testing.T) {
 	uid := os.Getuid()
 	want := []string{
 		fmt.Sprintf("bootout gui/%d/com.example.jadeck", uid),
+		"bootstrap (refused)",
 		fmt.Sprintf("bootstrap gui/%d %s", uid, plist),
 		fmt.Sprintf("kickstart -k gui/%d/com.example.jadeck", uid),
 		fmt.Sprintf("bootout gui/%d/com.example.jadeck", uid),
