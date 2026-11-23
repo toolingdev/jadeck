@@ -25,6 +25,8 @@ import { Mixer } from "@/components/Booth";
 import { Macros } from "@/components/Macros";
 import { Frame, Ctx, CamSource, useCamHead, feedSource } from "./header";
 import { fitGrid } from "./addon/buttons";
+import { LiveLine, type Live } from "./addon/live";
+import { statePath, stateClass } from "./addon/common";
 import { SpeedsWidget, FocusWidget, ScenesWidget, MenuWidget } from "./cameraWidgets";
 export { Frame };
 import type { Conn as AddonConn } from "./addon/common";
@@ -450,6 +452,7 @@ function MacroButtons({ s }: { s: Settings }) {
   if (!names.length) return <Unset what="Name the macros in this widget's settings, one per line." />;
   const longest = Math.min(16, Math.max(...names.map((n) => [...n].length)));
   const fit = fitGrid(names.length, size.w, size.h, 0, longest);
+  const font = fit ? Math.max(13.5, Math.min(17, 13.5 + (fit.bh - 48) * 0.06)) : 13.5;
   const run = async (name: string) => {
     const m = data?.find((x) => x.name === name);
     if (!m) return log("Macro", `No macro named “${name}”`, false);
@@ -468,24 +471,57 @@ function MacroButtons({ s }: { s: Settings }) {
     <Frame title={str(s.title) || "Macros"}>
       <div ref={box} className="h-full min-h-0">
         <div className="grid h-full gap-2" style={fit ? { gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${fit.rows}, minmax(0, 1fr))` } : { gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gridAutoRows: "48px" }}>
-          {names.map((name) => {
-            const m = data?.find((x) => x.name === name);
-            const sub = !m ? "macro not found" : m.lastRun ? `last run ${new Date(m.lastRun.finishedAt * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} ${m.lastRun.ok ? "✓" : "✗"}` : `${m.steps.length} steps`;
-            return (
-              <button key={name} type="button" disabled={!!busy || !m} onClick={() => run(name)} title={m?.description || name}
-                className={cn("btn-raised flex min-h-0 min-w-0 flex-col items-center justify-center rounded-[10px] border border-accent/55 px-2 transition hover:brightness-125 active:scale-[0.98] disabled:active:scale-100",
-                  busy && busy !== name && "opacity-70", !m && "btn-off")}>
-                <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
-                  {busy === name && <Loader2 size={14} className="shrink-0 animate-spin" />}
-                  <span className={cn("min-w-0 font-bold leading-[1.25]", fit?.wrap ? "line-clamp-2 text-ellipsis text-center [overflow-wrap:anywhere]" : "truncate")} style={{ fontSize: fit ? Math.max(13.5, Math.min(17, 13.5 + (fit.bh - 48) * 0.06)) : 13.5 }}>{name}</span>
-                </span>
-                <span className={cn("block w-full truncate text-center text-[10.5px] font-bold uppercase tracking-[0.08em]", m?.lastRun ? (m.lastRun.ok ? "text-good" : "text-bad") : "text-dim")}>{sub}</span>
-              </button>
-            );
-          })}
+          {names.map((name) => (
+            <MacroBtn key={name} name={name} m={data?.find((x) => x.name === name)} busy={busy} wrap={!!fit?.wrap} font={font} onRun={() => run(name)} />
+          ))}
         </div>
       </div>
     </Frame>
+  );
+}
+
+// What a macro's steps say about it, for its button (design page 37):
+// the OBS scene it puts on air (the button turns red while that scene is
+// on air), and a live line where one helps: a Proclaim pre-service step
+// counts down to Proclaim's service start, a post-service step shows the
+// live chat's viewers. The sub line names what it drives ("OBS + PROCLAIM").
+function macroTraits(m?: Macro) {
+  const steps = m?.steps ?? [];
+  const addon = (a: string, act?: string) => steps.find((x) => x.type === "addon" && x.addon === a && (!act || x.action === act));
+  const scene = addon("obs", "scene");
+  const parts = [...new Set(steps.map((x) => (x.type === "addon" ? x.addon ?? "" : x.type === "slides" ? "slides" : x.type === "switcher" ? "switcher" : x.type === "mixer_mute" ? "mixer" : x.type === "camera_preset" ? "camera" : "")).filter(Boolean))];
+  return {
+    obsConn: scene?.connection ?? "", obsScene: str(scene?.params?.scene),
+    pre: addon("proclaim", "start_pre_service")?.connection ?? "", post: !!addon("proclaim", "start_post_service"),
+    sub: parts.sort().map((p) => p.toUpperCase()).join(" + "),
+  };
+}
+
+function MacroBtn({ name, m, busy, wrap, font, onRun }: { name: string; m?: Macro; busy: string | null; wrap: boolean; font: number; onRun: () => void }) {
+  const t = macroTraits(m);
+  const { data: obs } = useShared<{ program?: string }>(t.obsConn ? statePath({ id: t.obsConn }) : null, 2000);
+  const { data: pro } = useShared<{ serviceStart?: string }>(t.pre ? statePath({ id: t.pre }) : null, 5000);
+  const { data: devs } = useShared<{ connections: { id: string; addon?: string; auto?: boolean }[] }>(t.post ? "/api/devices" : null, 10000);
+  const chatId = devs?.connections?.find((c) => c.addon === "chat" && c.auto)?.id ?? "";
+  const { data: chat } = useShared<{ watching?: number | null }>(t.post && chatId ? statePath({ id: chatId }) : null, 5000);
+  const onAir = !!t.obsScene && obs?.program === t.obsScene;
+  let live: Live | null = null;
+  const start = pro?.serviceStart ? Date.parse(pro.serviceStart) : NaN;
+  if (t.pre && isFinite(start) && start > Date.now()) live = { prefix: "service in", until: start };
+  else if (t.post && typeof chat?.watching === "number") live = { text: `${chat.watching} watching` };
+  return (
+    <button type="button" disabled={!!busy || !m} onClick={onRun} title={m?.description || name}
+      className={cn("flex min-h-0 min-w-0 flex-col items-center justify-center rounded-[10px] border px-2 transition active:scale-[0.98] disabled:active:scale-100",
+        !m ? "btn-off" : onAir ? stateClass("pgm", false) : "btn-raised border-accent/55 hover:brightness-125", busy && busy !== name && "opacity-70")}>
+      <span className="flex w-full min-w-0 items-center justify-center gap-1.5">
+        {busy === name && <Loader2 size={14} className="shrink-0 animate-spin" />}
+        <span className={cn("min-w-0 font-bold leading-[1.25]", wrap ? "line-clamp-2 text-ellipsis text-center [overflow-wrap:anywhere]" : "truncate")} style={{ fontSize: font }}>{name}</span>
+      </span>
+      <span className={cn("block w-full truncate text-center font-bold uppercase leading-[1.35] tracking-[0.1em]", onAir ? "opacity-80" : "text-dim")} style={{ fontSize: Math.max(10, Math.round(font * 0.67 * 2) / 2) }}>
+        {!m ? "macro not found" : onAir ? "ON AIR" : t.sub || `${m.steps.length} steps`}
+      </span>
+      <LiveLine live={live} className="block w-full truncate text-center font-semibold leading-[1.3] opacity-90" style={{ fontSize: Math.max(11, Math.round(font * 0.75 * 2) / 2) }} />
+    </button>
   );
 }
 

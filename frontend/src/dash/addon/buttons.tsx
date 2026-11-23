@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Frame } from "../header";
 import { HoldButton, holdSeconds } from "./hold";
+import { LiveLine, liveOf } from "./live";
 import { connHead, isObj, listOf, num, stateClass, str, useAddonAction, type ShapeProps } from "./common";
 
 // kind "buttons": a grid of equal buttons (WIDGETS.md: equal choices look
@@ -145,6 +146,7 @@ export function ButtonsShape({ def, state, conn, preview, editing }: ShapeProps)
                     <span className={cn("min-w-0 font-bold leading-[1.25]", fit?.wrap ? "line-clamp-2 text-ellipsis text-center [overflow-wrap:anywhere]" : "truncate")} style={{ fontSize: font }}>{lbl}</span>
                   </span>
                   {sub && <span className="block w-full truncate text-center font-bold uppercase leading-[1.35] tracking-[0.1em] opacity-60" style={{ fontSize: Math.max(10, Math.round(font * 0.67 * 2) / 2) }}>{sub}</span>}
+                  <LiveLine live={liveOf(it.live)} className="block w-full truncate text-center font-semibold leading-[1.3] opacity-90" style={{ fontSize: Math.max(11, Math.round(font * 0.75 * 2) / 2) }} />
                 </button>
               );
             })}
