@@ -64,7 +64,7 @@ func loadKit() map[string]kitFile {
 func (s *Server) frameKit(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("X-Content-Type-Options", "nosniff")
-	h.Set("Content-Security-Policy", uiCSP)
+	h.Set("Content-Security-Policy", uiCSPFor(r))
 	f, ok := kitFiles[r.PathValue("path")]
 	if !ok {
 		fail(w, 404, "not found")

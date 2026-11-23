@@ -290,6 +290,38 @@ func (s *Server) connectionResource(w http.ResponseWriter, r *http.Request) {
 // uiCSP is the policy frame widgets' files are served with.
 const uiCSP = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; frame-ancestors 'self'"
 
+// uiCSPFor is uiCSP with this jadeck's own address named next to 'self'.
+// Frames run sandboxed (no allow-same-origin), so their origin is opaque,
+// and Safari (iOS 26) matches 'self' against that opaque origin: nothing,
+// so a frame's own scripts and styles were refused and the widget stayed
+// blank. Naming the host the page was asked for (both schemes: behind a
+// tunnel the request arrives over http for an https page) lets them load
+// everywhere; it allows nothing 'self' didn't mean already.
+func uiCSPFor(r *http.Request) string {
+	host := r.Host
+	if host == "" || !cspHostOK(host) {
+		return uiCSP
+	}
+	src := "'self' http://" + host + " https://" + host
+	return "default-src 'none'; script-src " + src + "; style-src " + src + " 'unsafe-inline'; img-src " + src + " data: blob:; font-src " + src + "; connect-src 'none'; frame-ancestors " + src
+}
+
+// cspHostOK: a Host header that can't break out of a CSP source list
+// (letters, digits, dots, dashes, a port, an IPv6 literal).
+func cspHostOK(h string) bool {
+	if len(h) > 255 {
+		return false
+	}
+	for _, c := range h {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '.', c == '-', c == ':', c == '[', c == ']':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 var uiTypes = map[string]string{
 	".html":  "text/html; charset=utf-8",
 	".js":    "text/javascript; charset=utf-8",
@@ -303,7 +335,7 @@ var uiTypes = map[string]string{
 // GET /api/addons/{id}/ui/{path...}
 func (s *Server) addonUI(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
-	h.Set("Content-Security-Policy", uiCSP)
+	h.Set("Content-Security-Policy", uiCSPFor(r))
 	h.Set("X-Content-Type-Options", "nosniff")
 	if s.Addons == nil {
 		fail(w, 404, "not found")

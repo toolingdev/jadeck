@@ -151,9 +151,15 @@ func TestAddonUIFiles(t *testing.T) {
 		if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != ct {
 			t.Errorf("%s: %d %q", name, resp.StatusCode, resp.Header.Get("Content-Type"))
 		}
-		if resp.Header.Get("Content-Security-Policy") != uiCSP || resp.Header.Get("X-Content-Type-Options") != "nosniff" {
+		if resp.Header.Get("Content-Security-Policy") != uiCSPFor(resp.Request) || resp.Header.Get("X-Content-Type-Options") != "nosniff" {
 			t.Errorf("%s headers %v", name, resp.Header)
 		}
+	}
+	if got := uiCSPFor(&http.Request{Host: "jadeck.local:8080"}); got != "default-src 'none'; script-src 'self' http://jadeck.local:8080 https://jadeck.local:8080; style-src 'self' http://jadeck.local:8080 https://jadeck.local:8080 'unsafe-inline'; img-src 'self' http://jadeck.local:8080 https://jadeck.local:8080 data: blob:; font-src 'self' http://jadeck.local:8080 https://jadeck.local:8080; connect-src 'none'; frame-ancestors 'self' http://jadeck.local:8080 https://jadeck.local:8080" {
+		t.Fatalf("CSP for a host: %s", got)
+	}
+	if got := uiCSPFor(&http.Request{Host: "evil; script-src *"}); got != uiCSP {
+		t.Fatalf("a bad Host must fall back to the plain policy: %s", got)
 	}
 	if uiCSP != "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; frame-ancestors 'self'" {
 		t.Fatal("CSP differs from the spec")
