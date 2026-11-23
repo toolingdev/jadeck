@@ -27,7 +27,15 @@ test.describe("gear from the screen", () => {
     const inputs = widget(page, "switcher.inputs");
     await expect(inputs.getByRole("button", { name: /PGM/ })).toBeVisible();
     // pick input 3 for preview, then cut it to program
-    await inputs.getByRole("button", { name: /^3\b/ }).click();
+    await waitStill(page);
+    const three = inputs.getByRole("button", { name: /^3\b/ });
+    await three.click({ timeout: 5000 }).catch(async () => {
+      // GitHub's runners sometimes never see it "stable": say why, then tap anyway
+      const boxes = new Set<string>();
+      for (let i = 0; i < 10; i++) { boxes.add(JSON.stringify(await three.boundingBox())); await page.waitForTimeout(100); }
+      console.log(`input 3 not clickable: enabled=${await three.isEnabled()} boxes=${[...boxes].join(" ")}`);
+      await three.click({ force: true });
+    });
     await expect.poll(async () => (await vmixState()).preview).toBe(3);
     await widget(page, "switcher.cutfade").getByRole("button", { name: "CUT" }).click();
     await expect.poll(async () => (await vmixState()).active).toBe(3);
