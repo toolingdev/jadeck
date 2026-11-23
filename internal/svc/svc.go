@@ -34,6 +34,9 @@ func (noop) Stop(service.Service) error  { return nil }
 
 // Control runs install | uninstall | start | stop | restart.
 func Control(action string, args []string) error {
+	if label, plist, ok := launchAgent(); ok && action != "install" && action != "uninstall" {
+		return agentControl(action, label, plist)
+	}
 	s, err := service.New(noop{}, Config(args))
 	if err != nil {
 		return err
@@ -43,6 +46,9 @@ func Control(action string, args []string) error {
 
 // Status reports the installed service's state as text.
 func Status() (string, error) {
+	if label, _, ok := launchAgent(); ok {
+		return agentStatus(label)
+	}
 	s, err := service.New(noop{}, Config(nil))
 	if err != nil {
 		return "", err
