@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="638" height="362" viewBox="0 0 638 362" font-family="Inter, sans-serif">
+<rect x="0.5" y="0.5" width="637" height="361" rx="16" fill="#14171C" stroke="#262C35"/>
+<text x="14" y="26" font-size="12" font-weight="700" fill="#E8EBF0">Audio <tspan fill="#22C55E">●</tspan> <tspan fill="#7F8896" letter-spacing="1">OBS · THIS COMPUTER</tspan></text>
+<rect x="8.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#262C35"/>
+<text x="16.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">APP</text>
+<text x="16.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Zoom</text>
+<rect x="36.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="22.0" y="106" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="39.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">0.0</text>
+<rect x="14.0" y="300" width="50" height="38" rx="8" fill="#1E232B"/>
+<text x="39.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTE</text>
+<rect x="78.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#7A2A2E"/>
+<text x="86.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">MIC</text>
+<text x="86.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Mic/Aux</text>
+<rect x="106.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="92.0" y="106" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="109.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">0.0</text>
+<rect x="84.0" y="300" width="50" height="38" rx="8" fill="#E5484D"/>
+<text x="109.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTED</text>
+<rect x="148.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#262C35"/>
+<text x="156.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">MIC</text>
+<text x="156.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Shure</text>
+<text x="156.0" y="91" font-size="12.5" font-weight="700" fill="#E8EBF0">Mic</text>
+<rect x="176.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="162.0" y="106" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="179.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">0.0</text>
+<rect x="154.0" y="300" width="50" height="38" rx="8" fill="#1E232B"/>
+<text x="179.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTE</text>
+<rect x="218.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#7A2A2E"/>
+<text x="226.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">MEDIA</text>
+<text x="226.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Cam</text>
+<rect x="246.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="232.0" y="106" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="249.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">0.0</text>
+<rect x="224.0" y="300" width="50" height="38" rx="8" fill="#E5484D"/>
+<text x="249.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTED</text>
+<rect x="288.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#262C35"/>
+<text x="296.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">MEDIA</text>
+<text x="296.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Music –</text>
+<text x="296.0" y="91" font-size="12.5" font-weight="700" fill="#E8EBF0">break</text>
+<rect x="316.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="302.0" y="166" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="319.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">-20.0</text>
+<rect x="294.0" y="300" width="50" height="38" rx="8" fill="#1E232B"/>
+<text x="319.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTE</text>
+<rect x="358.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#262C35"/>
+<text x="366.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">MEDIA</text>
+<text x="366.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Music –</text>
+<text x="366.0" y="91" font-size="12.5" font-weight="700" fill="#E8EBF0">pre-serv…</text>
+<rect x="386.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="372.0" y="166" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="389.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">-20.0</text>
+<rect x="364.0" y="300" width="50" height="38" rx="8" fill="#1E232B"/>
+<text x="389.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTE</text>
+<rect x="428.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#262C35"/>
+<text x="436.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">MEDIA</text>
+<text x="436.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Music –</text>
+<text x="436.0" y="91" font-size="12.5" font-weight="700" fill="#E8EBF0">post-ser…</text>
+<rect x="456.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="442.0" y="166" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="459.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">-20.0</text>
+<rect x="434.0" y="300" width="50" height="38" rx="8" fill="#1E232B"/>
+<text x="459.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTE</text>
+<rect x="498.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#7A2A2E"/>
+<text x="506.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">NDI</text>
+<text x="506.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Proclaim</text>
+<text x="506.0" y="91" font-size="12.5" font-weight="700" fill="#E8EBF0">NDI</text>
+<rect x="526.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="512.0" y="120" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="529.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">-4.4</text>
+<rect x="504.0" y="300" width="50" height="38" rx="8" fill="#E5484D"/>
+<text x="529.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTED</text>
+<rect x="568.0" y="40" width="62" height="310" rx="12" fill="#191D23" stroke="#262C35"/>
+<text x="576.0" y="58" font-size="9" font-weight="700" letter-spacing="1" fill="#7F8896">NDI</text>
+<text x="576.0" y="76" font-size="12.5" font-weight="700" fill="#E8EBF0">Proclaim</text>
+<text x="576.0" y="91" font-size="12.5" font-weight="700" fill="#E8EBF0">lyrics (…</text>
+<rect x="596.0" y="106" width="6" height="150" rx="3" fill="#06070A" stroke="#2A3038"/>
+<rect x="582.0" y="106" width="34" height="24" rx="6" fill="#D7DBE0"/>
+<text x="599.0" y="282" font-size="11" font-weight="700" fill="#E8EBF0" text-anchor="middle">0.0</text>
+<rect x="574.0" y="300" width="50" height="38" rx="8" fill="#1E232B"/>
+<text x="599.0" y="323" font-size="10.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">MUTE</text>
+</svg>

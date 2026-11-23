@@ -725,7 +725,9 @@
     this.band.hidden = !s.color;
     if (s.color) this.band.style.background = s.color;
     this.num.textContent = s.tag || "";
-    this.st.style.display = s.stereo ? "" : "none";
+    // stereo: the L R under the meter says so; the pill only when there's no
+    // meter (it took the room the source type needs on a narrow strip)
+    this.st.style.display = s.stereo && this.o.meter === false ? "" : "none";
     this.nm.textContent = s.name || "";
     this.root.title = (s.tag || "") + (s.stereo ? " (stereo)" : "") + (s.name ? " · " + s.name : "");
     this.hit.setAttribute("aria-label", (s.name || s.tag || "") + " level");

@@ -155,7 +155,13 @@ body.jk-editing .jk-live { pointer-events: none; }
 .jk-strip .jk-numrow { display: flex; align-items: center; gap: 6px; min-height: 14px; }
 .jk-strip .jk-num { flex: 1; min-width: 0; color: var(--jk-label); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
 .jk-strip .jk-st { flex: none; background: var(--color-line); color: var(--jk-fg-2); font-size: 10px; font-weight: 800; border-radius: 4px; padding: 1px 4px; line-height: 12px; }
-.jk-strip .jk-nm { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; }
+/* a long name wraps to two lines (then is cut), not one cut line */
+.jk-strip .jk-nm { font-size: 14px; font-weight: 700; line-height: 18px; min-height: 18px; overflow: hidden; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+/* every strip keeps room for two lines, so the faders line up across the row;
+   a short strip keeps one line */
+.jk-strip:not(.compact) .jk-nm { min-height: 36px; }
+.jk-strip.compact .jk-nm { -webkit-line-clamp: 1; }
 .jk-strip .jk-gainbox { flex: none; height: 96px; display: flex; align-items: center; justify-content: center; }
 .jk-strip .jk-gainbox .jk-nopre { color: #4a515c; font-size: 10px; letter-spacing: 1px; }
 .jk-strip.short .jk-gainbox { display: none; }
