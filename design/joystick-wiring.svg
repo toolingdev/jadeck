@@ -1,0 +1,216 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1040" viewBox="0 0 1400 1040" font-family="Inter, Helvetica, Arial, sans-serif">
+<rect width="1400" height="1040" fill="#0f1115"/>
+<text x="40" y="58" fill="#e8eaf0" font-size="28" font-weight="700">Joystick controller · wiring</text>
+<text x="40" y="88" fill="#8a93a6" font-size="15">Raspberry Pi Pico 2 W · 3-axis 10K joystick (JH-D300X) · 6 buttons · board seen from the top, USB at the top</text>
+<rect x="560" y="140" width="260" height="660" rx="14" fill="#14532d" stroke="#1f7a45" stroke-width="2"/>
+<rect x="660" y="118" width="60" height="34" rx="5" fill="#9ca3af"/><text x="690" y="112" fill="#8a93a6" font-size="12" text-anchor="middle">USB</text>
+<rect x="650" y="585" width="80" height="80" rx="6" fill="#0b0d10"/><text x="690" y="630" fill="#8a93a6" font-size="12" text-anchor="middle">RP2350</text>
+<rect x="655" y="700" width="70" height="56" rx="4" fill="#d1d5db" opacity=".85"/><text x="690" y="732" fill="#111" font-size="11" text-anchor="middle">Wi-Fi/BT</text>
+<text x="690" y="520" fill="#e8eaf0" font-size="18" font-weight="700" text-anchor="middle">Pico 2 W</text>
+<text x="690" y="542" fill="#a7f3d0" font-size="12" text-anchor="middle">Wi-Fi 4 · Bluetooth 5.2</text>
+<circle cx="560" cy="180" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="184" fill="#7fa58d" font-size="12" font-weight="400">1  GP0</text>
+<circle cx="560" cy="210" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="214" fill="#7fa58d" font-size="12" font-weight="400">2  GP1</text>
+<circle cx="560" cy="240" r="7" fill="#cbd5e1" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="244" fill="#e8eaf0" font-size="12" font-weight="700">3  GND</text>
+<circle cx="560" cy="270" r="7" fill="#4ade80" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="274" fill="#e8eaf0" font-size="12" font-weight="700">4  GP2</text>
+<circle cx="560" cy="300" r="7" fill="#4ade80" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="304" fill="#e8eaf0" font-size="12" font-weight="700">5  GP3</text>
+<circle cx="560" cy="330" r="7" fill="#4ade80" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="334" fill="#e8eaf0" font-size="12" font-weight="700">6  GP4</text>
+<circle cx="560" cy="360" r="7" fill="#4ade80" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="364" fill="#e8eaf0" font-size="12" font-weight="700">7  GP5</text>
+<circle cx="560" cy="390" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="394" fill="#7fa58d" font-size="12" font-weight="400">8  GND</text>
+<circle cx="560" cy="420" r="7" fill="#4ade80" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="424" fill="#e8eaf0" font-size="12" font-weight="700">9  GP6</text>
+<circle cx="560" cy="450" r="7" fill="#4ade80" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="454" fill="#e8eaf0" font-size="12" font-weight="700">10  GP7</text>
+<circle cx="560" cy="480" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="484" fill="#7fa58d" font-size="12" font-weight="400">11  GP8</text>
+<circle cx="560" cy="510" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="514" fill="#7fa58d" font-size="12" font-weight="400">12  GP9</text>
+<circle cx="560" cy="540" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="544" fill="#7fa58d" font-size="12" font-weight="400">13  GND</text>
+<circle cx="560" cy="570" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="574" fill="#7fa58d" font-size="12" font-weight="400">14  GP10</text>
+<circle cx="560" cy="600" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="604" fill="#7fa58d" font-size="12" font-weight="400">15  GP11</text>
+<circle cx="560" cy="630" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="634" fill="#7fa58d" font-size="12" font-weight="400">16  GP12</text>
+<circle cx="560" cy="660" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="664" fill="#7fa58d" font-size="12" font-weight="400">17  GP13</text>
+<circle cx="560" cy="690" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="694" fill="#7fa58d" font-size="12" font-weight="400">18  GND</text>
+<circle cx="560" cy="720" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="724" fill="#7fa58d" font-size="12" font-weight="400">19  GP14</text>
+<circle cx="560" cy="750" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="576" y="754" fill="#7fa58d" font-size="12" font-weight="400">20  GP15</text>
+<circle cx="820" cy="750" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="754" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GP16  21</text>
+<circle cx="820" cy="720" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="724" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GP17  22</text>
+<circle cx="820" cy="690" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="694" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GND  23</text>
+<circle cx="820" cy="660" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="664" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GP18  24</text>
+<circle cx="820" cy="630" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="634" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GP19  25</text>
+<circle cx="820" cy="600" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="604" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GP20  26</text>
+<circle cx="820" cy="570" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="574" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GP21  27</text>
+<circle cx="820" cy="540" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="544" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GND  28</text>
+<circle cx="820" cy="510" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="514" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GP22  29</text>
+<circle cx="820" cy="480" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="484" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">RUN  30</text>
+<circle cx="820" cy="450" r="7" fill="#facc15" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="454" fill="#e8eaf0" font-size="12" font-weight="700" text-anchor="end">GP26 / ADC0  31</text>
+<circle cx="820" cy="420" r="7" fill="#22d3ee" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="424" fill="#e8eaf0" font-size="12" font-weight="700" text-anchor="end">GP27 / ADC1  32</text>
+<circle cx="820" cy="390" r="7" fill="#cbd5e1" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="394" fill="#e8eaf0" font-size="12" font-weight="700" text-anchor="end">AGND  33</text>
+<circle cx="820" cy="360" r="7" fill="#e879f9" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="364" fill="#e8eaf0" font-size="12" font-weight="700" text-anchor="end">GP28 / ADC2  34</text>
+<circle cx="820" cy="330" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="334" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">ADC_VREF  35</text>
+<circle cx="820" cy="300" r="7" fill="#ef4444" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="304" fill="#e8eaf0" font-size="12" font-weight="700" text-anchor="end">3V3 (OUT)  36</text>
+<circle cx="820" cy="270" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="274" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">3V3_EN  37</text>
+<circle cx="820" cy="240" r="7" fill="#0b0d10" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="244" fill="#7fa58d" font-size="12" font-weight="400" text-anchor="end">GND  38</text>
+<circle cx="820" cy="210" r="7" fill="#fb923c" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="214" fill="#e8eaf0" font-size="12" font-weight="700" text-anchor="end">VSYS  39</text>
+<circle cx="820" cy="180" r="7" fill="#fb923c" stroke="#caa53d" stroke-width="2"/>
+<text x="804" y="184" fill="#e8eaf0" font-size="12" font-weight="700" text-anchor="end">VBUS  40</text>
+<rect x="985" y="400" width="380" height="400" rx="14" fill="#171a21" stroke="#2a2f3a" stroke-dasharray="6 6"/>
+<text x="1005" y="428" fill="#e8eaf0" font-size="15" font-weight="700">3-axis joystick · three 10K pots</text>
+<rect x="1060" y="446" width="200" height="68" rx="10" fill="#222734" stroke="#e879f9" stroke-width="2"/>
+<text x="1084" y="474" fill="#e879f9" font-size="16" font-weight="700">ZOOM</text>
+<text x="1084" y="496" fill="#8a93a6" font-size="12">twist the knob</text>
+<circle cx="1226" cy="480" r="18" fill="#30364a" stroke="#4b5368"/><line x1="1226" y1="480" x2="1226" y2="466" stroke="#e8eaf0" stroke-width="3" stroke-linecap="round"/>
+<line x1="1040" y1="460" x2="1060" y2="460" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="464" fill="#8a93a6" font-size="10">+</text>
+<line x1="1040" y1="480" x2="1060" y2="480" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="484" fill="#8a93a6" font-size="10">W</text>
+<line x1="1040" y1="500" x2="1060" y2="500" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="504" fill="#8a93a6" font-size="10">−</text>
+<path d="M820 360 C930 360, 930 480, 1040 480" fill="none" stroke="#e879f9" stroke-width="4" stroke-linecap="round"/>
+<circle cx="1040" cy="480" r="5" fill="#e879f9"/>
+<rect x="1060" y="566" width="200" height="68" rx="10" fill="#222734" stroke="#22d3ee" stroke-width="2"/>
+<text x="1084" y="594" fill="#22d3ee" font-size="16" font-weight="700">TILT</text>
+<text x="1084" y="616" fill="#8a93a6" font-size="12">push forward / back</text>
+<circle cx="1226" cy="600" r="18" fill="#30364a" stroke="#4b5368"/><line x1="1226" y1="600" x2="1226" y2="586" stroke="#e8eaf0" stroke-width="3" stroke-linecap="round"/>
+<line x1="1040" y1="580" x2="1060" y2="580" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="584" fill="#8a93a6" font-size="10">+</text>
+<line x1="1040" y1="600" x2="1060" y2="600" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="604" fill="#8a93a6" font-size="10">W</text>
+<line x1="1040" y1="620" x2="1060" y2="620" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="624" fill="#8a93a6" font-size="10">−</text>
+<path d="M820 420 C930 420, 930 600, 1040 600" fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+<circle cx="1040" cy="600" r="5" fill="#22d3ee"/>
+<rect x="1060" y="686" width="200" height="68" rx="10" fill="#222734" stroke="#facc15" stroke-width="2"/>
+<text x="1084" y="714" fill="#facc15" font-size="16" font-weight="700">PAN</text>
+<text x="1084" y="736" fill="#8a93a6" font-size="12">push left / right</text>
+<circle cx="1226" cy="720" r="18" fill="#30364a" stroke="#4b5368"/><line x1="1226" y1="720" x2="1226" y2="706" stroke="#e8eaf0" stroke-width="3" stroke-linecap="round"/>
+<line x1="1040" y1="700" x2="1060" y2="700" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="704" fill="#8a93a6" font-size="10">+</text>
+<line x1="1040" y1="720" x2="1060" y2="720" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="724" fill="#8a93a6" font-size="10">W</text>
+<line x1="1040" y1="740" x2="1060" y2="740" stroke="#c0c4cc" stroke-width="3"/>
+<text x="1066" y="744" fill="#8a93a6" font-size="10">−</text>
+<path d="M820 450 C930 450, 930 720, 1040 720" fill="none" stroke="#facc15" stroke-width="4" stroke-linecap="round"/>
+<circle cx="1040" cy="720" r="5" fill="#facc15"/>
+<path d="M820 300 C930 300, 930 460, 1040 460" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+<circle cx="1040" cy="460" r="5" fill="#ef4444"/>
+<path d="M1040 460 C1000 460, 1000 580, 1040 580" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+<path d="M1040 580 C1000 580, 1000 700, 1040 700" fill="none" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+<circle cx="1040" cy="580" r="5" fill="#ef4444"/>
+<circle cx="1040" cy="700" r="5" fill="#ef4444"/>
+<path d="M820 390 C930 390, 930 500, 1040 500" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<circle cx="1040" cy="500" r="5" fill="#cbd5e1"/>
+<path d="M1040 500 C978 500, 978 620, 1040 620" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<path d="M1040 620 C978 620, 978 740, 1040 740" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<circle cx="1040" cy="620" r="5" fill="#cbd5e1"/>
+<circle cx="1040" cy="740" r="5" fill="#cbd5e1"/>
+<text x="1005" y="784" fill="#8a93a6" font-size="12">Outer legs: + to 3V3, − to AGND. Middle (W) to its ADC pin.</text>
+<rect x="40" y="180" width="430" height="590" rx="14" fill="#171a21" stroke="#2a2f3a" stroke-dasharray="6 6"/>
+<text x="60" y="210" fill="#e8eaf0" font-size="15" font-weight="700">Buttons (arcade, momentary)</text>
+<circle cx="330" cy="260" r="28" fill="#1f2937" stroke="#4ade80" stroke-width="2"/><circle cx="330" cy="260" r="18" fill="#2563eb"/>
+<text x="80" y="258" fill="#e8eaf0" font-size="15" font-weight="600">Home</text><text x="80" y="276" fill="#8a93a6" font-size="12">GP2 · pin 4</text>
+<line x1="358" y1="260" x2="380" y2="260" stroke="#c0c4cc" stroke-width="3"/>
+<line x1="302" y1="260" x2="280" y2="260" stroke="#c0c4cc" stroke-width="3"/>
+<path d="M380 260 C470 260, 470 270, 560 270" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+<circle cx="380" cy="260" r="5" fill="#4ade80"/>
+<circle cx="280" cy="260" r="5" fill="#cbd5e1"/>
+<circle cx="330" cy="350" r="28" fill="#1f2937" stroke="#4ade80" stroke-width="2"/><circle cx="330" cy="350" r="18" fill="#dc2626"/>
+<text x="80" y="348" fill="#e8eaf0" font-size="15" font-weight="600">Stop</text><text x="80" y="366" fill="#8a93a6" font-size="12">GP3 · pin 5</text>
+<line x1="358" y1="350" x2="380" y2="350" stroke="#c0c4cc" stroke-width="3"/>
+<line x1="302" y1="350" x2="280" y2="350" stroke="#c0c4cc" stroke-width="3"/>
+<path d="M380 350 C470 350, 470 300, 560 300" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+<circle cx="380" cy="350" r="5" fill="#4ade80"/>
+<circle cx="280" cy="350" r="5" fill="#cbd5e1"/>
+<circle cx="330" cy="440" r="28" fill="#1f2937" stroke="#4ade80" stroke-width="2"/><circle cx="330" cy="440" r="18" fill="#334155"/>
+<text x="80" y="438" fill="#e8eaf0" font-size="15" font-weight="600">Preset 1</text><text x="80" y="456" fill="#8a93a6" font-size="12">GP4 · pin 6</text>
+<line x1="358" y1="440" x2="380" y2="440" stroke="#c0c4cc" stroke-width="3"/>
+<line x1="302" y1="440" x2="280" y2="440" stroke="#c0c4cc" stroke-width="3"/>
+<path d="M380 440 C470 440, 470 330, 560 330" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+<circle cx="380" cy="440" r="5" fill="#4ade80"/>
+<circle cx="280" cy="440" r="5" fill="#cbd5e1"/>
+<circle cx="330" cy="530" r="28" fill="#1f2937" stroke="#4ade80" stroke-width="2"/><circle cx="330" cy="530" r="18" fill="#334155"/>
+<text x="80" y="528" fill="#e8eaf0" font-size="15" font-weight="600">Preset 2</text><text x="80" y="546" fill="#8a93a6" font-size="12">GP5 · pin 7</text>
+<line x1="358" y1="530" x2="380" y2="530" stroke="#c0c4cc" stroke-width="3"/>
+<line x1="302" y1="530" x2="280" y2="530" stroke="#c0c4cc" stroke-width="3"/>
+<path d="M380 530 C470 530, 470 360, 560 360" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+<circle cx="380" cy="530" r="5" fill="#4ade80"/>
+<circle cx="280" cy="530" r="5" fill="#cbd5e1"/>
+<circle cx="330" cy="620" r="28" fill="#1f2937" stroke="#4ade80" stroke-width="2"/><circle cx="330" cy="620" r="18" fill="#334155"/>
+<text x="80" y="618" fill="#e8eaf0" font-size="15" font-weight="600">Preset 3</text><text x="80" y="636" fill="#8a93a6" font-size="12">GP6 · pin 9</text>
+<line x1="358" y1="620" x2="380" y2="620" stroke="#c0c4cc" stroke-width="3"/>
+<line x1="302" y1="620" x2="280" y2="620" stroke="#c0c4cc" stroke-width="3"/>
+<path d="M380 620 C470 620, 470 420, 560 420" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+<circle cx="380" cy="620" r="5" fill="#4ade80"/>
+<circle cx="280" cy="620" r="5" fill="#cbd5e1"/>
+<circle cx="330" cy="710" r="28" fill="#1f2937" stroke="#4ade80" stroke-width="2"/><circle cx="330" cy="710" r="18" fill="#334155"/>
+<text x="80" y="708" fill="#e8eaf0" font-size="15" font-weight="600">Preset 4</text><text x="80" y="726" fill="#8a93a6" font-size="12">GP7 · pin 10</text>
+<line x1="358" y1="710" x2="380" y2="710" stroke="#c0c4cc" stroke-width="3"/>
+<line x1="302" y1="710" x2="280" y2="710" stroke="#c0c4cc" stroke-width="3"/>
+<path d="M380 710 C470 710, 470 450, 560 450" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+<circle cx="380" cy="710" r="5" fill="#4ade80"/>
+<circle cx="280" cy="710" r="5" fill="#cbd5e1"/>
+<path d="M280 260 C254 260, 254 350, 280 350" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<path d="M280 350 C254 350, 254 440, 280 440" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<path d="M280 440 C254 440, 254 530, 280 530" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<path d="M280 530 C254 530, 254 620, 280 620" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<path d="M280 620 C254 620, 254 710, 280 710" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<path d="M280 260 C240 180, 440 180, 560 240" fill="none" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+<text x="60" y="752" fill="#8a93a6" font-size="12">One leg to the GPIO pin, the other leg chained to GND.</text>
+<rect x="985" y="110" width="380" height="250" rx="14" fill="#171a21" stroke="#fb923c" stroke-opacity=".5" stroke-dasharray="6 6"/>
+<text x="1005" y="138" fill="#fb923c" font-size="15" font-weight="700">Later · battery (for wireless)</text>
+<rect x="1020" y="160" width="140" height="80" rx="8" fill="#222734" stroke="#fb923c"/><text x="1090" y="194" fill="#e8eaf0" font-size="13" font-weight="700" text-anchor="middle">LiPo charger</text><text x="1090" y="214" fill="#8a93a6" font-size="11" text-anchor="middle">IN · OUT · BAT</text>
+<rect x="1220" y="170" width="110" height="60" rx="8" fill="#222734" stroke="#fb923c"/><text x="1275" y="198" fill="#e8eaf0" font-size="13" font-weight="700" text-anchor="middle">LiPo 3.7 V</text><text x="1275" y="216" fill="#8a93a6" font-size="11" text-anchor="middle">1000–2000 mAh</text>
+<line x1="1160" y1="200" x2="1220" y2="200" stroke="#fb923c" stroke-width="4"/>
+<path d="M820 180 C900 180, 940 178, 1020 178" fill="none" stroke="#fb923c" stroke-width="4" stroke-linecap="round" stroke-dasharray="9 7"/>
+<path d="M820 210 C900 210, 940 222, 1020 222" fill="none" stroke="#fb923c" stroke-width="4" stroke-linecap="round" stroke-dasharray="9 7"/>
+<g transform="translate(930 216)"><polygon points="-10,-9 -10,9 6,0" fill="#fb923c"/><line x1="7" y1="-10" x2="7" y2="10" stroke="#fb923c" stroke-width="3"/></g>
+<text x="1005" y="272" fill="#8a93a6" font-size="12">VBUS (USB 5 V) charges the battery. Charger OUT feeds VSYS</text>
+<text x="1005" y="290" fill="#8a93a6" font-size="12">through a Schottky diode (e.g. 1N5817), so USB and the</text>
+<text x="1005" y="308" fill="#8a93a6" font-size="12">battery never fight. Add a power switch on the BAT line.</text>
+<rect x="40" y="830" width="1325" height="180" rx="14" fill="#171a21" stroke="#2a2f3a"/>
+<line x1="64" y1="862" x2="98" y2="862" stroke="#ef4444" stroke-width="5" stroke-linecap="round"/><text x="108" y="867" fill="#e8eaf0" font-size="13">3V3 (pot +)</text>
+<line x1="249" y1="862" x2="283" y2="862" stroke="#cbd5e1" stroke-width="5" stroke-linecap="round"/><text x="293" y="867" fill="#e8eaf0" font-size="13">Ground</text>
+<line x1="434" y1="862" x2="468" y2="862" stroke="#e879f9" stroke-width="5" stroke-linecap="round"/><text x="478" y="867" fill="#e8eaf0" font-size="13">Zoom → ADC2</text>
+<line x1="619" y1="862" x2="653" y2="862" stroke="#22d3ee" stroke-width="5" stroke-linecap="round"/><text x="663" y="867" fill="#e8eaf0" font-size="13">Tilt → ADC1</text>
+<line x1="804" y1="862" x2="838" y2="862" stroke="#facc15" stroke-width="5" stroke-linecap="round"/><text x="848" y="867" fill="#e8eaf0" font-size="13">Pan → ADC0</text>
+<line x1="989" y1="862" x2="1023" y2="862" stroke="#4ade80" stroke-width="5" stroke-linecap="round"/><text x="1033" y="867" fill="#e8eaf0" font-size="13">Button signal</text>
+<line x1="1174" y1="862" x2="1208" y2="862" stroke="#fb923c" stroke-width="5" stroke-linecap="round"/><text x="1218" y="867" fill="#e8eaf0" font-size="13">Power (later)</text>
+<text x="64" y="908" fill="#8a93a6" font-size="14">• Pots get 3V3 (pin 36), never 5 V or VBUS: the analog inputs read 0–3.3 V. Use AGND (pin 33) for the pots, it's the quiet ground.</text>
+<text x="64" y="934" fill="#8a93a6" font-size="14">• All three analog inputs on the Pico 2 W are used (GP26/27/28). More analog controls later need an add-on ADC chip (e.g. ADS1115).</text>
+<text x="64" y="960" fill="#8a93a6" font-size="14">• Buttons need no resistors: the firmware turns on the Pico's internal pull-ups. Pressed = reads low.</text>
+<text x="64" y="986" fill="#8a93a6" font-size="14">• Optional: a 0.1 µF capacitor from each wiper (W) to AGND steadies the readings. Dots mark joined wires; wires that only cross aren't joined.</text>
+</svg>
