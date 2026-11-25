@@ -18,6 +18,8 @@
     {"id": "chat", "name": "Live chat", "repo": "toolingdev/jadeck-addon-chat", "publisher": "jadeck",
      "description": "YouTube, Facebook Page, Twitch, Rumble and Owncast chat in one widget; reply, and show a message on screen in vMix.", "category": "Live streaming"},
     {"id": "obs", "name": "OBS Studio", "repo": "toolingdev/jadeck-addon-obs", "publisher": "jadeck",
-     "description": "Go live, switch scenes, show Proclaim's lyrics and mix audio in OBS, with a live picture of what's on air.", "category": "Live streaming"}
+     "description": "Go live, switch scenes, show Proclaim's lyrics and mix audio in OBS, with a live picture of what's on air.", "category": "Live streaming"},
+    {"id": "autoframe", "name": "Auto frame", "repo": "toolingdev/jadeck-addon-autoframe", "publisher": "jadeck",
+     "description": "Finds the people on stage in each camera and works out the shot: one speaker, a pair, or the band. Shadow mode: shows the move, doesn't make it yet.", "category": "Cameras"}
   ]
 }
